@@ -1,0 +1,127 @@
+package app.banksync
+
+import android.app.Notification
+import android.service.notification.NotificationListenerService
+import android.service.notification.StatusBarNotification
+import java.text.SimpleDateFormat
+import java.time.ZoneId
+import java.util.Locale
+import java.util.TimeZone
+
+/**
+ * Bound by the system only while notifications are flowing. Everything here is cheap and bails
+ * out on the package check first, so unrelated apps cost one map lookup.
+ */
+class BankNotificationListener : NotificationListenerService() {
+
+    override fun onListenerConnected() {
+        instance = this
+        // Also covers reboot: the system rebinds us, and any queued records get rescheduled.
+        val store = Store.get(this)
+        store.purge(Settings(this).keepDays)
+        if (store.counts()[Store.PENDING] > 0) Uploader.schedule(this)
+        // Alerts that arrived while we weren't bound may still be in the shade.
+        Thread { catchUp() }.start()
+    }
+
+    override fun onListenerDisconnected() {
+        if (instance === this) instance = null
+    }
+
+    override fun onNotificationPosted(sbn: StatusBarNotification) {
+        handle(sbn, catchUp = false)
+    }
+
+    /**
+     * Looks at the notifications still in the shade and captures any this app hasn't seen. Alerts
+     * that were dismissed are gone and can't be recovered. Returns how many new records were kept.
+     */
+    fun catchUp(): Int {
+        val settings = Settings(this)
+        if (settings.paused) return 0
+        val active = try {
+            activeNotifications
+        } catch (e: Exception) {
+            return 0 // not bound (yet)
+        } ?: return 0
+        val cutoff = CatchUp.cutoff(System.currentTimeMillis(), settings.catchUpSince, settings.catchUpHours, settings.keepDays)
+        return active.filter { it.postTime >= cutoff }.sortedBy { it.postTime }.count { handle(it, catchUp = true) }
+    }
+
+    /** Returns true when a new record was stored. */
+    private fun handle(sbn: StatusBarNotification, catchUp: Boolean): Boolean {
+        val settings = Settings(this)
+        val rules = settings.rulesFor(sbn.packageName) ?: return false
+        if (settings.paused) return false
+        val n = sbn.notification
+        if (n.flags and Notification.FLAG_GROUP_SUMMARY != 0) return false
+        if (catchUp && n.flags and Notification.FLAG_ONGOING_EVENT != 0) return false
+
+        val extras = n.extras
+        val title = extras.getCharSequence(Notification.EXTRA_TITLE)?.toString().orEmpty()
+        val body = (extras.getCharSequence(Notification.EXTRA_BIG_TEXT)
+            ?: extras.getCharSequence(Notification.EXTRA_TEXT))?.toString().orEmpty()
+        val text = "$title $body".trim()
+        if (text.isEmpty()) return false
+
+        val lower = text.lowercase()
+        if (settings.ignoreWords.split(',').map { it.trim().lowercase() }.any { it.isNotEmpty() && it in lower }) return false
+
+        val store = Store.get(this)
+        val pkg = sbn.packageName
+        val hash = "$pkg|$text".hashCode().toString()
+        // Banks re-post the same notification on update; identical text within 2 minutes is one
+        // transaction. A catch-up scan checks everything still in history, since the alert may have
+        // been captured live hours ago.
+        val seen = if (catchUp) store.hasSimilar(hash, sbn.postTime) else store.isDuplicate(hash)
+        if (seen) return false
+
+        // Alerts can arrive late; prefer the time written in the alert so the record lands when the
+        // transaction happened (and lines up with the other side of a transfer).
+        val posted = sbn.postTime
+        val date = isoUtc(Parser.recordTime(text, posted, ZoneId.systemDefault()))
+        val note = text.take(255)
+
+        // Anything we can't send with confidence is kept, with the reason, so the user can fix it in the app.
+        fun hold(account: String, reason: String): Boolean {
+            store.insert(hash, pkg, account, null, null, note, date, Store.UNPARSED, error = reason, posted = posted)
+            return true
+        }
+
+        val rule = RuleMatcher.pick(rules, text) ?: return hold("", "No bank-app rule matched this alert")
+        val parsed = Parser.parse(text, rule.direction) ?: return hold(rule.accountId, "Couldn't read the amount or direction")
+
+        // Wallet rejects a record whose currency differs from its account's, and converting would be a guess.
+        if (parsed.currency != null && rule.accountCurrency.isNotEmpty() && parsed.currency != rule.accountCurrency) {
+            return hold(rule.accountId, "Alert is in ${parsed.currency} but ${rule.accountName} is ${rule.accountCurrency}")
+        }
+
+        val isTransfer = rule.transferAccountId.isNotEmpty()
+        val categoryId = if (isTransfer) null else CategoryMatcher.pick(settings.categoryRules(), text)?.categoryId
+        val status = if (settings.reviewMode) Store.REVIEW else Store.PENDING
+        val id = store.insert(
+            hash, pkg, rule.accountId, parsed.amount, if (isTransfer) null else parsed.payee, note, date, status,
+            categoryId = categoryId, transferTo = rule.transferAccountId.ifEmpty { null }, posted = posted
+        )
+
+        if (status == Store.REVIEW) {
+            val what = String.format(Locale.US, "%+.2f", parsed.amount) +
+                (parsed.payee?.let { " $it" } ?: "") + " → " + rule.accountName
+            Notifier.review(this, id, what)
+        } else {
+            Uploader.schedule(this)
+        }
+        return true
+    }
+
+    private fun isoUtc(ms: Long): String =
+        SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'", Locale.US)
+            .apply { timeZone = TimeZone.getTimeZone("UTC") }
+            .format(ms)
+
+    companion object {
+        /** The bound service, so the app screen can ask for a scan; null while access is off. */
+        @Volatile
+        var instance: BankNotificationListener? = null
+    }
+}

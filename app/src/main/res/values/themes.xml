@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <style name="Theme.BankSync" parent="Theme.Material3.DayNight.NoActionBar">
+        <item name="colorPrimary">#0E6F66</item>
+        <item name="colorOnPrimary">#FFFFFF</item>
+        <item name="colorPrimaryContainer">#74F8E5</item>
+        <item name="colorOnPrimaryContainer">#00201C</item>
+        <item name="colorSecondaryContainer">#CCE8E2</item>
+        <item name="colorOnSecondaryContainer">#05201C</item>
+        <item name="android:statusBarColor">@android:color/transparent</item>
+        <item name="android:navigationBarColor">@android:color/transparent</item>
+        <item name="android:windowLightStatusBar">true</item>
+    </style>
+
+    <style name="Widget.BankSync.Card" parent="Widget.Material3.CardView.Filled">
+        <item name="android:layout_marginBottom">12dp</item>
+    </style>
+</resources>
