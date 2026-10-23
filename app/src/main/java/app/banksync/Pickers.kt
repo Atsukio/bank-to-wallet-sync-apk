@@ -35,14 +35,41 @@ object Pickers {
         return names.any { Regex("""\b${Regex.escape(it)}""", RegexOption.IGNORE_CASE).containsMatchIn(accountName) }
     }
 
-    /** Loads [load] off the main thread and hands the result to [onLoaded] on it. */
+    /** Loads [load] off the main thread and hands the result to [onLoaded] on it, unless the screen has closed. */
     private fun <T> background(activity: Activity, onError: (String) -> Unit, load: () -> T, onLoaded: (T) -> Unit) {
         Thread {
             val result = runCatching(load)
             activity.runOnUiThread {
+                if (activity.isFinishing || activity.isDestroyed) return@runOnUiThread
                 result.onSuccess(onLoaded).onFailure { onError("Could not load from Wallet: ${it.message}") }
             }
         }.start()
+    }
+
+    /**
+     * Shows [label] on [button] and disables it until the returned function is called, so the user
+     * sees something is happening and can't start the same slow load twice.
+     */
+    private fun busy(button: Button?, label: String): () -> Unit {
+        if (button == null) return {}
+        val text = button.text
+        button.isEnabled = false
+        button.text = label
+        return {
+            button.isEnabled = true
+            button.text = text
+        }
+    }
+
+    /** Launchable apps as (label, package), sorted by label. Loading labels is slow, so call it off the main thread. */
+    private fun launcherApps(activity: Activity): List<Pair<String, String>> {
+        val pm = activity.packageManager
+        val intent = Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LAUNCHER)
+        return pm.queryIntentActivities(intent, 0)
+            .map { it.loadLabel(pm).toString() to it.activityInfo.packageName }
+            .distinctBy { it.second }
+            .filter { it.second != activity.packageName }
+            .sortedBy { it.first.lowercase() }
     }
 
     fun withAccounts(
@@ -57,22 +84,18 @@ object Pickers {
      * One dialog with three dropdown fields: the bank app, the Wallet account, and an optional card or
      * account ending. The app comes from the phone's own list so the package name is exact; the accounts
      * come from Wallet so no IDs are typed. Alerts are read the same way for every bank: purchases,
-     * payments and money received.
+     * payments and money received. [trigger] shows a loading state while the accounts load.
      */
-    fun addRule(activity: Activity, token: String, onAdded: (Rule) -> Unit, onError: (String) -> Unit) {
+    fun addRule(activity: Activity, token: String, trigger: Button?, onAdded: (Rule) -> Unit, onError: (String) -> Unit) {
         if (token.isEmpty()) return onError("Enter your Wallet API token first, so your accounts can be listed")
-        val pm = activity.packageManager
-        val intent = Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LAUNCHER)
-        val all = pm.queryIntentActivities(intent, 0)
-            .map { it.loadLabel(pm).toString() to it.activityInfo.packageName }
-            .distinctBy { it.second }
-            .filter { it.second != activity.packageName }
-            .sortedBy { it.first.lowercase() }
-        // Only the banks this app can read are offered; "Other app…" switches the list to everything installed.
-        val supported = all.filter { (name, _) -> SUPPORTED.containsMatchIn(name) }
+        val done = busy(trigger, "Loading accounts…")
+        val fail = { msg: String -> done(); onError(msg) }
 
-        withAccounts(activity, token, onError) { accounts ->
-            if (accounts.isEmpty()) return@withAccounts onError("No Wallet accounts found")
+        background(activity, fail, { launcherApps(activity) to WalletApi.accounts(token) }) { (all, accounts) ->
+            done()
+            if (accounts.isEmpty()) return@background onError("No Wallet accounts found")
+            // Only the banks this app can read are offered; "Other app…" switches the list to everything installed.
+            val supported = all.filter { (name, _) -> SUPPORTED.containsMatchIn(name) }
             val view = LayoutInflater.from(activity).inflate(R.layout.dialog_add_rule, null)
             val appField = view.findViewById<AutoCompleteTextView>(R.id.ruleApp)
             val accountField = view.findViewById<AutoCompleteTextView>(R.id.ruleAccount)
@@ -151,7 +174,7 @@ object Pickers {
     }
 
     /** "When the alert contains X, use this Wallet category." */
-    fun addCategoryRule(activity: Activity, token: String, onAdded: () -> Unit, onError: (String) -> Unit) {
+    fun addCategoryRule(activity: Activity, token: String, trigger: Button?, onAdded: () -> Unit, onError: (String) -> Unit) {
         if (token.isEmpty()) return onError("Enter your Wallet API token first, so your categories can be listed")
         val input = EditText(activity).apply {
             hint = "e.g. grab"
@@ -170,7 +193,10 @@ object Pickers {
             .setPositiveButton("Next") { _, _ ->
                 val contains = input.text.toString().trim()
                 if (contains.isEmpty()) return@setPositiveButton onError("Enter some text first")
-                background(activity, onError, { WalletApi.categories(token) }) { categories ->
+                val done = busy(trigger, "Loading categories…")
+                val fail = { msg: String -> done(); onError(msg) }
+                background(activity, fail, { WalletApi.categories(token) }) { categories ->
+                    done()
                     if (categories.isEmpty()) return@background onError("No categories found in Wallet")
                     MaterialAlertDialogBuilder(activity)
                         .setTitle("Use which category?")

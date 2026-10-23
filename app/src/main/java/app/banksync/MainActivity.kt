@@ -152,10 +152,10 @@ class MainActivity : AppCompatActivity() {
             refresh()
         }
         findViewById<Button>(R.id.addAppButton).setOnClickListener {
-            Pickers.addRule(this, token(), onAdded = { refresh() }, onError = ::toast)
+            Pickers.addRule(this, token(), it as Button, onAdded = { refresh() }, onError = ::toast)
         }
         findViewById<Button>(R.id.addCategoryButton).setOnClickListener {
-            Pickers.addCategoryRule(this, token(), onAdded = { refresh() }, onError = ::toast)
+            Pickers.addCategoryRule(this, token(), it as Button, onAdded = { refresh() }, onError = ::toast)
         }
 
         if (!settings.onboardingDone) openGuide()

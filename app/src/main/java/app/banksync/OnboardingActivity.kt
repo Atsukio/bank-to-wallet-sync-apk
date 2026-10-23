@@ -48,7 +48,7 @@ class OnboardingActivity : AppCompatActivity() {
         findViewById<Button>(R.id.obAccessButton).setOnClickListener { Permissions.openAccessSettings(this) }
         findViewById<Button>(R.id.obBatteryButton).setOnClickListener { Permissions.requestBattery(this) }
         findViewById<Button>(R.id.obAddApp).setOnClickListener {
-            Pickers.addRule(this, token(), onAdded = { renderRules() }, onError = ::toast)
+            Pickers.addRule(this, token(), it as Button, onAdded = { renderRules() }, onError = ::toast)
         }
         onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {
             override fun handleOnBackPressed() {
@@ -112,7 +112,9 @@ class OnboardingActivity : AppCompatActivity() {
         val token = token()
         if (token.isEmpty()) return run { status.text = "Paste your token first." }
         status.text = "Checking…"
-        Pickers.withAccounts(this, token, onError = { status.text = it }) { accounts ->
+        val button = findViewById<Button>(R.id.obCheck).apply { isEnabled = false }
+        Pickers.withAccounts(this, token, onError = { button.isEnabled = true; status.text = it }) { accounts ->
+            button.isEnabled = true
             settings.token = token
             settings.tokenVerified = true
             tokenField.text = null
