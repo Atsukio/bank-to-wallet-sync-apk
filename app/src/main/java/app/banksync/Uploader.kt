@@ -119,6 +119,7 @@ object Uploader {
             when (resp.code) {
                 200 -> {
                     s.authError = false
+                    s.tokenVerified = true
                     store.markSynced(ids)
                 }
                 207, 400 -> {
@@ -233,7 +234,7 @@ class UploadJobService : JobService() {
             // Only speak up when something new needs attention, not on every retry.
             val newlyFailed = store.counts()[Store.FAILED] - failedBefore
             if (settings.authError && !authBefore) {
-                Notifier.alert(this, "Wallet rejected your token", "Transactions are waiting. Open the app and save a new token.")
+                Notifier.alert(this, "Wallet rejected your token", "Transactions are waiting. Open the app and tap Change token.")
             } else if (newlyFailed > 0) {
                 Notifier.alert(this, "$newlyFailed transaction(s) couldn't be sent", "Open the app to see why or retry.")
             }

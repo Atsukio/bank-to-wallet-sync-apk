@@ -6,6 +6,7 @@ import android.content.Intent
 import android.os.Build
 import android.os.Bundle
 import android.os.SystemClock
+import android.text.method.LinkMovementMethod
 import android.view.View
 import android.widget.Button
 import android.widget.EditText
@@ -13,6 +14,7 @@ import android.widget.LinearLayout
 import android.widget.TextView
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
+import androidx.core.text.HtmlCompat
 import com.google.android.material.appbar.MaterialToolbar
 import com.google.android.material.color.MaterialColors
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
@@ -26,6 +28,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var settings: Settings
     private lateinit var store: Store
     private var askedAccessThisLaunch = false
+    private var editingToken = false
 
     // The setup guide covers the permission prompts, so don't stack the same dialogs on top of it.
     private var guideShowing = false
@@ -136,6 +139,21 @@ class MainActivity : AppCompatActivity() {
         findViewById<Button>(R.id.grantButton).setOnClickListener { Permissions.openAccessSettings(this) }
         findViewById<Button>(R.id.batteryButton).setOnClickListener { Permissions.requestBattery(this) }
         findViewById<Button>(R.id.saveButton).setOnClickListener { save() }
+        findViewById<TextView>(R.id.tokenHelp).apply {
+            text = HtmlCompat.fromHtml(
+                "Get one in the <a href=\"$WEB_APP\">Wallet web app</a> under Settings (REST API). " +
+                    "<a href=\"$API_INFO\">More about the REST API</a>",
+                HtmlCompat.FROM_HTML_MODE_COMPACT
+            )
+            movementMethod = LinkMovementMethod.getInstance()
+        }
+        findViewById<Button>(R.id.tokenCheck).setOnClickListener { checkToken() }
+        findViewById<Button>(R.id.tokenChange).setOnClickListener {
+            editingToken = !editingToken
+            tokenInput.text = null
+            renderToken()
+            if (editingToken) tokenInput.requestFocus()
+        }
         findViewById<Button>(R.id.scanButton).setOnClickListener { scan() }
         findViewById<Button>(R.id.syncButton).setOnClickListener {
             Uploader.schedule(this, 0, replace = true)
@@ -252,10 +270,6 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun save() {
-        tokenInput.text.toString().trim().takeIf { it.isNotEmpty() }?.let {
-            settings.token = it
-            tokenInput.text = null
-        }
         settings.ignoreWords = ignoreInput.text.toString()
         settings.maxAttempts = attemptsInput.text.toString().toIntOrNull() ?: 10
         settings.batchDelayMin = delayInput.text.toString().toIntOrNull() ?: 2
@@ -270,7 +284,6 @@ class MainActivity : AppCompatActivity() {
         settings.skipExisting = skipExistingSwitch.isChecked
         settings.alertsOn = alertsSwitch.isChecked
         settings.appLock = lockSwitch.isChecked
-        settings.authError = false
         if (reviewSwitch.isChecked) askForNotificationPermission()
         if (store.counts()[Store.PENDING] > 0) Uploader.schedule(this, replace = true)
         toast("Saved")
@@ -279,6 +292,63 @@ class MainActivity : AppCompatActivity() {
 
     /** What the user just typed wins over the saved token, so accounts can be listed before saving. */
     private fun token() = tokenInput.text.toString().trim().ifEmpty { settings.token }
+
+    /**
+     * The connection card always says where things stand. With a token saved, the field stays hidden
+     * behind "Change token"; with none, it's shown straight away.
+     */
+    private fun renderToken() {
+        val hasToken = settings.token.isNotEmpty()
+        val editing = editingToken || !hasToken
+        findViewById<TextView>(R.id.tokenStatus).apply {
+            text = when {
+                !hasToken -> "Not connected. Paste your Wallet API token to start sending transactions."
+                settings.authError -> "Wallet rejected the saved token. Transactions are waiting until you change it."
+                settings.tokenVerified -> "Connected ✓ Your token is saved and working."
+                else -> "Token saved but not checked yet."
+            }
+            val color = if (hasToken && settings.authError) {
+                com.google.android.material.R.attr.colorError
+            } else {
+                com.google.android.material.R.attr.colorOnSurface
+            }
+            setTextColor(MaterialColors.getColor(this, color))
+        }
+        findViewById<View>(R.id.tokenEdit).visibility = if (editing) View.VISIBLE else View.GONE
+        findViewById<Button>(R.id.tokenCheck).text = if (editing) "Save and check" else "Check connection"
+        findViewById<Button>(R.id.tokenChange).apply {
+            visibility = if (hasToken) View.VISIBLE else View.GONE
+            text = if (editing) "Cancel" else "Change token"
+        }
+    }
+
+    /**
+     * Checks the token being typed, or the saved one. A new token is saved only once Wallet accepts
+     * it, so a typo can't break a working connection.
+     */
+    private fun checkToken() {
+        val editing = editingToken || settings.token.isEmpty()
+        val token = if (editing) tokenInput.text.toString().trim() else settings.token
+        if (token.isEmpty()) return toast("Paste your token first")
+        val button = findViewById<Button>(R.id.tokenCheck).apply { isEnabled = false }
+        val status = findViewById<TextView>(R.id.tokenStatus)
+        status.text = "Checking…"
+        Pickers.withAccounts(this, token, onError = {
+            button.isEnabled = true
+            renderToken()
+            status.text = if (editing && settings.token.isNotEmpty()) "$it. Your saved token hasn't changed." else it
+        }) { accounts ->
+            button.isEnabled = true
+            if (editing) settings.token = token
+            settings.tokenVerified = true
+            settings.authError = false
+            editingToken = false
+            tokenInput.text = null
+            if (store.counts()[Store.PENDING] > 0) Uploader.schedule(this, 0, replace = true)
+            refresh()
+            status.text = "Connected ✓ Found ${accounts.size} Wallet account(s)."
+        }
+    }
 
     private fun refresh() {
         val apps = settings.rules().map { it.pkg }.distinct().size
@@ -295,12 +365,19 @@ class MainActivity : AppCompatActivity() {
             append("Battery: ")
                 .append(if (Permissions.batteryExempt(this@MainActivity)) "unrestricted" else "optimised (may miss alerts)")
                 .append('\n')
-            append("Wallet token: ").append(if (settings.token.isEmpty()) "not set" else "saved").append('\n')
+            append("Wallet: ").append(
+                when {
+                    settings.token.isEmpty() -> "not connected"
+                    settings.authError -> "token rejected. Records are waiting; change the token below."
+                    settings.tokenVerified -> "connected"
+                    else -> "token saved, not checked"
+                }
+            ).append('\n')
             append("Watching $apps app(s)")
             if (settings.paused) append("\nCapture is paused")
             if (settings.reviewMode) append("\nAsking before sending")
-            if (settings.authError) append("\nWallet rejected the token. Records are waiting; save a new token.")
         }
+        renderToken()
         Pickers.renderRules(this, rulesList, settings) { refresh() }
         Pickers.renderCategoryRules(this, categoriesList, settings) { refresh() }
 

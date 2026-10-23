@@ -145,5 +145,5 @@ class OnboardingActivity : AppCompatActivity() {
     private fun toast(msg: String) = Snackbar.make(findViewById(R.id.nextButton), msg, Snackbar.LENGTH_SHORT).show()
 }
 
-private const val WEB_APP = "https://web.budgetbakers.com"
-private const val API_INFO = "https://budgetbakers.com/en/products/wallet/integrations/rest-api/"
+internal const val WEB_APP = "https://web.budgetbakers.com"
+internal const val API_INFO = "https://budgetbakers.com/en/products/wallet/integrations/rest-api/"
