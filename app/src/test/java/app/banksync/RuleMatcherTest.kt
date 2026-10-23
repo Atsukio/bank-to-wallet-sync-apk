@@ -1,7 +1,9 @@
 package app.banksync
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class RuleMatcherTest {
@@ -23,6 +25,28 @@ class RuleMatcherTest {
     @Test
     fun noAppWideRuleAndNoMatchMeansNoAccount() {
         assertNull(RuleMatcher.pick(listOf(card), "You spent RM 5.00 at X with your Visa ending 9999."))
+    }
+
+    @Test
+    fun endingIsNotMatchedInsideALongerNumber() {
+        val r = RuleMatcher.pick(listOf(any, card), "You spent RM 12345.00 at X with your Visa ending 9999.")
+        assertEquals("acc-savings", r!!.accountId)
+        assertNull(RuleMatcher.pick(listOf(card), "Ref 5512346 RM 5.00 spent at X"))
+    }
+
+    @Test
+    fun endingMatchesAMaskedCardNumber() {
+        val r = RuleMatcher.pick(listOf(any, card), "RM 5.00 spent at X on card XXXXXXXXXXXX1234.")
+        assertEquals("acc-card", r!!.accountId)
+    }
+
+    @Test
+    fun ignoreWordsMatchWholeWordsOnly() {
+        val words = "otp,verification code,one-time,passcode"
+        assertTrue(IgnoreWords.matches(words, "Your OTP is 123456. Do not share it."))
+        assertTrue(IgnoreWords.matches(words, "Your one-time PIN is 123456"))
+        assertFalse(IgnoreWords.matches(words, "You spent RM 80.00 at SAMPLE HOTPOT with your card"))
+        assertFalse(IgnoreWords.matches(" , ", "anything"))
     }
 
     @Test

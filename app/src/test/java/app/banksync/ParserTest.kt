@@ -184,11 +184,9 @@ class ParserTest {
     }
 
     @Test
-    fun transferRuleForcesDirection() {
-        // "Top up" has no income/expense wording, so the rule supplies the direction.
+    fun topUpWithNoDirectionWordsIsNotUnderstood() {
+        // "Top up" has no income/expense wording, so it's held for the user rather than guessed.
         assertNull(Parser.parse("Top up of RM50.00 successful"))
-        assertEquals(50.00, Parser.parse("Top up of RM50.00 successful", direction = 1)!!.amount, 0.0)
-        assertEquals(-50.00, Parser.parse("Top up of RM50.00 successful", direction = -1)!!.amount, 0.0)
     }
 
     @Test

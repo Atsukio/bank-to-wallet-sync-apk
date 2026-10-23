@@ -17,7 +17,6 @@ class Rec(
     val attempts: Int,
     val error: String?,
     val categoryId: String?,
-    val transferTo: String?,
     /** True when an earlier upload may have reached Wallet even though no answer came back. */
     val uncertain: Boolean,
 )
@@ -78,13 +77,13 @@ class Store private constructor(context: Context) : SQLiteOpenHelper(context, "q
     fun insert(
         hash: String, pkg: String, account: String, amount: Double?,
         payee: String?, note: String?, date: String, status: Int,
-        error: String? = null, categoryId: String? = null, transferTo: String? = null, posted: Long = 0L,
+        error: String? = null, categoryId: String? = null, posted: Long = 0L,
     ): Long {
         val v = ContentValues().apply {
             put("hash", hash); put("pkg", pkg); put("account", account)
             put("amount", amount); put("payee", payee); put("note", note)
             put("date", date); put("status", status); put("error", error)
-            put("categoryId", categoryId); put("transferTo", transferTo); put("posted", posted)
+            put("categoryId", categoryId); put("posted", posted)
             put("created", System.currentTimeMillis())
         }
         return writableDatabase.insert("rec", null, v)
@@ -180,7 +179,7 @@ class Store private constructor(context: Context) : SQLiteOpenHelper(context, "q
             "rec",
             arrayOf(
                 "id", "pkg", "account", "amount", "payee", "note", "date", "status", "attempts", "error",
-                "categoryId", "transferTo", "uncertain"
+                "categoryId", "uncertain"
             ),
             where, null, null, null, order, limit.toString()
         ).use {
@@ -190,7 +189,7 @@ class Store private constructor(context: Context) : SQLiteOpenHelper(context, "q
                     if (it.isNull(3)) null else it.getDouble(3),
                     it.getString(4), it.getString(5), it.getString(6),
                     it.getInt(7), it.getInt(8), it.getString(9),
-                    it.getString(10), it.getString(11), it.getInt(12) == 1
+                    it.getString(10), it.getInt(11) == 1
                 )
             }
         }

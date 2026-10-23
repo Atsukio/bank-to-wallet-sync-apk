@@ -48,8 +48,13 @@ class BankNotificationListener : NotificationListenerService() {
         return active.filter { it.postTime >= cutoff }.sortedBy { it.postTime }.count { handle(it, catchUp = true) }
     }
 
-    /** Returns true when a new record was stored. */
-    private fun handle(sbn: StatusBarNotification, catchUp: Boolean): Boolean {
+    /**
+     * Returns true when a new record was stored. One alert at a time: a catch-up scan runs on its own
+     * thread, and the "seen it?" check and the insert must not interleave with a live alert.
+     */
+    private fun handle(sbn: StatusBarNotification, catchUp: Boolean): Boolean = synchronized(lock) { handleLocked(sbn, catchUp) }
+
+    private fun handleLocked(sbn: StatusBarNotification, catchUp: Boolean): Boolean {
         val settings = Settings(this)
         val rules = settings.rulesFor(sbn.packageName) ?: return false
         if (settings.paused) return false
@@ -63,9 +68,7 @@ class BankNotificationListener : NotificationListenerService() {
             ?: extras.getCharSequence(Notification.EXTRA_TEXT))?.toString().orEmpty()
         val text = "$title $body".trim()
         if (text.isEmpty()) return false
-
-        val lower = text.lowercase()
-        if (settings.ignoreWords.split(',').map { it.trim().lowercase() }.any { it.isNotEmpty() && it in lower }) return false
+        if (IgnoreWords.matches(settings.ignoreWords, text)) return false
 
         val store = Store.get(this)
         val pkg = sbn.packageName
@@ -77,7 +80,7 @@ class BankNotificationListener : NotificationListenerService() {
         if (seen) return false
 
         // Alerts can arrive late; prefer the time written in the alert so the record lands when the
-        // transaction happened (and lines up with the other side of a transfer).
+        // transaction happened.
         val posted = sbn.postTime
         val date = isoUtc(Parser.recordTime(text, posted, ZoneId.systemDefault()))
         val note = text.take(255)
@@ -89,19 +92,18 @@ class BankNotificationListener : NotificationListenerService() {
         }
 
         val rule = RuleMatcher.pick(rules, text) ?: return hold("", "No bank-app rule matched this alert")
-        val parsed = Parser.parse(text, rule.direction) ?: return hold(rule.accountId, "Couldn't read the amount or direction")
+        val parsed = Parser.parse(text) ?: return hold(rule.accountId, "Couldn't read the amount or direction")
 
         // Wallet rejects a record whose currency differs from its account's, and converting would be a guess.
         if (parsed.currency != null && rule.accountCurrency.isNotEmpty() && parsed.currency != rule.accountCurrency) {
             return hold(rule.accountId, "Alert is in ${parsed.currency} but ${rule.accountName} is ${rule.accountCurrency}")
         }
 
-        val isTransfer = rule.transferAccountId.isNotEmpty()
-        val categoryId = if (isTransfer) null else CategoryMatcher.pick(settings.categoryRules(), text)?.categoryId
+        val categoryId = CategoryMatcher.pick(settings.categoryRules(), text)?.categoryId
         val status = if (settings.reviewMode) Store.REVIEW else Store.PENDING
         val id = store.insert(
-            hash, pkg, rule.accountId, parsed.amount, if (isTransfer) null else parsed.payee, note, date, status,
-            categoryId = categoryId, transferTo = rule.transferAccountId.ifEmpty { null }, posted = posted
+            hash, pkg, rule.accountId, parsed.amount, parsed.payee, note, date, status,
+            categoryId = categoryId, posted = posted
         )
 
         if (status == Store.REVIEW) {
@@ -123,5 +125,7 @@ class BankNotificationListener : NotificationListenerService() {
         /** The bound service, so the app screen can ask for a scan; null while access is off. */
         @Volatile
         var instance: BankNotificationListener? = null
+
+        private val lock = Any()
     }
 }

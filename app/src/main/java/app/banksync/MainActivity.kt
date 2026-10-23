@@ -173,6 +173,8 @@ class MainActivity : AppCompatActivity() {
 
     override fun onResume() {
         super.onResume()
+        // Binding takes a moment, so look again shortly after asking for a rebind.
+        if (Permissions.reconnectIfStopped(this)) window.decorView.postDelayed({ if (!isFinishing) refresh() }, 2_000)
         refresh()
         when {
             guideShowing || lockPending -> {}
@@ -282,7 +284,13 @@ class MainActivity : AppCompatActivity() {
         val apps = settings.rules().map { it.pkg }.distinct().size
         findViewById<TextView>(R.id.statusText).text = buildString {
             append("Notification access: ")
-                .append(if (Permissions.accessEnabled(this@MainActivity)) "on" else "OFF, tap the button below")
+                .append(
+                    when {
+                        !Permissions.accessEnabled(this@MainActivity) -> "OFF, tap the button below"
+                        BankNotificationListener.instance == null -> "on, but not connected. Reconnecting…"
+                        else -> "on"
+                    }
+                )
                 .append('\n')
             append("Battery: ")
                 .append(if (Permissions.batteryExempt(this@MainActivity)) "unrestricted" else "optimised (may miss alerts)")
@@ -318,7 +326,7 @@ class MainActivity : AppCompatActivity() {
         for (r in recs) {
             val whenText = iso.parse(r.date)?.let { fmt.format(it) } ?: r.date
             val what = if (r.amount != null) {
-                String.format(Locale.US, "%+.2f  %s", r.amount, if (r.transferTo.isNullOrEmpty()) r.payee.orEmpty() else "transfer")
+                String.format(Locale.US, "%+.2f  %s", r.amount, r.payee.orEmpty())
             } else {
                 r.note.orEmpty().take(60)
             }

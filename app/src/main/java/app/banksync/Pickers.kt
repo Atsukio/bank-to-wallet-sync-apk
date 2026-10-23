@@ -11,27 +11,29 @@ import android.widget.Button
 import android.widget.EditText
 import android.widget.FrameLayout
 import android.widget.TextView
-import android.widget.Toast
 import androidx.appcompat.app.AlertDialog
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 
 /** The add-a-bank-app and add-a-category flows plus the rule lists, shared by the main screen and setup guide. */
 object Pickers {
     /** Banks with a parser: CIMB OCTO, Ryt Bank, Touch 'n Go eWallet, Maybank2u / MAE. */
-    /** True when a Wallet account's name mentions the bank behind [appLabel] (CIMB OCTO, Ryt, TNG, Maybank/MAE). */
+    private val SUPPORTED = Regex("""cimb|octo|\bryt\b|touch|\btng\b|maybank|\bmae\b|\bm2u""", RegexOption.IGNORE_CASE)
+
+    /**
+     * True when a Wallet account's name mentions the bank behind [appLabel]. Apps that aren't one of
+     * the supported banks get no suggestions.
+     */
     private fun matchesBank(appLabel: String, accountName: String): Boolean {
         val label = appLabel.lowercase()
         val names = when {
             "cimb" in label || "octo" in label -> listOf("cimb", "octo")
             Regex("""\bryt\b""").containsMatchIn(label) -> listOf("ryt")
             "touch" in label || Regex("""\btng\b""").containsMatchIn(label) -> listOf("tng", "touch")
-            else -> listOf("maybank", "mae", "m2u")
+            Regex("""maybank|\bmae\b|\bm2u""").containsMatchIn(label) -> listOf("maybank", "mae", "m2u")
+            else -> return false
         }
         return names.any { Regex("""\b${Regex.escape(it)}""", RegexOption.IGNORE_CASE).containsMatchIn(accountName) }
     }
-
-    private val SUPPORTED =Regex("""cimb|octo|\bryt\b|touch|\btng\b|maybank|\bmae\b|\bm2u""", RegexOption.IGNORE_CASE)
-
 
     /** Loads [load] off the main thread and hands the result to [onLoaded] on it. */
     private fun <T> background(activity: Activity, onError: (String) -> Unit, load: () -> T, onLoaded: (T) -> Unit) {
@@ -138,7 +140,7 @@ object Pickers {
                 dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener {
                     val (label, pkg) = app ?: return@setOnClickListener
                     val acc = account ?: return@setOnClickListener
-                    val rule = Rule(pkg, label, matchField.text.toString().trim(), acc.id, acc.name, acc.currency, 0, "", "")
+                    val rule = Rule(pkg, label, matchField.text.toString().trim(), acc.id, acc.name, acc.currency)
                     Settings(activity).addRule(rule)
                     onAdded(rule)
                     dialog.dismiss()
@@ -193,12 +195,7 @@ object Pickers {
             return
         }
         for (rule in rules) {
-            val sub = when {
-                rule.transferAccountId.isNotEmpty() ->
-                    "Transfer ${if (rule.direction > 0) "from" else "to"} ${rule.transferAccountName} · alerts containing \"${rule.match}\""
-                rule.match.isEmpty() -> "All alerts from this app"
-                else -> "Only alerts containing \"${rule.match}\""
-            }
+            val sub = if (rule.match.isEmpty()) "All alerts from this app" else "Only alerts containing \"${rule.match}\""
             addRow(activity, container, "${rule.label} → ${rule.accountName}", sub) {
                 settings.removeRule(rule)
                 renderRules(activity, container, settings, onChanged)

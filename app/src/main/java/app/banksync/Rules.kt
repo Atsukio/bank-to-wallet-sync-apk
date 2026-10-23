@@ -4,10 +4,6 @@ package app.banksync
  * Sends alerts from [pkg] to one Wallet account. A blank [match] means every alert from the app;
  * otherwise only alerts containing that text (e.g. a card's last four digits) use this rule, so one
  * app can feed several Wallet accounts.
- *
- * A transfer rule ([transferAccountId] set) records a transfer between two of the user's own
- * accounts instead of an income or expense: [direction] +1 means money arrives in [accountId] from
- * the other account, -1 means it leaves [accountId] to the other account.
  */
 data class Rule(
     val pkg: String,
@@ -16,18 +12,33 @@ data class Rule(
     val accountId: String,
     val accountName: String,
     val accountCurrency: String = "",
-    val direction: Int = 0,
-    val transferAccountId: String = "",
-    val transferAccountName: String = "",
 )
 
 object RuleMatcher {
     /** A specific match wins over the app-wide rule; null when nothing applies. */
-    fun pick(rules: List<Rule>, text: String): Rule? {
-        val lower = text.lowercase()
-        return rules.firstOrNull { it.match.isNotEmpty() && it.match.lowercase() in lower }
+    fun pick(rules: List<Rule>, text: String): Rule? =
+        rules.firstOrNull { it.match.isNotEmpty() && contains(text, it.match) }
             ?: rules.firstOrNull { it.match.isEmpty() }
+
+    /**
+     * Case-insensitive, and the match can't be part of a longer number or word: ending "1234" must not
+     * pick up "RM 12345.00", and "mae" must not pick up "maeve". A digits-only match only refuses
+     * neighbouring digits, so masked numbers such as "XXXX1234" still match "1234".
+     */
+    fun contains(text: String, match: String): Boolean {
+        val m = match.trim()
+        if (m.isEmpty()) return false
+        val edge = if (m.all { it.isDigit() }) """\p{N}""" else """\p{L}\p{N}"""
+        val start = if (m.first().isLetterOrDigit()) "(?<![$edge])" else ""
+        val end = if (m.last().isLetterOrDigit()) "(?![$edge])" else ""
+        return Regex(start + Regex.escape(m) + end, RegexOption.IGNORE_CASE).containsMatchIn(text)
     }
+}
+
+object IgnoreWords {
+    /** True when [text] contains one of the comma-separated [words] as a whole word ("otp" but not "hotpot"). */
+    fun matches(words: String, text: String): Boolean =
+        words.split(',').any { RuleMatcher.contains(text, it) }
 }
 
 object CatchUp {
@@ -46,6 +57,7 @@ data class CategoryRule(val contains: String, val categoryId: String, val catego
 object CategoryMatcher {
     fun pick(rules: List<CategoryRule>, text: String): CategoryRule? {
         val lower = text.lowercase()
-        return rules.firstOrNull { it.contains.isNotBlank() && it.contains.lowercase() in lower }
+        // Plain "contains" on purpose: merchant names run together ("GRAB*RIDE", "GRABFOOD").
+        return rules.firstOrNull { it.contains.isNotBlank() && it.contains.trim().lowercase() in lower }
     }
 }

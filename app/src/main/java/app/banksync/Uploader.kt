@@ -55,12 +55,8 @@ object Uploader {
 
         while (true) {
             if (cancelled()) return Result.Retry
-            val all = store.pending(BATCH)
-            if (all.isEmpty()) return Result.Done
-            // Transfers go first, alone: the mirror leg they create is what the "already in Wallet"
-            // check below looks for when the receiving bank's alert follows, even in the same run.
-            val transfers = all.filter { !it.transferTo.isNullOrEmpty() }
-            val batch = if (transfers.isNotEmpty() && transfers.size < all.size) transfers else all
+            val batch = store.pending(BATCH)
+            if (batch.isEmpty()) return Result.Done
 
             // An earlier attempt may have reached Wallet without an answer coming back. Wallet has no
             // duplicate protection, so look for the record first and only re-send if it isn't there.
@@ -83,12 +79,10 @@ object Uploader {
                 continue
             }
 
-            // Money received that Wallet already holds is usually the other leg of a transfer recorded
-            // from the sending side. Sending it again would count the money twice.
+            // Money received that Wallet already holds is usually the other leg of a transfer the user
+            // recorded themselves. Sending it again would count the money twice.
             if (s.skipExisting) {
-                val incoming = batch.filter {
-                    (it.amount ?: 0.0) > 0 && it.transferTo.isNullOrEmpty() && it.id !in checked
-                }
+                val incoming = batch.filter { (it.amount ?: 0.0) > 0 && it.id !in checked }
                 var skipped = false
                 for (rec in incoming) {
                     val exists = try {
@@ -211,10 +205,6 @@ object Uploader {
                 .put("recordState", if (s.markUncleared) "uncleared" else "cleared")
             r.payee?.let { o.put("counterParty", it) }
             r.categoryId?.takeIf { it.isNotEmpty() }?.let { o.put("categoryId", it) }
-            // One request creates both legs: this record plus its mirror on the other account.
-            r.transferTo?.takeIf { it.isNotEmpty() }?.let {
-                o.put("transfer", JSONObject().put("pairingMode", "new").put("accountId", it))
-            }
             if (s.includeNote && !r.note.isNullOrEmpty()) o.put("note", r.note.take(255))
             arr.put(o)
         }

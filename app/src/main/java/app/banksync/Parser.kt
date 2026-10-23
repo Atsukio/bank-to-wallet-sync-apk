@@ -116,23 +116,18 @@ object Parser {
     fun amountOf(text: String): Double? =
         amountRe.find(text)?.groupValues?.get(2)?.replace(",", "")?.toDoubleOrNull()?.takeIf { it != 0.0 }
 
-    /** [direction] +1 / -1 forces income / expense (used by transfer rules); 0 reads it from the wording. */
-    fun parse(text: String, direction: Int = 0): Parsed? {
+    fun parse(text: String): Parsed? {
         val m = amountRe.find(text) ?: return null
         val amount = m.groupValues[2].replace(",", "").toDoubleOrNull() ?: return null
         if (amount == 0.0) return null
-        val income = if (direction != 0) {
-            direction > 0
-        } else {
-            val lower = text.lowercase()
-            val credit = creditRe.find(lower)?.range?.first
-            val debit = listOfNotNull(debitRe.find(lower)?.range?.first, outgoingRe.find(lower)?.range?.first).minOrNull()
-            when {
-                credit == null && debit == null -> return null
-                credit == null -> false
-                debit == null -> true
-                else -> credit < debit
-            }
+        val lower = text.lowercase()
+        val credit = creditRe.find(lower)?.range?.first
+        val debit = listOfNotNull(debitRe.find(lower)?.range?.first, outgoingRe.find(lower)?.range?.first).minOrNull()
+        val income = when {
+            credit == null && debit == null -> return null
+            credit == null -> false
+            debit == null -> true
+            else -> credit < debit
         }
         // "to you" / "from you" names the user, not the other party, and a candidate that swallowed an
         // amount ("to Mobile/ID RM 10") isn't a name either.

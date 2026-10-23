@@ -208,8 +208,7 @@ class Settings(context: Context) {
             arr.put(
                 JSONObject().put("pkg", it.pkg).put("label", it.label).put("match", it.match)
                     .put("accountId", it.accountId).put("accountName", it.accountName)
-                    .put("accountCurrency", it.accountCurrency).put("direction", it.direction)
-                    .put("transferAccountId", it.transferAccountId).put("transferAccountName", it.transferAccountName)
+                    .put("accountCurrency", it.accountCurrency)
             )
         }
     }
@@ -219,7 +218,6 @@ class Settings(context: Context) {
         Rule(
             o.getString("pkg"), o.optString("label"), o.optString("match"),
             o.getString("accountId"), o.optString("accountName"), o.optString("accountCurrency"),
-            o.optInt("direction"), o.optString("transferAccountId"), o.optString("transferAccountName")
         )
     }
 
