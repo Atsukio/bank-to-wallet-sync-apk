@@ -140,9 +140,17 @@ object Pickers {
                 appField.setAdapter(ArrayAdapter(activity, android.R.layout.simple_list_item_1, names))
             }
             setAppChoices()
+            // A different app means a different bank, so the account and ending chosen for the old one go.
+            fun clearAccount() {
+                account = null
+                accountField.setText("", false)
+                matchField.setText("")
+                filled = ""
+            }
             appField.setOnItemClickListener { _, _, i, _ ->
                 val list = if (showingAll) all else supported
                 if (i < list.size) {
+                    if (app != list[i]) clearAccount()
                     app = list[i]
                     appField.setText(list[i].first, false)
                     // Accounts named like the bank go to the top of the list; a single match is picked for them.
@@ -152,6 +160,8 @@ object Pickers {
                 } else {
                     showingAll = true
                     app = null
+                    clearAccount()
+                    setAccountChoices(accounts)
                     appField.setText("", false)
                     setAppChoices()
                     appField.post { appField.showDropDown() }
