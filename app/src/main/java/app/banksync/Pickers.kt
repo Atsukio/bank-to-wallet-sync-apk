@@ -91,9 +91,15 @@ object Pickers {
         val done = busy(trigger, "Loading accounts…")
         val fail = { msg: String -> done(); onError(msg) }
 
-        background(activity, fail, { launcherApps(activity) to WalletApi.accounts(token) }) { (all, accounts) ->
+        background(activity, fail, { launcherApps(activity) to WalletApi.accounts(token) }) { (all, allAccounts) ->
             done()
-            if (accounts.isEmpty()) return@background onError("No Wallet accounts found")
+            if (allAccounts.isEmpty()) return@background onError("No Wallet accounts found")
+            // Accounts already linked to a bank app aren't offered again; removing the link frees them.
+            val linked = Settings(activity).rules().map { it.accountId }.toSet()
+            val accounts = allAccounts.filter { it.id !in linked }
+            if (accounts.isEmpty()) {
+                return@background onError("Every Wallet account is already linked. Remove one under Bank apps to link it again.")
+            }
             // Only the banks this app can read are offered; "Other app…" switches the list to everything installed.
             val supported = all.filter { (name, _) -> SUPPORTED.containsMatchIn(name) }
             val view = LayoutInflater.from(activity).inflate(R.layout.dialog_add_rule, null)
