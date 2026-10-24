@@ -1,8 +1,6 @@
 package app.banksync
 
-import android.Manifest
 import android.app.KeyguardManager
-import android.os.Build
 import android.os.Bundle
 import android.text.method.LinkMovementMethod
 import android.view.View
@@ -11,7 +9,6 @@ import android.widget.EditText
 import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.TextView
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.core.text.HtmlCompat
 import com.google.android.material.appbar.MaterialToolbar
 import com.google.android.material.materialswitch.MaterialSwitch
@@ -22,8 +19,6 @@ class SettingsActivity : LockedActivity() {
     private lateinit var settings: Settings
     private lateinit var store: Store
     private var editingToken = false
-
-    private val askNotifications = registerForActivityResult(ActivityResultContracts.RequestPermission()) {}
 
     private val tokenInput get() = findViewById<EditText>(R.id.tokenInput)
     private val attemptsInput get() = findViewById<EditText>(R.id.attemptsInput)
@@ -133,12 +128,6 @@ class SettingsActivity : LockedActivity() {
             findViewById<ImageView>(R.id.linkIcon).setImageResource(icon)
             findViewById<TextView>(R.id.linkTitle).text = title
             setOnClickListener { onClick() }
-        }
-    }
-
-    private fun askForNotificationPermission() {
-        if (Build.VERSION.SDK_INT >= 33 && !Notifier.canPost(this)) {
-            askNotifications.launch(Manifest.permission.POST_NOTIFICATIONS)
         }
     }
 

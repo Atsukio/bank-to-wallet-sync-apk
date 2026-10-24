@@ -167,6 +167,15 @@ class Store private constructor(context: Context) : SQLiteOpenHelper(context, "q
         )
     }
 
+    /**
+     * Queues a record the user approved. Only one still waiting for approval moves, so a stale Send
+     * button can't re-queue something already sent or discarded. Returns whether it moved.
+     */
+    fun approve(id: Long): Boolean {
+        val v = ContentValues().apply { put("status", PENDING); put("attempts", 0); putNull("error") }
+        return writableDatabase.update("rec", v, "id=? AND status=$REVIEW", arrayOf(id.toString())) > 0
+    }
+
     fun setStatus(id: Long, status: Int) {
         val v = ContentValues().apply { put("status", status); put("attempts", 0); putNull("error") }
         writableDatabase.update("rec", v, "id=?", arrayOf(id.toString()))

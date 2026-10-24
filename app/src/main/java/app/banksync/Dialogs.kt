@@ -150,10 +150,7 @@ object Dialogs {
         if (rec.status == Store.REVIEW) {
             builder.setTitle("Send to Wallet?")
                 .setPositiveButton("Send") { _, _ ->
-                    if (save()) {
-                        store.setStatus(rec.id, Store.PENDING)
-                        Uploader.schedule(activity, 0, replace = true)
-                    }
+                    if (save() && store.approve(rec.id)) Uploader.schedule(activity, 0, replace = true)
                     Notifier.cancelReview(activity, rec.id)
                     onDone()
                 }

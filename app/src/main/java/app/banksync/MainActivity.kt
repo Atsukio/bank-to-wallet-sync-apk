@@ -1,6 +1,5 @@
 package app.banksync
 
-import android.Manifest
 import android.content.Intent
 import android.os.Build
 import android.os.Bundle
@@ -35,8 +34,6 @@ class MainActivity : LockedActivity() {
         guideShowing = false
         justLeftGuide = true
     }
-
-    private val askNotifications = registerForActivityResult(ActivityResultContracts.RequestPermission()) {}
 
     private val exportSettings = registerForActivityResult(ActivityResultContracts.CreateDocument("application/json")) { uri ->
         if (uri == null) return@registerForActivityResult
@@ -129,12 +126,6 @@ class MainActivity : LockedActivity() {
 
     private fun addApp(trigger: Button?) =
         Pickers.addRule(this, settings.token, trigger, onAdded = { refresh() }, onError = ::toast)
-
-    private fun askForNotificationPermission() {
-        if (Build.VERSION.SDK_INT >= 33 && !Notifier.canPost(this)) {
-            askNotifications.launch(Manifest.permission.POST_NOTIFICATIONS)
-        }
-    }
 
     /**
      * Returning users get a nudge on launch. Access is asked on every launch until granted (nothing
@@ -262,6 +253,12 @@ class MainActivity : LockedActivity() {
         if (Permissions.accessEnabled(this) && !Permissions.batteryExempt(this)) {
             add(R.drawable.ic_battery, "Battery saver may stop alerts", "Some phones stop the app to save battery.", "Fix") {
                 Permissions.requestBattery(this)
+            }
+        }
+        if ((settings.reviewMode || settings.alertsOn) && !Notifier.canPost(this)) {
+            val what = if (settings.reviewMode) "Approval requests" else "Alerts"
+            add(R.drawable.ic_notifications, "Notifications are off", "$what can't be shown.", "Turn on") {
+                openNotificationSettings()
             }
         }
         if (settings.token.isNotEmpty() && !settings.tokenVerified && !settings.authError) {

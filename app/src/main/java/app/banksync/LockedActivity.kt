@@ -1,6 +1,9 @@
 package app.banksync
 
+import android.Manifest
 import android.app.KeyguardManager
+import android.content.Intent
+import android.os.Build
 import android.os.Bundle
 import android.os.SystemClock
 import android.view.View
@@ -10,6 +13,7 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.updatePadding
+import com.google.android.material.dialog.MaterialAlertDialogBuilder
 
 /**
  * With app lock on, the content stays hidden until the phone's own screen lock is passed. Every screen
@@ -28,6 +32,35 @@ abstract class LockedActivity : AppCompatActivity() {
         } else {
             finish()
         }
+    }
+
+    private val askNotifications = registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+        // Refused with "don't ask again" (or twice): Android won't prompt any more, so say where to turn it on.
+        if (!granted && Build.VERSION.SDK_INT >= 33 && !shouldShowRequestPermissionRationale(Manifest.permission.POST_NOTIFICATIONS)) {
+            MaterialAlertDialogBuilder(this)
+                .setTitle("Notifications are off")
+                .setMessage(
+                    "Android won't ask again, so alerts and \"ask before sending\" requests can't be shown. " +
+                        "You can turn notifications on for Bank to Wallet in its settings."
+                )
+                .setPositiveButton("Open settings") { _, _ -> openNotificationSettings() }
+                .setNegativeButton("Not now", null)
+                .show()
+        }
+    }
+
+    /** Asks for the notification permission (Android 13+) unless it's already granted. */
+    protected fun askForNotificationPermission() {
+        if (Build.VERSION.SDK_INT >= 33 && !Notifier.canPost(this)) {
+            askNotifications.launch(Manifest.permission.POST_NOTIFICATIONS)
+        }
+    }
+
+    protected fun openNotificationSettings() {
+        startActivity(
+            Intent(android.provider.Settings.ACTION_APP_NOTIFICATION_SETTINGS)
+                .putExtra(android.provider.Settings.EXTRA_APP_PACKAGE, packageName)
+        )
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {

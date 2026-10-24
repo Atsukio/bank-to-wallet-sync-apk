@@ -11,11 +11,9 @@ class ReviewReceiver : BroadcastReceiver() {
         if (id < 0) return
         val store = Store.get(context)
         when (intent.action) {
-            SEND -> {
-                store.setStatus(id, Store.PENDING)
-                Uploader.schedule(context, 0, replace = true)
-            }
-            DISCARD -> store.delete(id)
+            SEND -> if (store.approve(id)) Uploader.schedule(context, 0, replace = true)
+            // Only a record still waiting for approval can be discarded from its notification.
+            DISCARD -> if (store.get(id)?.status == Store.REVIEW) store.delete(id)
         }
         Notifier.cancelReview(context, id)
     }
