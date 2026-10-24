@@ -409,7 +409,7 @@
 
                     <TextView
                         style="@style/Widget.BankSync.SettingHint"
-                        android:text="Payee and reference from the alert, plus the original amount when it was in another currency." />
+                        android:text="Who you paid and the reference from the alert, plus the original amount when it was in another currency." />
 
                     <com.google.android.material.materialswitch.MaterialSwitch
                         android:id="@+id/unclearedSwitch"
@@ -494,6 +494,28 @@
 
                     <include
                         android:id="@+id/batteryRow"
+                        layout="@layout/item_link" />
+                </LinearLayout>
+            </com.google.android.material.card.MaterialCardView>
+
+            <!-- About -->
+            <TextView
+                style="@style/Widget.BankSync.SectionTitle"
+                android:text="About" />
+
+            <com.google.android.material.card.MaterialCardView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content">
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical"
+                    android:paddingTop="8dp"
+                    android:paddingBottom="8dp">
+
+                    <include
+                        android:id="@+id/changelogRow"
                         layout="@layout/item_link" />
                 </LinearLayout>
             </com.google.android.material.card.MaterialCardView>

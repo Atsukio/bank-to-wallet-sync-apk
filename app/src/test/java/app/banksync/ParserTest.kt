@@ -3,8 +3,10 @@ package app.banksync
 import java.time.Instant
 import java.time.ZoneOffset
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class ParserTest {
@@ -213,6 +215,23 @@ class ParserTest {
     }
 
     @Test
+    fun onlySendersAreWalletPayees() {
+        val card = "MAE Maybank2u: Card Transaction You've just spent RM 20.00 at SAMPLE CAFE SB TOWN MY with your Maybank Visa P..."
+        assertEquals("SAMPLE CAFE SB TOWN MY", Parser.parse(card)!!.payee)
+        assertTrue(Parser.paidTo(card, "SAMPLE CAFE SB TOWN MY"))
+        assertTrue(Parser.paidTo("You've sent RM10.00 to Sample Person", "Sample Person"))
+        val sent = Parser.walletText("Transfer of RM 10.00 to Sample Person. REF: ABC123", "Sample Person", "MYR", true)
+        assertNull(sent.payee)
+        assertEquals("Sample Person · Ref ABC123", sent.note)
+        // Someone who sent the money stays the payee, as does a payee typed by hand.
+        assertFalse(Parser.paidTo("You've received RM42.00 from Sample Person", "Sample Person"))
+        assertFalse(Parser.paidTo("Sample Person has transferred RM 10.00 to you.", "Sample Person"))
+        assertFalse(Parser.paidTo(card, "Sample Cafe Lunch"))
+        // With notes off, the name has nowhere else to go.
+        assertEquals("Sample Person", Parser.walletText("sent RM10.00 to Sample Person", "Sample Person", "MYR", false).payee)
+    }
+
+    @Test
     fun noteAddsTheForeignAmount() {
         val text = "Maybank2u: Card Transaction You've just spent USD 25.00 at Sample Store with your card ending 1234."
         assertEquals("Sample Store · USD 25.00", Parser.note(text, "Sample Store", "MYR"))
@@ -228,8 +247,17 @@ class ParserTest {
     }
 
     @Test
-    fun noteFallsBackToTheAmountSentence() {
-        // "refund" isn't a reference, and with no details the sentence holding the amount is used.
-        assertEquals("Your refund of RM5.00 is done", Parser.note("Sample Bank Hello. Your refund of RM5.00 is done.", null, "MYR"))
+    fun noNoteWithoutDetails() {
+        // "refund" isn't a reference, and with nothing else to say there's no note at all.
+        assertNull(Parser.note("Sample Bank Hello. Your refund of RM5.00 is done.", null, "MYR"))
+        assertNull(Parser.walletText("CIMB OCTO MY You've received RM10.00 in your account ending 1234.", null, "MYR", true).note)
+    }
+
+    @Test
+    fun senderIsOnlyThePayee() {
+        val w = Parser.walletText("Maybank2u: You've received RM42.00 from Sample Person. REF: ABC123", "Sample Person", "MYR", true)
+        assertEquals("Sample Person", w.payee)
+        assertEquals("Ref ABC123", w.note)
+        assertNull(Parser.walletText("You've received RM42.00 from Sample Person on 1 Jan", "Sample Person", "MYR", true).note)
     }
 }

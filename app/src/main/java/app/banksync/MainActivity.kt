@@ -104,7 +104,11 @@ class MainActivity : LockedActivity() {
             findViewById<NestedScrollView>(R.id.scroll).smoothScrollTo(0, (recentList.parent as View).top)
         }
 
-        if (!settings.onboardingDone) openGuide()
+        if (!settings.onboardingDone) {
+            // A new install starts on the setup guide, not on a list of changes.
+            settings.seenVersion = Changelog.installed(this).first
+            openGuide()
+        }
     }
 
     override fun onResume() {
@@ -134,6 +138,7 @@ class MainActivity : LockedActivity() {
      * works without it); the battery exemption and the alerts permission are each asked once.
      */
     private fun onboard() {
+        if (showWhatsNew()) return
         if (!Permissions.accessEnabled(this)) {
             if (askedAccessThisLaunch) return
             askedAccessThisLaunch = true
@@ -172,6 +177,21 @@ class MainActivity : LockedActivity() {
                 .setNegativeButton("Not now", null)
                 .show()
         }
+    }
+
+    /**
+     * Once after each update, the changes since the version last opened. Installs from before this
+     * existed have no record, so they're treated as having seen 1.0.
+     */
+    private fun showWhatsNew(): Boolean {
+        val installed = Changelog.installed(this).first
+        val seen = settings.seenVersion.takeIf { it > 0 } ?: 1
+        if (installed <= settings.seenVersion) return false
+        settings.seenVersion = installed
+        val news = Changelog.since(seen, installed)
+        if (news.isEmpty()) return false
+        Dialogs.showChangelog(this, "What's new", news)
+        return true
     }
 
     private fun refresh() {

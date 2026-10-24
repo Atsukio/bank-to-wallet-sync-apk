@@ -17,9 +17,10 @@ Single module `app/`. Kotlin, **Android Views with Material Components 1.12 (Mat
 | File | Role |
 | --- | --- |
 | `BankNotificationListener.kt` | `NotificationListenerService`. Package check first (only apps with a rule), ignore words, parse, pick account and category, insert into `Store`, schedule upload. `catchUp()` scans notifications still in the shade. `handle` is `synchronized` so a scan and a live alert can't both insert. |
-| `Parser.kt` | Regex-only `Parser.parse(text)` → `Parsed(amount signed, payee, currency)` or null when unsure (then the row is UNPARSED, fixed by hand). `recordTime` uses the alert's own time when plausible. `note` builds the Wallet note at upload (payee, ref, foreign amount; no card/account number, the Wallet account already says that); the stored `note` column keeps the full alert for the Fix dialog and category picking. |
+| `Parser.kt` | Regex-only `Parser.parse(text)` → `Parsed(amount signed, payee, currency)` or null when unsure (then the row is UNPARSED, fixed by hand). `recordTime` uses the alert's own time when plausible. `walletText` decides what Wallet gets at upload: only a sender ("from X") is a Wallet payee; shops ("at X") and people paid ("to X") go in the note (`paidTo`). `note` builds the Wallet note (who was paid, ref, foreign amount; no card/account number; nothing to say means no note); the stored `note` column keeps the full alert for the Fix dialog and category picking. |
 | `Rules.kt` | `Rule` (bank app → Wallet account, optional `match` text such as last 4 digits), `RuleMatcher`, `IgnoreWords`, `CatchUp.cutoff`, `CategoryRule`/`CategoryMatcher`. Pure, unit-tested. |
 | `Categorizer.kt` | Pure category picking ported from the extension: `Merchant` keys, `Categorizer.pick`, Wallet rule matching, history guess. Unit-tested. |
+| `Changelog.kt` | User-facing release notes, newest first, shipped in the app. "What's new" shows once after an update (`seenVersion`; never on a fresh install); Settings › About shows them all. Unit-tested. |
 | `WalletCache.kt` | `wallet_cache.json` in `filesDir`: Wallet record rules, categories and categorised history, used offline at capture time. `refresh` only runs when an upload is already online (rules ≤ hourly, history ≤ 12 h) or forced after a token check. |
 | `Store.kt` | SQLite queue `queue.db` (version 4). Statuses `PENDING`, `SYNCED`, `FAILED`, `UNPARSED`, `REVIEW`. Raw text is dropped once synced; history purged after `keepDays`. |
 | `Uploader.kt` | JobScheduler job (`UploadJobService`): network constraint (Wi-Fi only optional), batches of 50, backoff, `uncertain` handling via `WalletApi.recordExists` because Wallet has no duplicate protection. |
@@ -35,7 +36,7 @@ Single module `app/`. Kotlin, **Android Views with Material Components 1.12 (Mat
 | `Dialogs.kt` / `Pickers.kt` | Record/fix/test dialogs, `CategoryChooser`, app and account pickers, list rows. |
 | `Ui.kt` | `Tone` (GOOD/NEUTRAL/WARN/BAD → M3 container roles), `themeColor`, `ImageView.badge`. |
 | `res/values{,-night}/themes.xml` | Teal M3 palette and the `Widget.BankSync.*` styles. Change both files together. |
-| `app/src/test/` | JUnit 4: `ParserTest`, `RuleMatcherTest`, `CategorizerTest`. |
+| `app/src/test/` | JUnit 4: `ParserTest`, `RuleMatcherTest`, `CategorizerTest`, `ChangelogTest`. |
 | `.claude/skills/` | Google's Android skills (github.com/android/skills), git-ignored, local only. Many assume Compose; adapt them to Views. |
 
 ## Build and test (Windows)
@@ -58,6 +59,7 @@ $env:JAVA_HOME = "C:\Program Files\Eclipse Adoptium\jdk-17.0.20.101-hotspot"
 - `gradle.properties` holds only the jvmargs, build cache, configuration cache, `useAndroidX` and `nonTransitiveRClass`. Don't add AGP 8 compatibility flags (`android.builtInKotlin`, `android.newDsl`, etc.).
 - Configuration cache is on: build logic must not read files, env vars or system properties at configuration time without Gradle's providers.
 - Dependencies are deliberately few: Material and `androidx.biometric` (UI only), JUnit for tests. The background path (listener, parser, SQLite, JobScheduler, HttpURLConnection) uses framework APIs only. Ask before adding a library; never add one to the background path.
+- **Versioning:** when the owner asks for a release (or a batch of user-visible changes is ready to install), bump `versionCode` and `versionName` in `app/build.gradle.kts` and add a matching entry at the top of `Changelog.releases`, in plain English for the owner, not commit messages. Without the bump, "What's new" never shows.
 - Release: R8 with resource shrinking, no custom keep rules (none needed, no reflection). It is **signed with the debug key**; a real keystore is still to do.
 
 ## How things work

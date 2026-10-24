@@ -242,6 +242,15 @@ object Dialogs {
         }
     }
 
+    /** "What's new" after an update, or the full changelog from Settings. */
+    fun showChangelog(activity: Activity, title: String, releases: List<Release>) {
+        MaterialAlertDialogBuilder(activity)
+            .setTitle(title)
+            .setMessage(Changelog.format(releases))
+            .setPositiveButton("OK", null)
+            .show()
+    }
+
     /** Paste a notification (dummy details) and see exactly how the parser reads it. */
     fun showTest(activity: Activity) {
         val view = LayoutInflater.from(activity).inflate(R.layout.dialog_test, null)
@@ -256,9 +265,13 @@ object Dialogs {
             } else {
                 val pick = WalletCache.pick(activity, text, p.payee, p.amount, "")
                 val category = pick?.let { "${it.name} (${CategoryChooser.describe(it)})" }
+                val settings = Settings(activity)
+                val currency = RuleMatcher.pick(settings.rules(), text)?.accountCurrency.orEmpty()
+                val w = Parser.walletText(text, p.payee, currency, settings.includeNote)
                 String.format(Locale.US, "Amount: %+.2f %s\n", p.amount, p.currency ?: "") +
                     (if (p.amount > 0) "Direction: income\n" else "Direction: expense\n") +
-                    "Payee: ${p.payee ?: "none found"}\n" +
+                    "Payee: ${w.payee ?: "none"}\n" +
+                    "Note: ${w.note ?: "none (notes are off)"}\n" +
                     "Category: ${category ?: "none found (Wallet would show Unknown)"}"
             }
         }

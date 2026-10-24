@@ -137,15 +137,38 @@ object Parser {
         return Parsed(if (income) amount else -amount, payee, currencyOf(m.groupValues[1]))
     }
 
+    /**
+     * Whether [payee] is who the money went to: a card merchant ("spent RM 5.00 at SAMPLE SHOP") or
+     * someone sent money ("sent RM10.00 to Sample Person"). Those go in the Wallet note; only someone
+     * who sent the money ("from Sample Person") becomes a Wallet payee.
+     */
+    fun paidTo(text: String, payee: String): Boolean =
+        Regex("""\b(?:at|to)\s+""" + Regex.escape(payee), RegexOption.IGNORE_CASE).containsMatchIn(text)
+
+    class WalletText(val payee: String?, val note: String?)
+
+    /**
+     * The payee and note a record gets in Wallet, from the stored alert [text] and [payee]. Each name
+     * is in one place only: who was paid in the note (unless notes are off, then it stays the payee),
+     * who sent the money as the payee.
+     */
+    fun walletText(text: String, payee: String?, accountCurrency: String, includeNote: Boolean): WalletText {
+        val paid = payee != null && paidTo(text, payee)
+        return WalletText(
+            payee?.takeUnless { paid && includeNote },
+            if (includeNote) note(text, payee.takeIf { paid }, accountCurrency) else null,
+        )
+    }
+
     private val refRe = Regex("""\bref(?:erence)?\b\s*(?:no\.?)?\s*:?\s*([A-Z0-9][A-Z0-9-]{2,})""", RegexOption.IGNORE_CASE)
 
     /**
-     * The Wallet note: just the payment details (payee, reference) instead of the whole alert, plus the
-     * alert's own amount when it isn't in [accountCurrency], since the record then holds the converted
-     * amount. The card or account number is left out; the Wallet account already says which one.
-     * With none of those, the sentence holding the amount.
+     * The Wallet note: just the payment details (who was paid, reference) instead of the whole alert,
+     * plus the alert's own amount when it isn't in [accountCurrency], since the record then holds the
+     * converted amount. The card or account number is left out; the Wallet account already says which
+     * one. With none of those, no note: the amount, date and account are already on the record.
      */
-    fun note(text: String, payee: String?, accountCurrency: String): String {
+    fun note(text: String, payee: String?, accountCurrency: String): String? {
         val m = amountRe.find(text)
         val currency = m?.let { currencyOf(it.groupValues[1]) }
         val parts = listOfNotNull(
@@ -157,8 +180,6 @@ object Parser {
                 null
             },
         )
-        if (parts.isNotEmpty()) return parts.joinToString(" · ").take(255)
-        val sentence = text.split(Regex("""(?<=[.!?])\s+""")).firstOrNull { amountRe.containsMatchIn(it) } ?: text
-        return sentence.trim().removeSuffix(".").take(255)
+        return parts.takeIf { it.isNotEmpty() }?.joinToString(" · ")?.take(255)
     }
 }

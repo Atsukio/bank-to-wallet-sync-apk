@@ -216,13 +216,12 @@ object Uploader {
                 .put("amount", JSONObject().put("value", r.amount))
                 .put("recordDate", r.date)
                 .put("recordState", if (s.markUncleared) "uncleared" else "cleared")
-            r.payee?.let { o.put("counterParty", it) }
+            // The stored text is the whole alert; Wallet only gets the payment details from it.
+            val w = Parser.walletText(r.note.orEmpty(), r.payee, currencies[r.account].orEmpty(), s.includeNote)
+            w.payee?.let { o.put("counterParty", it) }
+            w.note?.let { o.put("note", it) }
             r.categoryId?.takeIf { it.isNotEmpty() }?.let { o.put("categoryId", it) }
             if (r.labelIds.isNotEmpty()) o.put("labelIds", JSONArray(r.labelIds))
-            // The stored text is the whole alert; Wallet only gets the payment details from it.
-            if (s.includeNote && !r.note.isNullOrEmpty()) {
-                o.put("note", Parser.note(r.note, r.payee, currencies[r.account].orEmpty()))
-            }
             arr.put(o)
         }
         return arr.toString()

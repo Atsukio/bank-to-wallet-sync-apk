@@ -118,6 +118,11 @@ class Settings(context: Context) {
         get() = p.getInt("onboardingStep", 0)
         set(v) = p.edit().putInt("onboardingStep", v).apply()
 
+    /** The newest `versionCode` whose "What's new" has been shown. Not exported: it's about this install. */
+    var seenVersion: Int
+        get() = p.getInt("seenVersion", 0)
+        set(v) = p.edit().putInt("seenVersion", v).apply()
+
     var onboardingDone: Boolean
         get() = p.getBoolean("onboardingDone", false)
         set(v) = p.edit().putBoolean("onboardingDone", v).apply()

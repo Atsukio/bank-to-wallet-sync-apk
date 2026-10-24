@@ -97,6 +97,10 @@ class SettingsActivity : LockedActivity() {
         link(R.id.memoryRow, R.drawable.ic_label, "Remembered choices") { forgetChoices() }
         link(R.id.accessRow, R.drawable.ic_notifications, "Notification access") { Permissions.openAccessSettings(this) }
         link(R.id.batteryRow, R.drawable.ic_battery, "Battery use") { Permissions.requestBattery(this) }
+        link(R.id.changelogRow, R.drawable.ic_new_releases, "What's new") {
+            Dialogs.showChangelog(this, "Changelog", Changelog.releases)
+        }
+        linkText(R.id.changelogRow).text = "Version ${Changelog.installed(this).second} · tap for every change"
     }
 
     override fun onResume() {
