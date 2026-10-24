@@ -37,7 +37,7 @@ class SettingsActivity : LockedActivity() {
         setContentView(R.layout.activity_settings)
         settings = Settings(this)
         store = Store.get(this)
-        padForNavigationBar(findViewById(R.id.scroll))
+        applyInsets(findViewById(R.id.root), findViewById(R.id.scroll))
         findViewById<MaterialToolbar>(R.id.toolbar).setNavigationOnClickListener { finish() }
 
         attemptsInput.setText(settings.maxAttempts.toString())

@@ -70,7 +70,7 @@ class MainActivity : LockedActivity() {
         setContentView(R.layout.activity_main)
         settings = Settings(this)
         store = Store.get(this)
-        padForNavigationBar(findViewById(R.id.scroll))
+        applyInsets(findViewById(R.id.root), findViewById(R.id.scroll))
 
         findViewById<MaterialToolbar>(R.id.toolbar).apply {
             inflateMenu(R.menu.main)

@@ -24,6 +24,7 @@ class OnboardingActivity : LockedActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_onboarding)
+        applyInsets(findViewById(R.id.root), padTop = true)
         settings = Settings(this)
         index = savedInstanceState?.getInt("index") ?: settings.onboardingStep
 

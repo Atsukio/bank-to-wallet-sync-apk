@@ -35,9 +35,6 @@
         <item name="colorSurfaceInverse">#DDE4E1</item>
         <item name="colorOnSurfaceInverse">#2B3230</item>
         <item name="colorPrimaryInverse">#006A60</item>
-        <item name="android:statusBarColor">@android:color/transparent</item>
-        <item name="android:navigationBarColor">@android:color/transparent</item>
-        <item name="android:windowLightStatusBar">false</item>
         <item name="materialCardViewStyle">@style/Widget.BankSync.Card</item>
         <item name="shapeAppearanceCornerLarge">@style/ShapeAppearance.BankSync.Large</item>
         <item name="shapeAppearanceCornerExtraLarge">@style/ShapeAppearance.BankSync.ExtraLarge</item>
