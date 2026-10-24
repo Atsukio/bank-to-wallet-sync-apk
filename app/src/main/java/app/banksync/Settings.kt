@@ -166,7 +166,7 @@ class Settings(context: Context) {
 
     /** Merchant key ([Merchant.memoryKey]) → (category id, name) the user picked by hand. */
     fun categoryMemory(): Map<String, Pair<String, String>> = try {
-        memoryFromJson(JSONObject(p.getString("categoryMemory", "{}")))
+        memoryFromJson(JSONObject(p.getString("categoryMemory", null) ?: "{}"))
     } catch (e: Exception) {
         emptyMap()
     }

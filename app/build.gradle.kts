@@ -1,6 +1,6 @@
 plugins {
+    // AGP 9 compiles Kotlin itself (built-in Kotlin), so there's no separate Kotlin plugin.
     id("com.android.application")
-    id("org.jetbrains.kotlin.android")
 }
 
 android {
@@ -25,12 +25,10 @@ android {
         }
     }
 
+    // Kotlin's JVM target follows targetCompatibility under built-in Kotlin.
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
-    }
-    kotlinOptions {
-        jvmTarget = "17"
     }
 }
 
