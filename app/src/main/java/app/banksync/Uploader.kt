@@ -209,6 +209,7 @@ object Uploader {
 
     private fun toJson(batch: List<Rec>, s: Settings): String {
         val arr = JSONArray()
+        val currencies = s.rules().associate { it.accountId to it.accountCurrency }
         for (r in batch) {
             val o = JSONObject()
                 .put("accountId", r.account)
@@ -218,7 +219,10 @@ object Uploader {
             r.payee?.let { o.put("counterParty", it) }
             r.categoryId?.takeIf { it.isNotEmpty() }?.let { o.put("categoryId", it) }
             if (r.labelIds.isNotEmpty()) o.put("labelIds", JSONArray(r.labelIds))
-            if (s.includeNote && !r.note.isNullOrEmpty()) o.put("note", r.note.take(255))
+            // The stored text is the whole alert; Wallet only gets the payment details from it.
+            if (s.includeNote && !r.note.isNullOrEmpty()) {
+                o.put("note", Parser.note(r.note, r.payee, currencies[r.account].orEmpty()))
+            }
             arr.put(o)
         }
         return arr.toString()

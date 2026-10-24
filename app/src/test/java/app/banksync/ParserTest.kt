@@ -204,4 +204,32 @@ class ParserTest {
     fun noAmountIsIgnored() {
         assertNull(Parser.parse("Ryt Bank Your statement is ready"))
     }
+
+    @Test
+    fun noteKeepsOnlyPaymentDetails() {
+        val text = "Maybank2u: Card Transaction You've just spent RM 110.25 at SAMPLE SHOP with your " +
+            "Maybank Shopee Visa Platinum ending 1234. View your receipt now."
+        assertEquals("SAMPLE SHOP", Parser.note(text, "SAMPLE SHOP", "MYR"))
+    }
+
+    @Test
+    fun noteAddsTheForeignAmount() {
+        val text = "Maybank2u: Card Transaction You've just spent USD 25.00 at Sample Store with your card ending 1234."
+        assertEquals("Sample Store · USD 25.00", Parser.note(text, "Sample Store", "MYR"))
+        // Same currency, or an account whose currency isn't known: nothing to add.
+        assertEquals("Sample Store", Parser.note(text, "Sample Store", "USD"))
+        assertEquals("Sample Store", Parser.note(text, "Sample Store", ""))
+    }
+
+    @Test
+    fun noteReadsReference() {
+        val text = "Maybank2u: Funds Received You've received RM 10.00 in your account ending ****1234. REF : ABC123"
+        assertEquals("Ref ABC123", Parser.note(text, null, "MYR"))
+    }
+
+    @Test
+    fun noteFallsBackToTheAmountSentence() {
+        // "refund" isn't a reference, and with no details the sentence holding the amount is used.
+        assertEquals("Your refund of RM5.00 is done", Parser.note("Sample Bank Hello. Your refund of RM5.00 is done.", null, "MYR"))
+    }
 }

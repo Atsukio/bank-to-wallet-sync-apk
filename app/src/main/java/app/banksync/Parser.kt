@@ -136,4 +136,29 @@ object Parser {
             ?.takeIf { it.isNotEmpty() && !it.equals("you", ignoreCase = true) && amountRe.find(it) == null }
         return Parsed(if (income) amount else -amount, payee, currencyOf(m.groupValues[1]))
     }
+
+    private val refRe = Regex("""\bref(?:erence)?\b\s*(?:no\.?)?\s*:?\s*([A-Z0-9][A-Z0-9-]{2,})""", RegexOption.IGNORE_CASE)
+
+    /**
+     * The Wallet note: just the payment details (payee, reference) instead of the whole alert, plus the
+     * alert's own amount when it isn't in [accountCurrency], since the record then holds the converted
+     * amount. The card or account number is left out; the Wallet account already says which one.
+     * With none of those, the sentence holding the amount.
+     */
+    fun note(text: String, payee: String?, accountCurrency: String): String {
+        val m = amountRe.find(text)
+        val currency = m?.let { currencyOf(it.groupValues[1]) }
+        val parts = listOfNotNull(
+            payee?.trim()?.takeIf { it.isNotEmpty() },
+            refRe.find(text)?.let { "Ref ${it.groupValues[1]}" },
+            if (m != null && currency != null && accountCurrency.isNotEmpty() && currency != accountCurrency) {
+                "$currency ${m.groupValues[2]}"
+            } else {
+                null
+            },
+        )
+        if (parts.isNotEmpty()) return parts.joinToString(" · ").take(255)
+        val sentence = text.split(Regex("""(?<=[.!?])\s+""")).firstOrNull { amountRe.containsMatchIn(it) } ?: text
+        return sentence.trim().removeSuffix(".").take(255)
+    }
 }

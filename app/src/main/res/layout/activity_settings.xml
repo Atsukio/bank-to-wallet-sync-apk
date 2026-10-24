@@ -357,11 +357,11 @@
                     <com.google.android.material.materialswitch.MaterialSwitch
                         android:id="@+id/noteSwitch"
                         style="@style/Widget.BankSync.SettingSwitch"
-                        android:text="Add the alert text as a note" />
+                        android:text="Add payment details as a note" />
 
                     <TextView
                         style="@style/Widget.BankSync.SettingHint"
-                        android:text="Handy for checking later, but the full alert text is sent to Wallet." />
+                        android:text="Payee and reference from the alert, plus the original amount when it was in another currency." />
 
                     <com.google.android.material.materialswitch.MaterialSwitch
                         android:id="@+id/unclearedSwitch"

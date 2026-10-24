@@ -17,7 +17,7 @@ Single module `app/`. Kotlin, **Android Views with Material Components 1.12 (Mat
 | File | Role |
 | --- | --- |
 | `BankNotificationListener.kt` | `NotificationListenerService`. Package check first (only apps with a rule), ignore words, parse, pick account and category, insert into `Store`, schedule upload. `catchUp()` scans notifications still in the shade. `handle` is `synchronized` so a scan and a live alert can't both insert. |
-| `Parser.kt` | Regex-only `Parser.parse(text)` → `Parsed(amount signed, payee, currency)` or null when unsure (then the row is UNPARSED, fixed by hand). `recordTime` uses the alert's own time when plausible. |
+| `Parser.kt` | Regex-only `Parser.parse(text)` → `Parsed(amount signed, payee, currency)` or null when unsure (then the row is UNPARSED, fixed by hand). `recordTime` uses the alert's own time when plausible. `note` builds the Wallet note at upload (payee, ref, foreign amount; no card/account number, the Wallet account already says that); the stored `note` column keeps the full alert for the Fix dialog and category picking. |
 | `Rules.kt` | `Rule` (bank app → Wallet account, optional `match` text such as last 4 digits), `RuleMatcher`, `IgnoreWords`, `CatchUp.cutoff`, `CategoryRule`/`CategoryMatcher`. Pure, unit-tested. |
 | `Categorizer.kt` | Pure category picking ported from the extension: `Merchant` keys, `Categorizer.pick`, Wallet rule matching, history guess. Unit-tested. |
 | `WalletCache.kt` | `wallet_cache.json` in `filesDir`: Wallet record rules, categories and categorised history, used offline at capture time. `refresh` only runs when an upload is already online (rules ≤ hourly, history ≤ 12 h) or forced after a token check. |
