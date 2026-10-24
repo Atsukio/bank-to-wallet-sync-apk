@@ -16,6 +16,9 @@ object WalletCache {
     private const val RULES_MAX_AGE = 60 * 60_000L
     private const val HISTORY_MAX_AGE = 12 * 60 * 60_000L
 
+    /** Bumped when category labels change shape; an older file's categories are fetched again. */
+    private const val CATEGORIES_VERSION = 2
+
     class Data(
         val rules: List<WalletRule> = emptyList(),
         val history: List<PastRecord> = emptyList(),
@@ -77,6 +80,7 @@ object WalletCache {
         val o = JSONObject()
             .put("rulesAt", d.rulesAt)
             .put("historyAt", d.historyAt)
+            .put("categoriesVersion", CATEGORIES_VERSION)
             .put("categories", JSONArray().apply {
                 d.categories.forEach { put(JSONObject().put("id", it.id).put("label", it.label)) }
             })
@@ -114,7 +118,9 @@ object WalletCache {
             history = o.getJSONArray("history").objects().map {
                 PastRecord(it.getJSONArray("texts").strings(), it.getString("categoryId"), it.optString("categoryName"), it.getBoolean("income"))
             },
-            categories = o.getJSONArray("categories").objects().map { WalletApi.Category(it.getString("id"), it.getString("label")) },
+            // 1.2 and earlier saved labels like "false · Food & Drinks"; leaving them out forces a fresh load.
+            categories = if (o.optInt("categoriesVersion") < CATEGORIES_VERSION) emptyList() else
+                o.getJSONArray("categories").objects().map { WalletApi.Category(it.getString("id"), it.getString("label")) },
             rulesAt = o.optLong("rulesAt"),
             historyAt = o.optLong("historyAt"),
         )

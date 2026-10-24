@@ -47,17 +47,31 @@ object WalletApi {
             }
     }
 
-    /** Custom name if the user renamed it, plus the group, e.g. "Groceries · Food & Drinks". */
+    /**
+     * Active, enabled categories with their group (or, for a custom one, its parent), e.g.
+     * "Groceries · Food & Drinks". `name` is already the display name; `customName` is only a flag.
+     */
     fun categories(token: String): List<Category> {
-        val r = call("GET", "/v1/api/categories?limit=200&archived=false", token, null)
-        if (r.code == 401 || r.code == 403) throw IOException("Wallet rejected the token (HTTP ${r.code})")
-        if (r.code != 200) throw HttpStatusException(r.code)
-        val arr = JSONObject(r.body).optJSONArray("categories") ?: return emptyList()
-        return (0 until arr.length()).map { arr.getJSONObject(it) }.map {
-            val name = it.optString("customName").ifEmpty { it.optString("name") }
-            val group = it.optJSONObject("group")?.optString("name").orEmpty()
-            Category(it.optString("id"), if (group.isEmpty() || group == name) name else "$name · $group")
-        }.sortedBy { it.label.lowercase() }
+        val out = ArrayList<Category>()
+        var offset = 0
+        repeat(5) {
+            val r = call("GET", "/v1/api/categories?limit=200&offset=$offset&archived=false", token, null)
+            if (r.code == 401 || r.code == 403) throw IOException("Wallet rejected the token (HTTP ${r.code})")
+            if (r.code != 200) throw HttpStatusException(r.code)
+            val body = JSONObject(r.body)
+            val arr = body.optJSONArray("categories") ?: org.json.JSONArray()
+            for (i in 0 until arr.length()) {
+                val c = arr.getJSONObject(i)
+                if (!c.optBoolean("enabled", true) || c.optBoolean("archived")) continue
+                val name = c.optString("name")
+                if (name.isEmpty()) continue
+                val group = c.optJSONObject("group")?.optString("name").orEmpty().ifEmpty { c.optString("parentName") }
+                out += Category(c.optString("id"), if (group.isEmpty() || group == name) name else "$name · $group")
+            }
+            if (body.isNull("nextOffset") || !body.has("nextOffset")) return out.sortedBy { it.label.lowercase() }
+            offset = body.optInt("nextOffset")
+        }
+        return out.sortedBy { it.label.lowercase() }
     }
 
     /** The user's Wallet categorisation rules. Transfer rules (with a target account) are left out. */
