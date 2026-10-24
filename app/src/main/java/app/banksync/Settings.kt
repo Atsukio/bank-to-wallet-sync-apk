@@ -47,9 +47,9 @@ class Settings(context: Context) {
         get() = p.getBoolean("wifiOnly", false)
         set(v) = p.edit().putBoolean("wifiOnly", v).apply()
 
-    /** Wait this long before uploading so bursts of notifications go out as one request. */
+    /** Wait this long before uploading so bursts of notifications go out as one request; 0 sends straight away. */
     var batchDelayMin: Int
-        get() = p.getInt("batchDelayMin", 2)
+        get() = p.getInt("batchDelayMin", 0)
         set(v) = p.edit().putInt("batchDelayMin", v.coerceIn(0, 120)).apply()
 
     var includeNote: Boolean

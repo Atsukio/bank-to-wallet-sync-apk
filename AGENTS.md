@@ -64,7 +64,7 @@ $env:JAVA_HOME = "C:\Program Files\Eclipse Adoptium\jdk-17.0.20.101-hotspot"
 
 ## How things work
 
-**Capture:** listener → `RuleMatcher.pick` → ignore words → `Parser.parse` (null → UNPARSED) → `Store.isDuplicate` (hash, 2 min) → `WalletCache.pick` → insert as PENDING, or REVIEW with an "ask before sending" notification → `Uploader.schedule` (with the configured delay so bursts go as one request).
+**Capture:** listener → `RuleMatcher.pick` → ignore words → `Parser.parse` (null → UNPARSED) → `Store.isDuplicate` (hash, 2 min) → `WalletCache.pick` → insert as PENDING, or REVIEW with an "ask before sending" notification → `Uploader.schedule` (no delay by default, so it goes once there's a network; an optional delay in Settings sends bursts as one request).
 
 **Categories:** remembered manual choice (`categoryMemory`, keyed by `Merchant.memoryKey`) → app `CategoryRules` → Wallet record rules (longest keyword, labels, same account) → history guess (same description, else merchant key, same income/expense type, most common). Records with no category are re-picked just before upload. `CategorySource` is stored so the UI can say why.
 

@@ -362,7 +362,7 @@
                     <com.google.android.material.textfield.TextInputLayout
                         style="@style/Widget.BankSync.Field"
                         android:hint="Batch delay (minutes)"
-                        app:helperText="Longer saves battery: bursts go out as one request">
+                        app:helperText="0 sends as soon as there's a connection. A few minutes sends a burst of alerts as one request.">
 
                         <com.google.android.material.textfield.TextInputEditText
                             android:id="@+id/delayInput"
