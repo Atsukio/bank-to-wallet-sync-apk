@@ -56,6 +56,11 @@ class Settings(context: Context) {
         get() = p.getBoolean("includeNote", true)
         set(v) = p.edit().putBoolean("includeNote", v).apply()
 
+    /** Hide payees, amounts and categories in the home screen's recent activity, like a bank app's balance eye. */
+    var hideDetails: Boolean
+        get() = p.getBoolean("hideDetails", false)
+        set(v) = p.edit().putBoolean("hideDetails", v).apply()
+
     /** Mark new records "uncleared" in Wallet so they stand out for review. */
     var markUncleared: Boolean
         get() = p.getBoolean("markUncleared", false)
@@ -205,7 +210,7 @@ class Settings(context: Context) {
                 .put("wifiOnly", wifiOnly).put("batchDelayMin", batchDelayMin).put("includeNote", includeNote)
                 .put("markUncleared", markUncleared).put("keepDays", keepDays).put("reviewMode", reviewMode)
                 .put("catchUpHours", catchUpHours).put("skipExisting", skipExisting)
-                .put("alertsOn", alertsOn).put("appLock", appLock)
+                .put("alertsOn", alertsOn).put("appLock", appLock).put("hideDetails", hideDetails)
         )
         .toString(2)
 
@@ -233,6 +238,7 @@ class Settings(context: Context) {
         reviewMode = s.optBoolean("reviewMode", reviewMode)
         alertsOn = s.optBoolean("alertsOn", alertsOn)
         appLock = s.optBoolean("appLock", appLock)
+        hideDetails = s.optBoolean("hideDetails", hideDetails)
     }
 
     private fun rulesToJson(list: List<Rule>) = JSONArray().also { arr ->

@@ -199,7 +199,7 @@
                     android:text="Retry failed" />
             </LinearLayout>
 
-            <!-- Bank apps -->
+            <!-- Recent -->
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
@@ -213,34 +213,15 @@
                     android:layout_marginTop="0dp"
                     android:layout_marginBottom="0dp"
                     android:layout_weight="1"
-                    android:text="Bank apps" />
+                    android:text="Recent activity" />
 
                 <com.google.android.material.button.MaterialButton
-                    android:id="@+id/addAppButton"
-                    style="@style/Widget.Material3.Button.TextButton.Icon"
+                    android:id="@+id/hideButton"
+                    style="@style/Widget.Material3.Button.IconButton"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:text="Add"
-                    app:icon="@drawable/ic_add" />
+                    app:iconTint="?attr/colorOnSurfaceVariant" />
             </LinearLayout>
-
-            <com.google.android.material.card.MaterialCardView
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content">
-
-                <LinearLayout
-                    android:id="@+id/rulesList"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:orientation="vertical"
-                    android:paddingTop="8dp"
-                    android:paddingBottom="8dp" />
-            </com.google.android.material.card.MaterialCardView>
-
-            <!-- Recent -->
-            <TextView
-                style="@style/Widget.BankSync.SectionTitle"
-                android:text="Recent activity" />
 
             <com.google.android.material.card.MaterialCardView
                 android:layout_width="match_parent"

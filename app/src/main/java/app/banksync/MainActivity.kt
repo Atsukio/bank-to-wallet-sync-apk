@@ -21,7 +21,7 @@ import java.util.Locale
 import java.util.TimeZone
 import com.google.android.material.R as M
 
-/** Home: whether everything works, what's queued, the bank apps, and recent activity. Options live in [SettingsActivity]. */
+/** Home: whether everything works, what's queued, and recent activity. Bank apps and options live in [SettingsActivity]. */
 class MainActivity : LockedActivity() {
     private lateinit var settings: Settings
     private lateinit var store: Store
@@ -59,7 +59,6 @@ class MainActivity : LockedActivity() {
             .show()
     }
 
-    private val rulesList get() = findViewById<LinearLayout>(R.id.rulesList)
     private val recentList get() = findViewById<LinearLayout>(R.id.recentList)
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -96,7 +95,10 @@ class MainActivity : LockedActivity() {
             toast(if (n > 0) "Retrying $n record(s)" else "Nothing to retry")
             refresh()
         }
-        findViewById<Button>(R.id.addAppButton).setOnClickListener { addApp(it as Button) }
+        findViewById<Button>(R.id.hideButton).setOnClickListener {
+            settings.hideDetails = !settings.hideDetails
+            renderRecent()
+        }
         // "Need you" jumps to the list where those records can be opened.
         findViewById<View>(R.id.tileAttention).setOnClickListener {
             findViewById<NestedScrollView>(R.id.scroll).smoothScrollTo(0, (recentList.parent as View).top)
@@ -177,7 +179,6 @@ class MainActivity : LockedActivity() {
         renderHero(c)
         renderChecks()
         renderCounts(c)
-        Pickers.renderRules(this, rulesList, settings) { refresh() }
         renderRecent()
     }
 
@@ -286,6 +287,11 @@ class MainActivity : LockedActivity() {
     }
 
     private fun renderRecent() {
+        val hide = settings.hideDetails
+        findViewById<MaterialButton>(R.id.hideButton).apply {
+            setIconResource(if (hide) R.drawable.ic_visibility_off else R.drawable.ic_visibility)
+            contentDescription = if (hide) "Show details" else "Hide details"
+        }
         val list = recentList
         list.removeAllViews()
         val recs = store.recent(25)
@@ -311,21 +317,25 @@ class MainActivity : LockedActivity() {
                 )
             }
             row.findViewById<ImageView>(R.id.recIcon).badge(icon, tone)
+            // Hidden, a row keeps only what kind of thing it is, when, and what it needs.
             row.findViewById<TextView>(R.id.recTitle).text = when {
-                r.status == Store.UNPARSED -> r.note.orEmpty().ifEmpty { "Bank alert" }
-                !r.payee.isNullOrBlank() -> r.payee
+                r.status == Store.UNPARSED -> if (hide) "Bank alert" else r.note.orEmpty().ifEmpty { "Bank alert" }
+                !hide && !r.payee.isNullOrBlank() -> r.payee
                 income -> "Money in"
                 else -> "Payment"
             }
             row.findViewById<TextView>(R.id.recSub).text = "$whenText · $state"
             row.findViewById<TextView>(R.id.recAmount).apply {
-                text = r.amount?.let { String.format(Locale.US, "%s%,.2f", if (it > 0) "+" else "−", kotlin.math.abs(it)) }
+                text = r.amount?.let {
+                    if (hide) "••••" else String.format(Locale.US, "%s%,.2f", if (it > 0) "+" else "−", kotlin.math.abs(it))
+                }
                 setTextColor(themeColor(if (income) M.attr.colorPrimary else M.attr.colorOnSurface))
             }
             // What Wallet will file it under; a waiting record with none is flagged, as it lands as "Unknown".
             row.findViewById<TextView>(R.id.recCategory).apply {
                 val waiting = r.status == Store.PENDING || r.status == Store.REVIEW
                 when {
+                    hide -> return@apply
                     r.categoryName != null -> {
                         text = "● ${r.categoryName}"
                         setTextColor(themeColor(M.attr.colorTertiary))

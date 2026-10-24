@@ -86,6 +86,9 @@ class SettingsActivity : LockedActivity() {
             renderToken()
             if (editingToken) tokenInput.requestFocus()
         }
+        findViewById<Button>(R.id.addAppButton).setOnClickListener {
+            Pickers.addRule(this, settings.token, it as Button, onAdded = { renderRules() }, onError = ::toast)
+        }
         findViewById<Button>(R.id.addCategoryButton).setOnClickListener {
             Pickers.addCategoryRule(this, settings.token, it as Button, onAdded = ::renderCategories, onError = ::toast)
         }
@@ -99,6 +102,7 @@ class SettingsActivity : LockedActivity() {
     override fun onResume() {
         super.onResume()
         renderToken()
+        renderRules()
         renderCategories()
         findViewById<View>(R.id.accessRow).findViewById<TextView>(R.id.linkText).text =
             if (Permissions.accessEnabled(this)) "Allowed" else "Off: bank alerts can't be read"
@@ -130,6 +134,8 @@ class SettingsActivity : LockedActivity() {
             setOnClickListener { onClick() }
         }
     }
+
+    private fun renderRules() = Pickers.renderRules(this, findViewById<LinearLayout>(R.id.rulesList), settings)
 
     private fun renderCategories() {
         Pickers.renderCategoryRules(this, findViewById<LinearLayout>(R.id.categoriesList), settings)

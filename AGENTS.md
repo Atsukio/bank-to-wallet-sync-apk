@@ -29,8 +29,8 @@ Single module `app/`. Kotlin, **Android Views with Material Components 1.12 (Mat
 | `Permissions.kt` | Notification access, listener rebind, battery exemption; both are settings screens, not runtime prompts. |
 | `PauseTileService.kt` | Quick Settings tile to pause capture. |
 | `LockedActivity.kt` | Base of every screen: app lock (`BiometricPrompt`, BIOMETRIC_WEAK or device credential, 60 s grace, process-wide `started`/`locking`), `enableEdgeToEdge()`, `applyInsets`, notification permission flow. |
-| `MainActivity.kt` | Home: hero status card (worst problem first), check cards, count tiles, bank apps, recent activity (tap a row to review/edit/fix/retry). |
-| `SettingsActivity.kt` | Auto-saving settings: switches save immediately, text fields in `onPause`. Wallet token card, categories, capture, uploads, privacy. |
+| `MainActivity.kt` | Home: hero status card (worst problem first), check cards, count tiles, recent activity (tap a row to review/edit/fix/retry; eye button sets `hideDetails` to mask payees, amounts and categories). |
+| `SettingsActivity.kt` | Auto-saving settings: switches save immediately, text fields in `onPause`. Wallet token card, bank apps, categories, capture, uploads, privacy. |
 | `OnboardingActivity.kt` | Setup guide; the step reached is saved. |
 | `Dialogs.kt` / `Pickers.kt` | Record/fix/test dialogs, `CategoryChooser`, app and account pickers, list rows. |
 | `Ui.kt` | `Tone` (GOOD/NEUTRAL/WARN/BAD → M3 container roles), `themeColor`, `ImageView.badge`. |
