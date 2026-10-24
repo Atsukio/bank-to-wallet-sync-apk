@@ -162,12 +162,42 @@ class Settings(context: Context) {
         p.edit().putString("categoryRules", categoryRulesToJson(list).toString()).apply()
     }
 
+    // --- Remembered category choices ---------------------------------------------------------
+
+    /** Merchant key ([Merchant.memoryKey]) → (category id, name) the user picked by hand. */
+    fun categoryMemory(): Map<String, Pair<String, String>> = try {
+        memoryFromJson(JSONObject(p.getString("categoryMemory", "{}")))
+    } catch (e: Exception) {
+        emptyMap()
+    }
+
+    /** Remembers [id] for [payee]'s merchant; no-op when the payee is too vague to remember by. */
+    fun rememberCategory(payee: String?, id: String, name: String) {
+        val key = payee?.let { Merchant.memoryKey(it) }.orEmpty()
+        if (key.isEmpty()) return
+        saveMemory(categoryMemory() + (key to (id to name)))
+    }
+
+    fun forgetCategories() = saveMemory(emptyMap())
+
+    private fun saveMemory(map: Map<String, Pair<String, String>>) {
+        p.edit().putString("categoryMemory", memoryToJson(map).toString()).apply()
+    }
+
+    private fun memoryToJson(map: Map<String, Pair<String, String>>) = JSONObject().also { o ->
+        map.forEach { (k, v) -> o.put(k, JSONObject().put("id", v.first).put("name", v.second)) }
+    }
+
+    private fun memoryFromJson(o: JSONObject): Map<String, Pair<String, String>> =
+        o.keys().asSequence().associateWith { o.getJSONObject(it).let { v -> v.getString("id") to v.optString("name") } }
+
     // --- Export / import (never includes the token) -----------------------------------------
 
     fun exportJson(): String = JSONObject()
         .put("version", 1)
         .put("rules", rulesToJson(rules()))
         .put("categoryRules", categoryRulesToJson(categoryRules()))
+        .put("categoryMemory", memoryToJson(categoryMemory()))
         .put(
             "settings",
             JSONObject()
@@ -184,10 +214,12 @@ class Settings(context: Context) {
         val root = JSONObject(text)
         val rules = rulesFromJson(root.getJSONArray("rules"))
         val cats = categoryRulesFromJson(root.optJSONArray("categoryRules") ?: JSONArray())
+        val memory = root.optJSONObject("categoryMemory")?.let { memoryFromJson(it) }
         val s = root.optJSONObject("settings") ?: JSONObject()
         if (rules().isEmpty() && rules.isNotEmpty()) catchUpSince = System.currentTimeMillis()
         saveRules(rules)
         saveCategoryRules(cats)
+        memory?.let { saveMemory(it) }
         catchUpHours = s.optInt("catchUpHours", catchUpHours)
         skipExisting = s.optBoolean("skipExisting", skipExisting)
         ignoreWords = s.optString("ignoreWords", ignoreWords)

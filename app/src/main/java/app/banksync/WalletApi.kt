@@ -60,6 +60,63 @@ object WalletApi {
         }.sortedBy { it.label.lowercase() }
     }
 
+    /** The user's Wallet categorisation rules. Transfer rules (with a target account) are left out. */
+    fun recordRules(token: String): List<WalletRule> {
+        val arr = getList(token, "/v1/api/record-rules?limit=200", "recordRules")
+        return (0 until arr.length()).map { arr.getJSONObject(it) }
+            .filter { it.optString("toAccountId").isEmpty() && it.optJSONObject("category")?.optString("id").orEmpty().isNotEmpty() }
+            .map { r ->
+                val kws = r.optJSONArray("keywords")
+                val labels = r.optJSONArray("labels")
+                WalletRule(
+                    keywords = (0 until (kws?.length() ?: 0)).map { kws!!.optString(it) }.filter { it.isNotBlank() },
+                    categoryId = r.getJSONObject("category").optString("id"),
+                    categoryName = r.getJSONObject("category").optString("name"),
+                    labelIds = (0 until (labels?.length() ?: 0)).map { labels!!.getJSONObject(it) }
+                        .filter { !it.optBoolean("archived") && it.optString("id").isNotEmpty() }
+                        .map { it.optString("id") },
+                    accountId = r.optString("fromAccountId"),
+                )
+            }
+    }
+
+    /**
+     * Categorised records from the last [days] days, newest first, up to 1000, to learn from.
+     * "Unknown" and voided records teach nothing, so they're skipped.
+     */
+    fun categorisedHistory(token: String, days: Long = 180): List<PastRecord> {
+        val since = Instant.now().minusSeconds(days * 86_400).toString()
+        val out = ArrayList<PastRecord>()
+        var offset = 0
+        repeat(5) {
+            val r = call("GET", "/v1/api/records?recordDate=gte.$since&sortBy=-recordDate&limit=200&offset=$offset", token, null)
+            if (r.code != 200) throw HttpStatusException(r.code)
+            val body = JSONObject(r.body)
+            val arr = body.optJSONArray("records") ?: return out
+            for (i in 0 until arr.length()) {
+                val rec = arr.getJSONObject(i)
+                val cat = rec.optJSONObject("category") ?: continue
+                val catId = cat.optString("id")
+                if (catId.isEmpty() || cat.optString("name").contains("unknown", ignoreCase = true)) continue
+                if (rec.optString("recordState").equals("void", ignoreCase = true)) continue
+                val texts = listOf(rec.optString("counterParty"), rec.optString("note")).filter { it.isNotBlank() }
+                if (texts.isEmpty()) continue
+                val income = rec.optString("recordType").equals("income", ignoreCase = true)
+                out += PastRecord(texts.map { it.take(120) }, catId, cat.optString("name"), income)
+            }
+            if (body.isNull("nextOffset") || !body.has("nextOffset")) return out
+            offset = body.optInt("nextOffset")
+        }
+        return out
+    }
+
+    private fun getList(token: String, path: String, key: String): org.json.JSONArray {
+        val r = call("GET", path, token, null)
+        if (r.code == 401 || r.code == 403) throw IOException("Wallet rejected the token (HTTP ${r.code})")
+        if (r.code != 200) throw HttpStatusException(r.code)
+        return JSONObject(r.body).optJSONArray(key) ?: org.json.JSONArray()
+    }
+
     /**
      * Does Wallet already hold this record? Used before re-sending a record whose earlier upload
      * got no answer, because Wallet has no duplicate protection of its own. Matches on account,

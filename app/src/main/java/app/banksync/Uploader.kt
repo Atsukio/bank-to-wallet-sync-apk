@@ -50,6 +50,9 @@ object Uploader {
         val token = s.token
         if (token.isEmpty()) return Result.Done
 
+        // The network is up anyway, so this is the cheap moment to bring Wallet's rules and history up to date.
+        WalletCache.refresh(context, token)
+
         // Incoming records already checked against Wallet this run and found missing.
         val checked = HashSet<Long>()
 
@@ -106,9 +109,17 @@ object Uploader {
                 if (skipped) continue
             }
 
+            // A record captured before the cache had anything to go on gets another try now.
+            val ready = batch.map { rec ->
+                if (rec.categoryId != null || rec.amount == null) return@map rec
+                val pick = WalletCache.pick(context, rec.note.orEmpty(), rec.payee, rec.amount, rec.account) ?: return@map rec
+                store.setCategory(rec.id, pick)
+                store.get(rec.id) ?: rec
+            }
+
             val ids = batch.map { it.id }
             val resp = try {
-                WalletApi.postRecords(token, toJson(batch, s))
+                WalletApi.postRecords(token, toJson(ready, s))
             } catch (e: WalletApi.UncertainException) {
                 store.markUncertain(ids)
                 return transient(store, s, ids)
@@ -206,6 +217,7 @@ object Uploader {
                 .put("recordState", if (s.markUncleared) "uncleared" else "cleared")
             r.payee?.let { o.put("counterParty", it) }
             r.categoryId?.takeIf { it.isNotEmpty() }?.let { o.put("categoryId", it) }
+            if (r.labelIds.isNotEmpty()) o.put("labelIds", JSONArray(r.labelIds))
             if (s.includeNote && !r.note.isNullOrEmpty()) o.put("note", r.note.take(255))
             arr.put(o)
         }

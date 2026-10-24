@@ -95,6 +95,8 @@ class SettingsActivity : LockedActivity() {
             Pickers.addCategoryRule(this, settings.token, it as Button, onAdded = ::renderCategories, onError = ::toast)
         }
 
+        link(R.id.walletDataRow, R.drawable.ic_sync, "Learned from Wallet") { refreshWalletData() }
+        link(R.id.memoryRow, R.drawable.ic_label, "Remembered choices") { forgetChoices() }
         link(R.id.accessRow, R.drawable.ic_notifications, "Notification access") { Permissions.openAccessSettings(this) }
         link(R.id.batteryRow, R.drawable.ic_battery, "Battery use") { Permissions.requestBattery(this) }
     }
@@ -140,8 +142,48 @@ class SettingsActivity : LockedActivity() {
         }
     }
 
-    private fun renderCategories() =
+    private fun renderCategories() {
         Pickers.renderCategoryRules(this, findViewById<LinearLayout>(R.id.categoriesList), settings)
+        val d = WalletCache.get(this)
+        linkText(R.id.walletDataRow).text = if (d.rulesAt == 0L) {
+            "Nothing yet. Tap to load your Wallet rules and past records."
+        } else {
+            val ago = android.text.format.DateUtils.getRelativeTimeSpanString(maxOf(d.rulesAt, d.historyAt))
+            "${d.rules.size} Wallet rule(s), ${d.history.size} past record(s) · updated $ago. Tap to refresh."
+        }
+        val n = settings.categoryMemory().size
+        linkText(R.id.memoryRow).text =
+            if (n == 0) "None yet. Change a transaction's category to teach it." else "$n merchant(s). Tap to forget them."
+    }
+
+    private fun linkText(row: Int) = findViewById<View>(row).findViewById<TextView>(R.id.linkText)
+
+    private fun refreshWalletData() {
+        val token = settings.token
+        if (token.isEmpty()) return toast("Connect to Wallet first")
+        linkText(R.id.walletDataRow).text = "Loading from Wallet…"
+        Thread {
+            val ok = WalletCache.refresh(this, token, force = true)
+            runOnUiThread {
+                if (isFinishing || isDestroyed) return@runOnUiThread
+                renderCategories()
+                if (!ok) toast("Couldn't load everything from Wallet. Try again later.")
+            }
+        }.start()
+    }
+
+    private fun forgetChoices() {
+        if (settings.categoryMemory().isEmpty()) return
+        com.google.android.material.dialog.MaterialAlertDialogBuilder(this)
+            .setTitle("Forget remembered choices?")
+            .setMessage("New transactions from those merchants will be categorised by your rules and past records instead.")
+            .setPositiveButton("Forget") { _, _ ->
+                settings.forgetCategories()
+                renderCategories()
+            }
+            .setNegativeButton("Cancel", null)
+            .show()
+    }
 
     /**
      * The connection card always says where things stand. With a token saved, the field stays hidden
@@ -197,6 +239,7 @@ class SettingsActivity : LockedActivity() {
             if (store.counts()[Store.PENDING] > 0) Uploader.schedule(this, 0, replace = true)
             renderToken()
             status.text = "Connected. Found ${accounts.size} Wallet account(s)."
+            refreshWalletData()
         }
     }
 

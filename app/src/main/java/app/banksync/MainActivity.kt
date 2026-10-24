@@ -306,7 +306,7 @@ class MainActivity : LockedActivity() {
                 Store.UNPARSED -> Triple(R.drawable.ic_help, Tone.WARN, "Not understood · tap to enter it")
                 Store.REVIEW -> Triple(R.drawable.ic_schedule, Tone.WARN, "Tap to approve")
                 Store.FAILED -> Triple(R.drawable.ic_error, Tone.BAD, r.error ?: "Couldn't be sent")
-                Store.PENDING -> Triple(R.drawable.ic_schedule, Tone.NEUTRAL, "Waiting to send")
+                Store.PENDING -> Triple(R.drawable.ic_schedule, Tone.NEUTRAL, "Waiting to send · tap to change")
                 else -> Triple(
                     if (income) R.drawable.ic_arrow_in else R.drawable.ic_arrow_out,
                     if (income) Tone.GOOD else Tone.NEUTRAL,
@@ -325,7 +325,23 @@ class MainActivity : LockedActivity() {
                 text = r.amount?.let { String.format(Locale.US, "%s%,.2f", if (it > 0) "+" else "−", kotlin.math.abs(it)) }
                 setTextColor(themeColor(if (income) M.attr.colorPrimary else M.attr.colorOnSurface))
             }
-            if (r.status == Store.UNPARSED || r.status == Store.REVIEW || r.status == Store.FAILED) {
+            // What Wallet will file it under; a waiting record with none is flagged, as it lands as "Unknown".
+            row.findViewById<TextView>(R.id.recCategory).apply {
+                val waiting = r.status == Store.PENDING || r.status == Store.REVIEW
+                when {
+                    r.categoryName != null -> {
+                        text = "● ${r.categoryName}"
+                        setTextColor(themeColor(M.attr.colorTertiary))
+                    }
+                    waiting && r.amount != null -> {
+                        text = "● No category: tap to choose one"
+                        setTextColor(themeColor(M.attr.colorError))
+                    }
+                    else -> return@apply
+                }
+                visibility = View.VISIBLE
+            }
+            if (r.status != Store.SYNCED) {
                 row.setOnClickListener { openRecord(r) }
             } else {
                 row.background = null
@@ -362,22 +378,7 @@ class MainActivity : LockedActivity() {
     private fun openRecord(r: Rec) {
         when (r.status) {
             Store.UNPARSED -> Dialogs.showFix(this, r) { refresh() }
-            Store.REVIEW -> MaterialAlertDialogBuilder(this)
-                .setTitle("Send to Wallet?")
-                .setMessage(String.format(Locale.US, "%+.2f  %s", r.amount ?: 0.0, r.payee.orEmpty()))
-                .setPositiveButton("Send") { _, _ ->
-                    store.setStatus(r.id, Store.PENDING)
-                    Notifier.cancelReview(this, r.id)
-                    Uploader.schedule(this, 0, replace = true)
-                    refresh()
-                }
-                .setNegativeButton("Discard") { _, _ ->
-                    store.delete(r.id)
-                    Notifier.cancelReview(this, r.id)
-                    refresh()
-                }
-                .setNeutralButton("Cancel", null)
-                .show()
+            Store.REVIEW, Store.PENDING -> Dialogs.showRecord(this, r) { refresh() }
             Store.FAILED -> MaterialAlertDialogBuilder(this)
                 .setTitle("Couldn't be sent")
                 .setMessage(r.error ?: "Unknown error")

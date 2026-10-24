@@ -168,7 +168,7 @@
                 android:layout_marginBottom="8dp"
                 android:paddingStart="4dp"
                 android:paddingEnd="4dp"
-                android:text="File transactions under a Wallet category automatically, based on text in the alert such as a shop name."
+                android:text="Each transaction gets a category from, in order: what you picked before for that merchant, the rules below, your Wallet rules, then your past Wallet records."
                 android:textAppearance="?attr/textAppearanceBodyMedium"
                 android:textColor="?attr/colorOnSurfaceVariant" />
 
@@ -177,12 +177,32 @@
                 android:layout_height="wrap_content">
 
                 <LinearLayout
-                    android:id="@+id/categoriesList"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:orientation="vertical"
                     android:paddingTop="8dp"
-                    android:paddingBottom="8dp" />
+                    android:paddingBottom="8dp">
+
+                    <LinearLayout
+                        android:id="@+id/categoriesList"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="vertical" />
+
+                    <com.google.android.material.divider.MaterialDivider
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="8dp"
+                        android:layout_marginBottom="8dp" />
+
+                    <include
+                        android:id="@+id/walletDataRow"
+                        layout="@layout/item_link" />
+
+                    <include
+                        android:id="@+id/memoryRow"
+                        layout="@layout/item_link" />
+                </LinearLayout>
             </com.google.android.material.card.MaterialCardView>
 
             <!-- Capture -->

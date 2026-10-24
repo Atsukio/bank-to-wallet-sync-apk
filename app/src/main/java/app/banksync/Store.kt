@@ -19,10 +19,15 @@ class Rec(
     val categoryId: String?,
     /** True when an earlier upload may have reached Wallet even though no answer came back. */
     val uncertain: Boolean,
+    val categoryName: String? = null,
+    /** Label ids from a Wallet rule, sent with the record. */
+    val labelIds: List<String> = emptyList(),
+    /** A [CategorySource] value, or null when nothing picked a category. */
+    val categorySource: String? = null,
 )
 
 /** Local queue. A row survives offline periods and process death until Wallet confirms it. */
-class Store private constructor(context: Context) : SQLiteOpenHelper(context, "queue.db", null, 3) {
+class Store private constructor(context: Context) : SQLiteOpenHelper(context, "queue.db", null, 4) {
 
     override fun onCreate(db: SQLiteDatabase) {
         db.execSQL(
@@ -33,7 +38,8 @@ class Store private constructor(context: Context) : SQLiteOpenHelper(context, "q
                 status INTEGER NOT NULL, attempts INTEGER NOT NULL DEFAULT 0,
                 error TEXT, created INTEGER NOT NULL,
                 uncertain INTEGER NOT NULL DEFAULT 0, categoryId TEXT, transferTo TEXT,
-                posted INTEGER NOT NULL DEFAULT 0)"""
+                posted INTEGER NOT NULL DEFAULT 0,
+                categoryName TEXT, labelIds TEXT, categorySource TEXT)"""
         )
         db.execSQL("CREATE INDEX rec_status ON rec(status)")
         db.execSQL("CREATE INDEX rec_hash ON rec(hash, created)")
@@ -48,6 +54,11 @@ class Store private constructor(context: Context) : SQLiteOpenHelper(context, "q
         if (old < 3) {
             // When the notification was posted. `date` can now be the (earlier) time written in the alert.
             db.execSQL("ALTER TABLE rec ADD COLUMN posted INTEGER NOT NULL DEFAULT 0")
+        }
+        if (old < 4) {
+            db.execSQL("ALTER TABLE rec ADD COLUMN categoryName TEXT")
+            db.execSQL("ALTER TABLE rec ADD COLUMN labelIds TEXT")
+            db.execSQL("ALTER TABLE rec ADD COLUMN categorySource TEXT")
         }
     }
 
@@ -77,16 +88,36 @@ class Store private constructor(context: Context) : SQLiteOpenHelper(context, "q
     fun insert(
         hash: String, pkg: String, account: String, amount: Double?,
         payee: String?, note: String?, date: String, status: Int,
-        error: String? = null, categoryId: String? = null, posted: Long = 0L,
+        error: String? = null, category: CategoryPick? = null, posted: Long = 0L,
     ): Long {
         val v = ContentValues().apply {
             put("hash", hash); put("pkg", pkg); put("account", account)
             put("amount", amount); put("payee", payee); put("note", note)
             put("date", date); put("status", status); put("error", error)
-            put("categoryId", categoryId); put("posted", posted)
+            putCategory(category); put("posted", posted)
             put("created", System.currentTimeMillis())
         }
         return writableDatabase.insert("rec", null, v)
+    }
+
+    private fun ContentValues.putCategory(c: CategoryPick?) {
+        put("categoryId", c?.id); put("categoryName", c?.name)
+        put("labelIds", c?.labelIds?.joinToString(",")); put("categorySource", c?.source)
+    }
+
+    /** Sets the category picked by the uploader for a record that had none. */
+    fun setCategory(id: Long, c: CategoryPick) {
+        val v = ContentValues().apply { putCategory(c) }
+        writableDatabase.update("rec", v, "id=? AND categoryId IS NULL", arrayOf(id.toString()))
+    }
+
+    /**
+     * The user's changes to a record that hasn't gone yet. Returns false when it was sent (or removed)
+     * in the meantime, so the change came too late.
+     */
+    fun edit(id: Long, account: String, category: CategoryPick?): Boolean {
+        val v = ContentValues().apply { put("account", account); putCategory(category) }
+        return writableDatabase.update("rec", v, "id=? AND status IN ($PENDING,$REVIEW)", arrayOf(id.toString())) > 0
     }
 
     fun pending(limit: Int): List<Rec> = query("status=$PENDING", "id", limit)
@@ -146,10 +177,10 @@ class Store private constructor(context: Context) : SQLiteOpenHelper(context, "q
     }
 
     /** Turns a "not understood" row into a normal queued record using values the user supplied. */
-    fun fix(id: Long, account: String, amount: Double, payee: String?, categoryId: String?) {
+    fun fix(id: Long, account: String, amount: Double, payee: String?, category: CategoryPick?) {
         val v = ContentValues().apply {
             put("account", account); put("amount", amount); put("payee", payee)
-            put("categoryId", categoryId); put("status", PENDING); put("attempts", 0); putNull("error")
+            putCategory(category); put("status", PENDING); put("attempts", 0); putNull("error")
         }
         writableDatabase.update("rec", v, "id=?", arrayOf(id.toString()))
     }
@@ -179,7 +210,7 @@ class Store private constructor(context: Context) : SQLiteOpenHelper(context, "q
             "rec",
             arrayOf(
                 "id", "pkg", "account", "amount", "payee", "note", "date", "status", "attempts", "error",
-                "categoryId", "uncertain"
+                "categoryId", "uncertain", "categoryName", "labelIds", "categorySource"
             ),
             where, null, null, null, order, limit.toString()
         ).use {
@@ -189,7 +220,9 @@ class Store private constructor(context: Context) : SQLiteOpenHelper(context, "q
                     if (it.isNull(3)) null else it.getDouble(3),
                     it.getString(4), it.getString(5), it.getString(6),
                     it.getInt(7), it.getInt(8), it.getString(9),
-                    it.getString(10), it.getInt(11) == 1
+                    it.getString(10), it.getInt(11) == 1,
+                    it.getString(12), it.getString(13)?.split(',')?.filter { s -> s.isNotEmpty() }.orEmpty(),
+                    it.getString(14),
                 )
             }
         }

@@ -117,6 +117,8 @@ class OnboardingActivity : LockedActivity() {
             settings.token = token
             settings.tokenVerified = true
             tokenField.text = null
+            // So the first alerts already get categories from the user's Wallet rules and history.
+            Thread { WalletCache.refresh(applicationContext, token, force = true) }.start()
             updateNext()
             status.text = "Connected ✓ Found ${accounts.size} account(s): " +
                 accounts.joinToString(", ") { it.name }

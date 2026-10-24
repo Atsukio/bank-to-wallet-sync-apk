@@ -86,4 +86,6 @@
             android:layout_height="wrap_content"
             android:inputType="textCapWords" />
     </com.google.android.material.textfield.TextInputLayout>
+
+    <include layout="@layout/part_category" />
 </LinearLayout>

@@ -99,16 +99,18 @@ class BankNotificationListener : NotificationListenerService() {
             return hold(rule.accountId, "Alert is in ${parsed.currency} but ${rule.accountName} is ${rule.accountCurrency}")
         }
 
-        val categoryId = CategoryMatcher.pick(settings.categoryRules(), text)?.categoryId
+        // From what's already on the phone, so capturing never waits on the network.
+        val category = WalletCache.pick(this, text, parsed.payee, parsed.amount, rule.accountId)
         val status = if (settings.reviewMode) Store.REVIEW else Store.PENDING
         val id = store.insert(
             hash, pkg, rule.accountId, parsed.amount, parsed.payee, note, date, status,
-            categoryId = categoryId, posted = posted
+            category = category, posted = posted
         )
 
         if (status == Store.REVIEW) {
             val what = String.format(Locale.US, "%+.2f", parsed.amount) +
-                (parsed.payee?.let { " $it" } ?: "") + " → " + rule.accountName
+                (parsed.payee?.let { " $it" } ?: "") + " → " + rule.accountName +
+                "\nCategory: " + (category?.name ?: "none (Wallet will show Unknown)")
             Notifier.review(this, id, what)
         } else {
             Uploader.schedule(this)
