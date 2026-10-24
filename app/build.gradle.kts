@@ -36,6 +36,8 @@ dependencies {
     // Material 3 for the UI only. Everything on the background path (listener, parser, SQLite,
     // JobScheduler, HttpURLConnection) uses framework APIs, so the notification path stays cheap.
     implementation("com.google.android.material:material:1.12.0")
+    // App lock prompt (fingerprint, face or screen lock). UI only, like Material.
+    implementation("androidx.biometric:biometric:1.1.0")
 
     testImplementation("junit:junit:4.13.2")
 }

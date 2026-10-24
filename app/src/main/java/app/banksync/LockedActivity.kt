@@ -10,6 +10,9 @@ import android.view.View
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
+import androidx.biometric.BiometricManager
+import androidx.biometric.BiometricPrompt
+import androidx.core.content.ContextCompat
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.updatePadding
@@ -21,18 +24,10 @@ import com.google.android.material.dialog.MaterialAlertDialogBuilder
  * own screens doesn't count as leaving.
  */
 abstract class LockedActivity : AppCompatActivity() {
-    protected var lockPending = false
-        private set
+    protected val lockPending get() = locking
 
-    private val lock = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
-        lockPending = false
-        if (result.resultCode == RESULT_OK) {
-            lastActive = SystemClock.elapsedRealtime()
-            findViewById<View>(android.R.id.content).visibility = View.VISIBLE
-        } else {
-            finish()
-        }
-    }
+    /** Created in onCreate so a prompt that outlives a rotation reports back to the new screen. */
+    private lateinit var prompt: BiometricPrompt
 
     private val askNotifications = registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
         // Refused with "don't ask again" (or twice): Android won't prompt any more, so say where to turn it on.
@@ -67,6 +62,20 @@ abstract class LockedActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         // The same on every Android version (15+ forces it anyway), with bar icons that follow the theme.
         enableEdgeToEdge()
+        prompt = BiometricPrompt(this, ContextCompat.getMainExecutor(this), object : BiometricPrompt.AuthenticationCallback() {
+            override fun onAuthenticationSucceeded(result: BiometricPrompt.AuthenticationResult) {
+                locking = false
+                lastActive = SystemClock.elapsedRealtime()
+                findViewById<View>(android.R.id.content).visibility = View.VISIBLE
+            }
+
+            // Cancelled, backed out of, or left for another app: stay locked. A wrong finger or PIN isn't an
+            // error; the prompt just lets them try again.
+            override fun onAuthenticationError(errorCode: Int, errString: CharSequence) {
+                locking = false
+                finish()
+            }
+        })
     }
 
     override fun onStart() {
@@ -76,18 +85,29 @@ abstract class LockedActivity : AppCompatActivity() {
 
     override fun onStop() {
         super.onStop()
-        if (--started == 0 && !lockPending) lastActive = SystemClock.elapsedRealtime()
+        if (--started == 0 && !locking) lastActive = SystemClock.elapsedRealtime()
     }
 
     private fun checkLock() {
-        if (!Settings(this).appLock || lockPending) return
+        val content = findViewById<View>(android.R.id.content)
+        // Rebuilt (e.g. rotated) while the prompt is up: the prompt carries on, so just keep the content hidden.
+        if (locking) {
+            content.visibility = View.INVISIBLE
+            return
+        }
+        if (!Settings(this).appLock) return
         if (lastActive != 0L && SystemClock.elapsedRealtime() - lastActive < GRACE_MS) return
-        val km = getSystemService(KeyguardManager::class.java)
-        if (!km.isDeviceSecure) return
-        val intent = km.createConfirmDeviceCredentialIntent("Bank to Wallet", "Unlock to continue") ?: return
-        lockPending = true
-        findViewById<View>(android.R.id.content).visibility = View.INVISIBLE
-        lock.launch(intent)
+        if (!getSystemService(KeyguardManager::class.java).isDeviceSecure) return
+        if (BiometricManager.from(this).canAuthenticate(AUTHENTICATORS) != BiometricManager.BIOMETRIC_SUCCESS) return
+        locking = true
+        content.visibility = View.INVISIBLE
+        prompt.authenticate(
+            BiometricPrompt.PromptInfo.Builder()
+                .setTitle("Bank to Wallet")
+                .setSubtitle("Unlock to continue")
+                .setAllowedAuthenticators(AUTHENTICATORS)
+                .build()
+        )
     }
 
     /**
@@ -110,6 +130,12 @@ abstract class LockedActivity : AppCompatActivity() {
 
     private companion object {
         const val GRACE_MS = 60_000L
+
+        /** Fingerprint or face, or the phone's PIN, pattern or password; this pair works on every Android version. */
+        const val AUTHENTICATORS = BiometricManager.Authenticators.BIOMETRIC_WEAK or BiometricManager.Authenticators.DEVICE_CREDENTIAL
+
+        /** The unlock prompt is showing. Process-wide so it survives the screen being recreated under it. */
+        var locking = false
 
         /** Screens of this app currently started; 0 means the app is in the background. */
         var started = 0
