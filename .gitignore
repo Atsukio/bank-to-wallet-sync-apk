@@ -6,6 +6,7 @@ app/build/
 local.properties
 *.keystore
 *.jks
+keystore.properties
 .env
 
 # Google Android skills (installed from github.com/android/skills, not ours to commit)

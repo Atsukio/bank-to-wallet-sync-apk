@@ -13,6 +13,16 @@ class Release(val code: Int, val name: String, val date: String, val changes: Li
 object Changelog {
     val releases = listOf(
         Release(
+            3, "1.2", "24 Oct 2026",
+            listOf(
+                "Try the app with demo data: made-up bank apps and transactions, nothing read or sent. Start it from the menu or the first setup screen.",
+                "Before you turn on notification access, the app now explains exactly what it reads and where it goes.",
+                "The battery button now opens the app's own settings page; choose Battery › Unrestricted there.",
+                "Transactions now go to Wallet as soon as there's a connection. You can still set a delay in Settings › Uploads.",
+                "Fixed Wallet categories showing as \"false\" and looking repeated in the category list.",
+            )
+        ),
+        Release(
             2, "1.1", "24 Oct 2026",
             listOf(
                 "Wallet notes now hold just the payment details (who you paid and the reference) instead of the whole alert, or nothing when there are none.",

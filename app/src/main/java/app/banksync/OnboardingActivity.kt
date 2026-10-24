@@ -45,8 +45,12 @@ class OnboardingActivity : LockedActivity() {
         findViewById<Button>(R.id.backButton).setOnClickListener { show(index - 1) }
         findViewById<Button>(R.id.nextButton).setOnClickListener { next() }
         findViewById<Button>(R.id.obCheck).setOnClickListener { checkToken() }
-        findViewById<Button>(R.id.obAccessButton).setOnClickListener { Permissions.openAccessSettings(this) }
-        findViewById<Button>(R.id.obBatteryButton).setOnClickListener { Permissions.requestBattery(this) }
+        findViewById<Button>(R.id.obDemo).setOnClickListener {
+            Demo.start(this)
+            finish()
+        }
+        findViewById<Button>(R.id.obAccessButton).setOnClickListener { Permissions.askAccess(this) }
+        findViewById<Button>(R.id.obBatteryButton).setOnClickListener { Permissions.openBatterySettings(this) }
         findViewById<Button>(R.id.obAddApp).setOnClickListener {
             Pickers.addRule(this, token(), it as Button, onAdded = { renderRules() }, onError = ::toast)
         }

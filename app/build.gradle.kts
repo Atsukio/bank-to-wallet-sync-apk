@@ -1,7 +1,14 @@
+import java.util.Properties
+
 plugins {
     // AGP 9 compiles Kotlin itself (built-in Kotlin), so there's no separate Kotlin plugin.
     id("com.android.application")
 }
+
+// Google Play upload key, described in keystore.properties next to settings.gradle.kts (git-ignored).
+// Read through a provider so the configuration cache notices when it changes.
+val keystore = providers.fileContents(rootProject.layout.projectDirectory.file("keystore.properties"))
+    .asText.orNull?.let { text -> Properties().apply { load(text.reader()) } }
 
 android {
     namespace = "app.banksync"
@@ -11,8 +18,19 @@ android {
         applicationId = "app.banksync"
         minSdk = 26
         targetSdk = 36
-        versionCode = 2
-        versionName = "1.1"
+        versionCode = 3
+        versionName = "1.2"
+    }
+
+    signingConfigs {
+        if (keystore != null) {
+            create("upload") {
+                storeFile = rootProject.file(keystore.getProperty("storeFile"))
+                storePassword = keystore.getProperty("storePassword")
+                keyAlias = keystore.getProperty("keyAlias")
+                keyPassword = keystore.getProperty("keyPassword")
+            }
+        }
     }
 
     buildTypes {
@@ -20,8 +38,9 @@ android {
             isMinifyEnabled = true
             isShrinkResources = true
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"))
-            // Personal sideload build: signed with the debug key. Swap for a real keystore if you publish.
-            signingConfig = signingConfigs.getByName("debug")
+            // The upload key when keystore.properties exists (needed for Play); otherwise the debug
+            // key, which is fine for sideloading but rejected by Play.
+            signingConfig = signingConfigs.findByName("upload") ?: signingConfigs.getByName("debug")
         }
     }
 

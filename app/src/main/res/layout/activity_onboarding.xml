@@ -93,6 +93,15 @@
                     android:text="Setup takes about two minutes. You can skip any step and finish it later."
                     android:textAppearance="?attr/textAppearanceBodyMedium"
                     android:textColor="?attr/colorOnSurfaceVariant" />
+
+                <!-- No Wallet account or bank app needed: made-up data, nothing is sent. -->
+                <Button
+                    android:id="@+id/obDemo"
+                    style="@style/Widget.Material3.Button.TextButton"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="8dp"
+                    android:text="Just looking? Try the demo" />
             </LinearLayout>
 
             <!-- 1: Wallet token -->
@@ -173,7 +182,7 @@
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:layout_marginTop="12dp"
-                    android:text="Android needs you to switch this on yourself: tap the button, then turn on the switch for Bank to Wallet.\n\nIf the switch is greyed out, open the app's info page, tap the ⋮ menu and choose &quot;Allow restricted settings&quot;, then try again. Android does this for apps installed outside the Play Store."
+                    android:text="To record transactions, the app reads the notifications from the bank apps you choose: the amount, who was paid or who paid you, the reference and the time. Notifications from other apps are ignored and never stored, and the details go only to your own Wallet account.\n\nAndroid needs you to switch this on yourself: tap the button, then turn on the switch for Bank to Wallet."
                     android:textAppearance="?attr/textAppearanceBodyMedium" />
 
                 <Button
@@ -214,7 +223,7 @@
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:layout_marginTop="12dp"
-                    android:text="Some phones stop notification listeners to save battery, which means missed transactions. This app does no background work of its own, so allowing unrestricted battery use costs almost nothing.\n\nThis step is optional."
+                    android:text="Some phones stop notification listeners to save battery, which means missed transactions. This app does no background work of its own, so allowing unrestricted battery use costs almost nothing.\n\nTap the button, then Battery (or App battery usage), and choose Unrestricted. This step is optional."
                     android:textAppearance="?attr/textAppearanceBodyMedium" />
 
                 <Button

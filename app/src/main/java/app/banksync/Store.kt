@@ -26,8 +26,11 @@ class Rec(
     val categorySource: String? = null,
 )
 
-/** Local queue. A row survives offline periods and process death until Wallet confirms it. */
-class Store private constructor(context: Context) : SQLiteOpenHelper(context, "queue.db", null, 4) {
+/**
+ * Local queue. A row survives offline periods and process death until Wallet confirms it. A null
+ * [name] is the in-memory queue that [Demo] fills.
+ */
+class Store private constructor(context: Context, name: String?) : SQLiteOpenHelper(context, name, null, 4) {
 
     override fun onCreate(db: SQLiteDatabase) {
         db.execSQL(
@@ -248,8 +251,27 @@ class Store private constructor(context: Context) : SQLiteOpenHelper(context, "q
         @Volatile
         private var instance: Store? = null
 
+        @Volatile
+        private var demo: Store? = null
+
+        /** The real queue. Capture, upload and notification buttons always use this one. */
         fun get(context: Context): Store = instance ?: synchronized(this) {
-            instance ?: Store(context.applicationContext).also { instance = it }
+            instance ?: Store(context.applicationContext, "queue.db").also { instance = it }
+        }
+
+        /** What the screens show: the demo queue while [Demo] runs, otherwise the real one. */
+        fun shown(context: Context): Store = (if (Demo.active) demo else null) ?: get(context)
+
+        fun newDemo(context: Context): Store {
+            demo?.close()
+            return Store(context.applicationContext, null).also { demo = it }
+        }
+
+        fun demoOrNull(): Store? = demo
+
+        fun dropDemo() {
+            demo?.close()
+            demo = null
         }
     }
 }

@@ -33,7 +33,7 @@ object Dialogs {
     fun showFix(activity: Activity, rec: Rec, onDone: () -> Unit) {
         val settings = Settings(activity)
         // This app's accounts first, then every other account a rule uses.
-        val rules = settings.rules().sortedBy { if (it.pkg == rec.pkg) 0 else 1 }
+        val rules = Demo.rules(settings).sortedBy { if (it.pkg == rec.pkg) 0 else 1 }
         val targets = rules.distinctBy { it.accountId }.map { Target(it.accountId, it.accountName, it.accountCurrency) }
         if (targets.isEmpty()) {
             Toast.makeText(activity, "Add this bank app under Bank apps first", Toast.LENGTH_LONG).show()
@@ -53,10 +53,10 @@ object Dialogs {
 
         val payeeField = view.findViewById<EditText>(R.id.fixPayee)
         fun payee() = payeeField.text.toString().trim().ifEmpty { null }
-        val chooser = CategoryChooser(
-            activity, view,
-            WalletCache.pick(activity, text, parsed?.payee, parsed?.amount ?: -1.0, rec.account), ::payee,
-        )
+        // The demo never guesses from the user's real Wallet data.
+        fun guess(payee: String?, amount: Double, account: String) =
+            if (Demo.active) null else WalletCache.pick(activity, text, payee, amount, account)
+        val chooser = CategoryChooser(activity, view, guess(parsed?.payee, parsed?.amount ?: -1.0, rec.account), ::payee)
 
         lateinit var dialog: AlertDialog
         fun amount() = amountField.text.toString().replace(",", "").toDoubleOrNull()?.takeIf { it > 0 }
@@ -96,15 +96,15 @@ object Dialogs {
                 val signed = if (view.findViewById<RadioButton>(R.id.fixIncome).isChecked) amount else -amount
                 val payee = payee()
                 // Untouched, the category is worked out again from what was finally entered.
-                val category = chooser.result { WalletCache.pick(activity, text, payee, signed, target.id) }
+                val category = chooser.result { guess(payee, signed, target.id) }
                 chooser.commit()
-                Store.get(activity).fix(rec.id, target.id, signed, payee, category)
-                Uploader.schedule(activity, 0, replace = true)
+                Store.shown(activity).fix(rec.id, target.id, signed, payee, category)
+                if (!Demo.active) Uploader.schedule(activity, 0, replace = true)
                 onDone()
             }
             .setNegativeButton("Cancel", null)
             .setNeutralButton("Delete") { _, _ ->
-                Store.get(activity).delete(rec.id)
+                Store.shown(activity).delete(rec.id)
                 onDone()
             }
             .create()
@@ -118,7 +118,7 @@ object Dialogs {
      */
     fun showRecord(activity: Activity, rec: Rec, onDone: () -> Unit) {
         val settings = Settings(activity)
-        val store = Store.get(activity)
+        val store = Store.shown(activity)
         val view = LayoutInflater.from(activity).inflate(R.layout.dialog_record, null)
         val amount = rec.amount ?: 0.0
         view.findViewById<TextView>(R.id.recordAmount).text =
@@ -126,7 +126,7 @@ object Dialogs {
         view.findViewById<TextView>(R.id.recordWhat).text =
             rec.payee?.takeIf { it.isNotBlank() } ?: if (amount > 0) "Money in" else "Payment"
 
-        val targets = settings.rules().distinctBy { it.accountId }.map { Target(it.accountId, it.accountName, it.accountCurrency) }
+        val targets = Demo.rules(settings).distinctBy { it.accountId }.map { Target(it.accountId, it.accountName, it.accountCurrency) }
         var target = targets.firstOrNull { it.id == rec.account } ?: Target(rec.account, "Account no longer linked", "")
         val accountField = view.findViewById<AutoCompleteTextView>(R.id.recordAccount)
         accountField.setText(target.label, false)
@@ -150,7 +150,7 @@ object Dialogs {
         if (rec.status == Store.REVIEW) {
             builder.setTitle("Send to Wallet?")
                 .setPositiveButton("Send") { _, _ ->
-                    if (save() && store.approve(rec.id)) Uploader.schedule(activity, 0, replace = true)
+                    if (save() && store.approve(rec.id) && !Demo.active) Uploader.schedule(activity, 0, replace = true)
                     Notifier.cancelReview(activity, rec.id)
                     onDone()
                 }
@@ -194,7 +194,7 @@ object Dialogs {
                 ?: "None found: Wallet will show Unknown"
             val token = Settings(activity).token
             Thread {
-                val list = runCatching { WalletCache.categories(activity, token) }.getOrNull()
+                val list = if (Demo.active) Demo.categories else runCatching { WalletCache.categories(activity, token) }.getOrNull()
                 activity.runOnUiThread {
                     if (activity.isFinishing || activity.isDestroyed) return@runOnUiThread
                     if (list.isNullOrEmpty()) {
@@ -223,6 +223,8 @@ object Dialogs {
         /** Remembers a hand-picked category for the merchant, if the user left the box ticked. */
         fun commit() {
             val c = chosen ?: return
+            // Demo choices would land in the real memory with made-up category ids.
+            if (Demo.active) return
             if (touched && remember.visibility == View.VISIBLE && remember.isChecked) {
                 Settings(activity).rememberCategory(payee(), c.id, c.name)
             }

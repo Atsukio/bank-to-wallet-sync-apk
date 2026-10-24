@@ -16,6 +16,10 @@
         android:title="Clear sent history"
         app:showAsAction="never" />
     <item
+        android:id="@+id/menuDemo"
+        android:title="Try with demo data"
+        app:showAsAction="never" />
+    <item
         android:id="@+id/menuGuide"
         android:title="Setup guide"
         app:showAsAction="never" />

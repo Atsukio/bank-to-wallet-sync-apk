@@ -24,7 +24,8 @@ import com.google.android.material.R as M
 /** Home: whether everything works, what's queued, and recent activity. Bank apps and options live in [SettingsActivity]. */
 class MainActivity : LockedActivity() {
     private lateinit var settings: Settings
-    private lateinit var store: Store
+    // Looked up each time: the demo swaps in its own queue.
+    private val store get() = Store.shown(this)
     private var askedAccessThisLaunch = false
 
     // The setup guide covers the permission prompts, so don't stack the same dialogs on top of it.
@@ -65,7 +66,6 @@ class MainActivity : LockedActivity() {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
         settings = Settings(this)
-        store = Store.get(this)
         applyInsets(findViewById(R.id.root), findViewById(R.id.scroll))
 
         findViewById<MaterialToolbar>(R.id.toolbar).apply {
@@ -79,6 +79,7 @@ class MainActivity : LockedActivity() {
                     R.id.menuTest -> Dialogs.showTest(this@MainActivity)
                     R.id.menuExport -> exportSettings.launch("bank-to-wallet-settings.json")
                     R.id.menuImport -> importSettings.launch(arrayOf("*/*"))
+                    R.id.menuDemo -> if (Demo.active) stopDemo() else startDemo()
                 }
                 true
             }
@@ -86,12 +87,16 @@ class MainActivity : LockedActivity() {
 
         findViewById<Button>(R.id.syncButton).setOnClickListener {
             if (store.counts()[Store.PENDING] == 0) return@setOnClickListener toast("Nothing waiting to send")
+            if (Demo.active) {
+                toast("Demo: ${Demo.sendAll()} marked as sent. Nothing went to Wallet.")
+                return@setOnClickListener refresh()
+            }
             Uploader.schedule(this, 0, replace = true)
             toast("Sending now")
         }
         findViewById<Button>(R.id.retryButton).setOnClickListener {
             val n = store.retryFailed()
-            if (n > 0) Uploader.schedule(this, 0, replace = true)
+            if (n > 0 && !Demo.active) Uploader.schedule(this, 0, replace = true)
             toast(if (n > 0) "Retrying $n record(s)" else "Nothing to retry")
             refresh()
         }
@@ -117,7 +122,8 @@ class MainActivity : LockedActivity() {
         if (Permissions.reconnectIfStopped(this)) window.decorView.postDelayed({ if (!isFinishing) refresh() }, 2_000)
         refresh()
         when {
-            guideShowing || lockPending -> {}
+            // The demo needs no permissions, so don't ask for them over it.
+            guideShowing || lockPending || Demo.active -> {}
             justLeftGuide -> justLeftGuide = false
             else -> onboard()
         }
@@ -129,6 +135,17 @@ class MainActivity : LockedActivity() {
     }
 
     private fun openSettings() = startActivity(Intent(this, SettingsActivity::class.java))
+
+    private fun startDemo() {
+        Demo.start(this)
+        refresh()
+        toast("Demo data: made-up alerts. Nothing is sent to Wallet.")
+    }
+
+    private fun stopDemo() {
+        Demo.stop()
+        refresh()
+    }
 
     private fun addApp(trigger: Button?) =
         Pickers.addRule(this, settings.token, trigger, onAdded = { refresh() }, onError = ::toast)
@@ -142,17 +159,7 @@ class MainActivity : LockedActivity() {
         if (!Permissions.accessEnabled(this)) {
             if (askedAccessThisLaunch) return
             askedAccessThisLaunch = true
-            MaterialAlertDialogBuilder(this)
-                .setTitle("Allow notification access")
-                .setMessage(
-                    "Bank to Wallet reads your bank apps' notifications to record transactions. " +
-                        "Turn on the switch for this app on the next screen.\n\n" +
-                        "If the switch is greyed out, open the app's info page, tap the ⋮ menu and choose " +
-                        "\"Allow restricted settings\", then try again."
-                )
-                .setPositiveButton("Open settings") { _, _ -> Permissions.openAccessSettings(this) }
-                .setNegativeButton("Later", null)
-                .show()
+            Permissions.askAccess(this)
         } else if (!Permissions.batteryExempt(this) && !settings.batteryAsked) {
             settings.batteryAsked = true
             MaterialAlertDialogBuilder(this)
@@ -160,9 +167,10 @@ class MainActivity : LockedActivity() {
                 .setMessage(
                     "Some phones stop notification listeners to save battery, which means missed " +
                         "transactions. The app does no background work of its own, so allowing " +
-                        "unrestricted battery use costs almost nothing."
+                        "unrestricted battery use costs almost nothing.\n\n" +
+                        "On the next screen, tap Battery (or App battery usage) and choose Unrestricted."
                 )
-                .setPositiveButton("Allow") { _, _ -> Permissions.requestBattery(this) }
+                .setPositiveButton("Open settings") { _, _ -> Permissions.openBatterySettings(this) }
                 .setNegativeButton("Not now", null)
                 .show()
         } else if (Build.VERSION.SDK_INT >= 33 && !Notifier.canPost(this) && !settings.notificationsAsked) {
@@ -195,6 +203,8 @@ class MainActivity : LockedActivity() {
     }
 
     private fun refresh() {
+        findViewById<MaterialToolbar>(R.id.toolbar).menu.findItem(R.id.menuDemo)?.title =
+            if (Demo.active) "Exit demo" else "Try with demo data"
         val c = store.counts()
         renderHero(c)
         renderChecks()
@@ -208,10 +218,15 @@ class MainActivity : LockedActivity() {
         val waiting = c[Store.PENDING]
         class Hero(val tone: Tone, val icon: Int, val title: String, val text: String, val action: String? = null, val onAction: (Button) -> Unit = {})
         val hero = when {
+            Demo.active -> Hero(
+                Tone.NEUTRAL, R.drawable.ic_visibility, "Demo mode",
+                "Made-up bank apps and transactions. Tap a row to try it. Nothing is read from your " +
+                    "notifications or sent to Wallet.", "Exit demo"
+            ) { stopDemo() }
             !Permissions.accessEnabled(this) -> Hero(
                 Tone.BAD, R.drawable.ic_error, "Not reading alerts",
                 "Turn on notification access so the app can see your bank's alerts.", "Turn on"
-            ) { Permissions.openAccessSettings(this) }
+            ) { Permissions.askAccess(this) }
             BankNotificationListener.instance == null -> Hero(
                 Tone.WARN, R.drawable.ic_sync, "Reconnecting…",
                 "Notification access is on, but Android hasn't connected the app yet. This usually takes a moment."
@@ -260,6 +275,7 @@ class MainActivity : LockedActivity() {
     private fun renderChecks() {
         val list = findViewById<LinearLayout>(R.id.checksList)
         list.removeAllViews()
+        if (Demo.active) return
         fun add(icon: Int, title: String, text: String, action: String, onClick: () -> Unit) {
             val card = LayoutInflater.from(this).inflate(R.layout.item_check, list, false)
             card.findViewById<ImageView>(R.id.checkIcon).badge(icon, Tone.WARN)
@@ -272,8 +288,8 @@ class MainActivity : LockedActivity() {
             list.addView(card)
         }
         if (Permissions.accessEnabled(this) && !Permissions.batteryExempt(this)) {
-            add(R.drawable.ic_battery, "Battery saver may stop alerts", "Some phones stop the app to save battery.", "Fix") {
-                Permissions.requestBattery(this)
+            add(R.drawable.ic_battery, "Battery saver may stop alerts", "Some phones stop the app to save battery. Set Battery to Unrestricted.", "Fix") {
+                Permissions.openBatterySettings(this)
             }
         }
         if ((settings.reviewMode || settings.alertsOn) && !Notifier.canPost(this)) {
@@ -319,7 +335,7 @@ class MainActivity : LockedActivity() {
 
         val fmt = SimpleDateFormat("d MMM, HH:mm", Locale.getDefault())
         val iso = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'", Locale.US).apply { timeZone = TimeZone.getTimeZone("UTC") }
-        val accounts = settings.rules().associate { it.accountId to it.accountName }
+        val accounts = Demo.rules(settings).associate { it.accountId to it.accountName }
         val inflater = LayoutInflater.from(this)
         for (r in recs) {
             val row = inflater.inflate(R.layout.item_record, list, false)
@@ -379,6 +395,7 @@ class MainActivity : LockedActivity() {
 
     /** Asks the bound listener to read what's still in the shade; dismissed alerts can't be recovered. */
     private fun scan() {
+        if (Demo.active) return toast("Not available in the demo")
         val listener = BankNotificationListener.instance
             ?: return toast("Notification access isn't active. Turn it on first.")
         Thread {
@@ -411,7 +428,7 @@ class MainActivity : LockedActivity() {
                 .setMessage(r.error ?: "Unknown error")
                 .setPositiveButton("Retry") { _, _ ->
                     store.setStatus(r.id, Store.PENDING)
-                    Uploader.schedule(this, 0, replace = true)
+                    if (!Demo.active) Uploader.schedule(this, 0, replace = true)
                     refresh()
                 }
                 .setNegativeButton("Discard") { _, _ ->

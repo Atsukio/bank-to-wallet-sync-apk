@@ -95,8 +95,8 @@ class SettingsActivity : LockedActivity() {
 
         link(R.id.walletDataRow, R.drawable.ic_sync, "Learned from Wallet") { refreshWalletData() }
         link(R.id.memoryRow, R.drawable.ic_label, "Remembered choices") { forgetChoices() }
-        link(R.id.accessRow, R.drawable.ic_notifications, "Notification access") { Permissions.openAccessSettings(this) }
-        link(R.id.batteryRow, R.drawable.ic_battery, "Battery use") { Permissions.requestBattery(this) }
+        link(R.id.accessRow, R.drawable.ic_notifications, "Notification access") { Permissions.askAccess(this) }
+        link(R.id.batteryRow, R.drawable.ic_battery, "Battery use") { Permissions.openBatterySettings(this) }
         link(R.id.changelogRow, R.drawable.ic_new_releases, "What's new") {
             Dialogs.showChangelog(this, "Changelog", Changelog.releases)
         }

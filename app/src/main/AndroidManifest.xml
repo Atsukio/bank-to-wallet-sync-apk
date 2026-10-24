@@ -6,8 +6,7 @@
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     <!-- Only for the "needs attention" and "ask before sending" notifications; asked for at runtime. -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
-    <!-- Only used to show the system "run unrestricted" dialog; the app does no background work of its own. -->
-    <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
+    <!-- No REQUEST_IGNORE_BATTERY_OPTIMIZATIONS: Play restricts it, so the user sets "Unrestricted" on the app's own battery page. -->
 
     <!-- Lets the app picker list launchable apps without the restricted QUERY_ALL_PACKAGES permission. -->
     <queries>

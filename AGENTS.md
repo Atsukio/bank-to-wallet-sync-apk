@@ -1,6 +1,6 @@
 # AGENTS.md
 
-Android app "Bank to Wallet" (package `app.banksync`): reads bank-app notifications (e.g. CIMB OCTO MY, Ryt Bank, TNG eWallet, MAE/Maybank2u) and adds them as records in BudgetBakers Wallet through its REST API. Sibling of the Chrome extension in `../bank-to-wallet-sync` (same owner, same Wallet API, same category logic). Sideloaded for the owner's own use; not on Google Play.
+Android app "Bank to Wallet" (package `app.banksync`): reads bank-app notifications (e.g. CIMB OCTO MY, Ryt Bank, TNG eWallet, MAE/Maybank2u) and adds them as records in BudgetBakers Wallet through its REST API. Sibling of the Chrome extension in `../bank-to-wallet-sync` (same owner, same Wallet API, same category logic). Sideloaded for the owner's own use, and being prepared for Google Play (closed testing first); see `store/LISTING.md`.
 
 Priorities, in order: battery and data (nothing runs unless a notification arrives or an upload is due), never losing or duplicating a transaction (offline queue with retry), then a clean Material 3 UI.
 
@@ -22,12 +22,13 @@ Single module `app/`. Kotlin, **Android Views with Material Components 1.12 (Mat
 | `Categorizer.kt` | Pure category picking ported from the extension: `Merchant` keys, `Categorizer.pick`, Wallet rule matching, history guess. Unit-tested. |
 | `Changelog.kt` | User-facing release notes, newest first, shipped in the app. "What's new" shows once after an update (`seenVersion`; never on a fresh install); Settings › About shows them all. Unit-tested. |
 | `WalletCache.kt` | `wallet_cache.json` in `filesDir`: Wallet record rules, categories and categorised history, used offline at capture time. `refresh` only runs when an upload is already online (rules ≤ hourly, history ≤ 12 h) or forced after a token check. |
-| `Store.kt` | SQLite queue `queue.db` (version 4). Statuses `PENDING`, `SYNCED`, `FAILED`, `UNPARSED`, `REVIEW`. Raw text is dropped once synced; history purged after `keepDays`. |
+| `Store.kt` | SQLite queue `queue.db` (version 4). Statuses `PENDING`, `SYNCED`, `FAILED`, `UNPARSED`, `REVIEW`. Raw text is dropped once synced; history purged after `keepDays`. `get` is always the real queue (listener, uploader, `ReviewReceiver`); screens use `shown`, which is the in-memory demo queue while `Demo` runs. |
+| `Demo.kt` | Demo mode for trying the app and for Play reviewers: made-up rules, categories and alerts (run through the real `Parser`) in an in-memory queue. Never saved, never touches real settings, nothing uploaded; screens guard `Uploader.schedule`, `WalletCache` and `rememberCategory` with `Demo.active`. Started from the menu or the guide's first step. |
 | `Uploader.kt` | JobScheduler job (`UploadJobService`): network constraint (Wi-Fi only optional), batches of 50, backoff, `uncertain` handling via `WalletApi.recordExists` because Wallet has no duplicate protection. |
 | `WalletApi.kt` | `HttpURLConnection` client: post records, accounts, categories, record rules, history, `recordExists`. |
 | `Settings.kt` | SharedPreferences wrapper, encrypted token, rules, category rules, `categoryMemory`, export/import JSON. |
 | `Notifier.kt` | Two channels: alerts, and "ask before sending" review notifications with Send/Discard (`ReviewReceiver`). Event-driven only. |
-| `Permissions.kt` | Notification access, listener rebind, battery exemption; both are settings screens, not runtime prompts. |
+| `Permissions.kt` | Notification access, listener rebind, battery. Every "turn on access" button goes through `askAccess`, the prominent disclosure Play requires (what is read, where it goes, "Agree and continue"). Battery opens the app's info page (Battery › Unrestricted); `REQUEST_IGNORE_BATTERY_OPTIMIZATIONS` was removed because Play restricts it, so don't add it back. |
 | `PauseTileService.kt` | Quick Settings tile to pause capture. |
 | `LockedActivity.kt` | Base of every screen: app lock (`BiometricPrompt`, BIOMETRIC_WEAK or device credential, 60 s grace, process-wide `started`/`locking`), `enableEdgeToEdge()`, `applyInsets`, notification permission flow. |
 | `MainActivity.kt` | Home: hero status card (worst problem first), check cards, count tiles, recent activity (tap a row to review/edit/fix/retry; eye button sets `hideDetails` to mask payees, amounts and categories). |
@@ -36,7 +37,9 @@ Single module `app/`. Kotlin, **Android Views with Material Components 1.12 (Mat
 | `Dialogs.kt` / `Pickers.kt` | Record/fix/test dialogs, `CategoryChooser`, app and account pickers, list rows. |
 | `Ui.kt` | `Tone` (GOOD/NEUTRAL/WARN/BAD → M3 container roles), `themeColor`, `ImageView.badge`. |
 | `res/values{,-night}/themes.xml` | Teal M3 palette and the `Widget.BankSync.*` styles. Change both files together. |
-| `app/src/test/` | JUnit 4: `ParserTest`, `RuleMatcherTest`, `CategorizerTest`, `ChangelogTest`. |
+| `app/src/test/` | JUnit 4: `ParserTest`, `RuleMatcherTest`, `CategorizerTest`, `ChangelogTest`, `DemoTest`. |
+| `PRIVACY.md` | Privacy policy; its public URL goes in Play Console. Keep it true to what the code does, and update it in the same change as anything that alters what is read, stored or sent. |
+| `store/` | Play listing text and form answers (`LISTING.md`), `play-icon-512.png`, `feature-graphic-1024x500.png`, and `make-graphics.mjs`, which renders both from the extension's icon with its Puppeteer and sharp (`CHROME_PATH` to Brave; Edge exits silently here). |
 | `.claude/skills/` | Google's Android skills (github.com/android/skills), git-ignored, local only. Many assume Compose; adapt them to Views. |
 
 ## Build and test (Windows)
@@ -60,7 +63,7 @@ $env:JAVA_HOME = "C:\Program Files\Eclipse Adoptium\jdk-17.0.20.101-hotspot"
 - Configuration cache is on: build logic must not read files, env vars or system properties at configuration time without Gradle's providers.
 - Dependencies are deliberately few: Material and `androidx.biometric` (UI only), JUnit for tests. The background path (listener, parser, SQLite, JobScheduler, HttpURLConnection) uses framework APIs only. Ask before adding a library; never add one to the background path.
 - **Versioning:** when the owner asks for a release (or a batch of user-visible changes is ready to install), bump `versionCode` and `versionName` in `app/build.gradle.kts` and add a matching entry at the top of `Changelog.releases`, in plain English for the owner, not commit messages. Without the bump, "What's new" never shows.
-- Release: R8 with resource shrinking, no custom keep rules (none needed, no reflection). It is **signed with the debug key**; a real keystore is still to do.
+- Release: R8 with resource shrinking, no custom keep rules (none needed, no reflection). Signed with the Play upload key described in `keystore.properties` at the repo root (`storeFile`, `storePassword`, `keyAlias`, `keyPassword`; git-ignored, read through `providers.fileContents`); without that file it falls back to the debug key, which Play rejects. Never open or print `keystore.properties` or the keystore. Play takes the `.aab` from `bundleRelease`.
 
 ## How things work
 
@@ -106,6 +109,6 @@ $env:JAVA_HOME = "C:\Program Files\Eclipse Adoptium\jdk-17.0.20.101-hotspot"
 
 ## Status as of 2026-10-24
 
-- Done: capture and offline queue, catch-up scan, review mode, extension-style categories with Wallet rules and labels, redesigned home and settings, edge-to-edge, AGP 9 migration, BiometricPrompt app lock, configuration cache.
-- Unverified on a real phone: the whole redesign (light/dark, keyboard, landscape), Learned-from-Wallet counts, labels on created records, app lock with `BiometricPrompt` (including rotation while the prompt is up), the permanently-refused notification permission dialog.
-- Waiting on the owner: dummy CIMB and TNG notification samples for `ParserTest`; a release keystore; decisions on the USD estimate, the note default, undo after sending, and a wider duplicate check.
+- Done: capture and offline queue, catch-up scan, review mode, extension-style categories with Wallet rules and labels, redesigned home and settings, edge-to-edge, AGP 9 migration, BiometricPrompt app lock, configuration cache. 1.2 (versionCode 3) prepares for Play: demo mode, the notification-access disclosure, no battery-exemption permission, upload-key signing, `PRIVACY.md` and `store/`.
+- Unverified on a real phone: demo mode, the disclosure dialog and the battery settings page (the emulator's system image is missing), the whole redesign (light/dark, keyboard, landscape), Learned-from-Wallet counts, labels on created records, app lock with `BiometricPrompt` (including rotation while the prompt is up), the permanently-refused notification permission dialog.
+- Waiting on the owner: dummy CIMB and TNG notification samples for `ParserTest`; the upload keystore and `keystore.properties`; a contact email in `PRIVACY.md` and a public URL for it; demo-mode phone screenshots; the Play Console forms and 12-tester closed test (see `store/LISTING.md`); decisions on the USD estimate, the note default, undo after sending, and a wider duplicate check.
