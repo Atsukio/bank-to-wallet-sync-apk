@@ -10,7 +10,12 @@
         android:id="@+id/progress"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:max="100" />
+        android:layout_marginStart="16dp"
+        android:layout_marginTop="8dp"
+        android:layout_marginEnd="16dp"
+        android:max="100"
+        app:trackCornerRadius="4dp"
+        app:trackThickness="6dp" />
 
     <LinearLayout
         android:layout_width="match_parent"
@@ -98,6 +103,10 @@
                 android:orientation="vertical"
                 android:visibility="gone">
 
+                <ImageView
+                    style="@style/Widget.BankSync.StepIcon"
+                    android:src="@drawable/ic_wallet" />
+
                 <TextView
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
@@ -150,6 +159,10 @@
                 android:orientation="vertical"
                 android:visibility="gone">
 
+                <ImageView
+                    style="@style/Widget.BankSync.StepIcon"
+                    android:src="@drawable/ic_notifications" />
+
                 <TextView
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
@@ -186,6 +199,10 @@
                 android:layout_height="wrap_content"
                 android:orientation="vertical"
                 android:visibility="gone">
+
+                <ImageView
+                    style="@style/Widget.BankSync.StepIcon"
+                    android:src="@drawable/ic_battery" />
 
                 <TextView
                     android:layout_width="match_parent"
@@ -224,6 +241,10 @@
                 android:orientation="vertical"
                 android:visibility="gone">
 
+                <ImageView
+                    style="@style/Widget.BankSync.StepIcon"
+                    android:src="@drawable/ic_apps" />
+
                 <TextView
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
@@ -260,6 +281,10 @@
                 android:layout_height="wrap_content"
                 android:orientation="vertical"
                 android:visibility="gone">
+
+                <ImageView
+                    style="@style/Widget.BankSync.StepIcon"
+                    android:src="@drawable/ic_check_circle" />
 
                 <TextView
                     android:layout_width="match_parent"

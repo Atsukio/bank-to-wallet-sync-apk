@@ -8,14 +8,13 @@ import android.widget.EditText
 import android.widget.LinearLayout
 import android.widget.TextView
 import androidx.activity.OnBackPressedCallback
-import androidx.appcompat.app.AppCompatActivity
 import androidx.core.text.HtmlCompat
 import androidx.core.widget.doAfterTextChanged
 import com.google.android.material.progressindicator.LinearProgressIndicator
 import com.google.android.material.snackbar.Snackbar
 
 /** First-run walkthrough. Every step can be skipped, and it can be reopened from the main screen's menu. */
-class OnboardingActivity : AppCompatActivity() {
+class OnboardingActivity : LockedActivity() {
     private lateinit var settings: Settings
     private val steps = intArrayOf(R.id.step0, R.id.step1, R.id.step2, R.id.step3, R.id.step4, R.id.step5)
     private var index = 0

@@ -2,6 +2,20 @@
 <menu xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto">
     <item
+        android:id="@+id/menuSettings"
+        android:icon="@drawable/ic_settings"
+        android:title="Settings"
+        app:iconTint="?attr/colorOnSurfaceVariant"
+        app:showAsAction="always" />
+    <item
+        android:id="@+id/menuScan"
+        android:title="Scan for missed alerts"
+        app:showAsAction="never" />
+    <item
+        android:id="@+id/menuClear"
+        android:title="Clear sent history"
+        app:showAsAction="never" />
+    <item
         android:id="@+id/menuGuide"
         android:title="Setup guide"
         app:showAsAction="never" />

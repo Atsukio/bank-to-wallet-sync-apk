@@ -1,34 +1,32 @@
 package app.banksync
 
 import android.Manifest
-import android.app.KeyguardManager
 import android.content.Intent
 import android.os.Build
 import android.os.Bundle
-import android.os.SystemClock
-import android.text.method.LinkMovementMethod
+import android.view.LayoutInflater
 import android.view.View
 import android.widget.Button
-import android.widget.EditText
+import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.TextView
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.appcompat.app.AppCompatActivity
-import androidx.core.text.HtmlCompat
+import androidx.core.widget.NestedScrollView
 import com.google.android.material.appbar.MaterialToolbar
-import com.google.android.material.color.MaterialColors
+import com.google.android.material.button.MaterialButton
+import com.google.android.material.card.MaterialCardView
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
-import com.google.android.material.materialswitch.MaterialSwitch
 import com.google.android.material.snackbar.Snackbar
 import java.text.SimpleDateFormat
 import java.util.Locale
 import java.util.TimeZone
+import com.google.android.material.R as M
 
-class MainActivity : AppCompatActivity() {
+/** Home: whether everything works, what's queued, the bank apps, and recent activity. Options live in [SettingsActivity]. */
+class MainActivity : LockedActivity() {
     private lateinit var settings: Settings
     private lateinit var store: Store
     private var askedAccessThisLaunch = false
-    private var editingToken = false
 
     // The setup guide covers the permission prompts, so don't stack the same dialogs on top of it.
     private var guideShowing = false
@@ -36,17 +34,6 @@ class MainActivity : AppCompatActivity() {
     private val guide = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) {
         guideShowing = false
         justLeftGuide = true
-    }
-
-    private var lockPending = false
-    private val lock = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
-        lockPending = false
-        if (result.resultCode == RESULT_OK) {
-            lastActive = SystemClock.elapsedRealtime()
-            findViewById<View>(android.R.id.content).visibility = View.VISIBLE
-        } else {
-            finish()
-        }
     }
 
     private val askNotifications = registerForActivityResult(ActivityResultContracts.RequestPermission()) {}
@@ -75,23 +62,7 @@ class MainActivity : AppCompatActivity() {
             .show()
     }
 
-    private val tokenInput get() = findViewById<EditText>(R.id.tokenInput)
-    private val attemptsInput get() = findViewById<EditText>(R.id.attemptsInput)
-    private val delayInput get() = findViewById<EditText>(R.id.delayInput)
-    private val keepInput get() = findViewById<EditText>(R.id.keepInput)
-    private val catchUpInput get() = findViewById<EditText>(R.id.catchUpInput)
-    private val ignoreInput get() = findViewById<EditText>(R.id.ignoreInput)
-    private val pausedSwitch get() = findViewById<MaterialSwitch>(R.id.pausedSwitch)
-    private val retrySwitch get() = findViewById<MaterialSwitch>(R.id.retrySwitch)
-    private val wifiSwitch get() = findViewById<MaterialSwitch>(R.id.wifiSwitch)
-    private val noteSwitch get() = findViewById<MaterialSwitch>(R.id.noteSwitch)
-    private val unclearedSwitch get() = findViewById<MaterialSwitch>(R.id.unclearedSwitch)
-    private val reviewSwitch get() = findViewById<MaterialSwitch>(R.id.reviewSwitch)
-    private val skipExistingSwitch get() = findViewById<MaterialSwitch>(R.id.skipExistingSwitch)
-    private val alertsSwitch get() = findViewById<MaterialSwitch>(R.id.alertsSwitch)
-    private val lockSwitch get() = findViewById<MaterialSwitch>(R.id.lockSwitch)
     private val rulesList get() = findViewById<LinearLayout>(R.id.rulesList)
-    private val categoriesList get() = findViewById<LinearLayout>(R.id.categoriesList)
     private val recentList get() = findViewById<LinearLayout>(R.id.recentList)
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -99,11 +70,15 @@ class MainActivity : AppCompatActivity() {
         setContentView(R.layout.activity_main)
         settings = Settings(this)
         store = Store.get(this)
+        padForNavigationBar(findViewById(R.id.scroll))
 
         findViewById<MaterialToolbar>(R.id.toolbar).apply {
             inflateMenu(R.menu.main)
             setOnMenuItemClickListener {
                 when (it.itemId) {
+                    R.id.menuSettings -> openSettings()
+                    R.id.menuScan -> scan()
+                    R.id.menuClear -> confirmClear()
                     R.id.menuGuide -> openGuide()
                     R.id.menuTest -> Dialogs.showTest(this@MainActivity)
                     R.id.menuExport -> exportSettings.launch("bank-to-wallet-settings.json")
@@ -113,51 +88,10 @@ class MainActivity : AppCompatActivity() {
             }
         }
 
-        attemptsInput.setText(settings.maxAttempts.toString())
-        delayInput.setText(settings.batchDelayMin.toString())
-        keepInput.setText(settings.keepDays.toString())
-        catchUpInput.setText(settings.catchUpHours.toString())
-        ignoreInput.setText(settings.ignoreWords)
-        pausedSwitch.isChecked = settings.paused
-        retrySwitch.isChecked = settings.autoRetry
-        wifiSwitch.isChecked = settings.wifiOnly
-        noteSwitch.isChecked = settings.includeNote
-        unclearedSwitch.isChecked = settings.markUncleared
-        reviewSwitch.isChecked = settings.reviewMode
-        skipExistingSwitch.isChecked = settings.skipExisting
-        alertsSwitch.isChecked = settings.alertsOn
-        lockSwitch.isChecked = settings.appLock
-
-        alertsSwitch.setOnCheckedChangeListener { _, on -> if (on) askForNotificationPermission() }
-        lockSwitch.setOnCheckedChangeListener { button, on ->
-            if (on && !getSystemService(KeyguardManager::class.java).isDeviceSecure) {
-                button.isChecked = false
-                toast("Set a screen lock on your phone first")
-            }
-        }
-
-        findViewById<Button>(R.id.grantButton).setOnClickListener { Permissions.openAccessSettings(this) }
-        findViewById<Button>(R.id.batteryButton).setOnClickListener { Permissions.requestBattery(this) }
-        findViewById<Button>(R.id.saveButton).setOnClickListener { save() }
-        findViewById<TextView>(R.id.tokenHelp).apply {
-            text = HtmlCompat.fromHtml(
-                "Get one in the <a href=\"$WEB_APP\">Wallet web app</a> under Settings (REST API). " +
-                    "<a href=\"$API_INFO\">More about the REST API</a>",
-                HtmlCompat.FROM_HTML_MODE_COMPACT
-            )
-            movementMethod = LinkMovementMethod.getInstance()
-        }
-        findViewById<Button>(R.id.tokenCheck).setOnClickListener { checkToken() }
-        findViewById<Button>(R.id.tokenChange).setOnClickListener {
-            editingToken = !editingToken
-            tokenInput.text = null
-            renderToken()
-            if (editingToken) tokenInput.requestFocus()
-        }
-        findViewById<Button>(R.id.scanButton).setOnClickListener { scan() }
         findViewById<Button>(R.id.syncButton).setOnClickListener {
+            if (store.counts()[Store.PENDING] == 0) return@setOnClickListener toast("Nothing waiting to send")
             Uploader.schedule(this, 0, replace = true)
-            toast("Sync queued")
+            toast("Sending now")
         }
         findViewById<Button>(R.id.retryButton).setOnClickListener {
             val n = store.retryFailed()
@@ -165,28 +99,13 @@ class MainActivity : AppCompatActivity() {
             toast(if (n > 0) "Retrying $n record(s)" else "Nothing to retry")
             refresh()
         }
-        findViewById<Button>(R.id.clearButton).setOnClickListener {
-            store.clearHistory()
-            refresh()
-        }
-        findViewById<Button>(R.id.addAppButton).setOnClickListener {
-            Pickers.addRule(this, token(), it as Button, onAdded = { refresh() }, onError = ::toast)
-        }
-        findViewById<Button>(R.id.addCategoryButton).setOnClickListener {
-            Pickers.addCategoryRule(this, token(), it as Button, onAdded = { refresh() }, onError = ::toast)
+        findViewById<Button>(R.id.addAppButton).setOnClickListener { addApp(it as Button) }
+        // "Need you" jumps to the list where those records can be opened.
+        findViewById<View>(R.id.tileAttention).setOnClickListener {
+            findViewById<NestedScrollView>(R.id.scroll).smoothScrollTo(0, (recentList.parent as View).top)
         }
 
         if (!settings.onboardingDone) openGuide()
-    }
-
-    override fun onStart() {
-        super.onStart()
-        checkLock()
-    }
-
-    override fun onStop() {
-        super.onStop()
-        if (!lockPending) lastActive = SystemClock.elapsedRealtime()
     }
 
     override fun onResume() {
@@ -206,17 +125,10 @@ class MainActivity : AppCompatActivity() {
         guide.launch(Intent(this, OnboardingActivity::class.java))
     }
 
-    /** With app lock on, the content stays hidden until the phone's own screen lock is passed. */
-    private fun checkLock() {
-        if (!settings.appLock || guideShowing || lockPending) return
-        if (lastActive != 0L && SystemClock.elapsedRealtime() - lastActive < GRACE_MS) return
-        val km = getSystemService(KeyguardManager::class.java)
-        if (!km.isDeviceSecure) return
-        val intent = km.createConfirmDeviceCredentialIntent("Bank to Wallet", "Unlock to continue") ?: return
-        lockPending = true
-        findViewById<View>(android.R.id.content).visibility = View.INVISIBLE
-        lock.launch(intent)
-    }
+    private fun openSettings() = startActivity(Intent(this, SettingsActivity::class.java))
+
+    private fun addApp(trigger: Button?) =
+        Pickers.addRule(this, settings.token, trigger, onAdded = { refresh() }, onError = ::toast)
 
     private fun askForNotificationPermission() {
         if (Build.VERSION.SDK_INT >= 33 && !Notifier.canPost(this)) {
@@ -269,153 +181,154 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    private fun save() {
-        settings.ignoreWords = ignoreInput.text.toString()
-        settings.maxAttempts = attemptsInput.text.toString().toIntOrNull() ?: 10
-        settings.batchDelayMin = delayInput.text.toString().toIntOrNull() ?: 2
-        settings.keepDays = keepInput.text.toString().toIntOrNull() ?: 7
-        settings.catchUpHours = catchUpInput.text.toString().toIntOrNull() ?: 24
-        settings.paused = pausedSwitch.isChecked
-        settings.autoRetry = retrySwitch.isChecked
-        settings.wifiOnly = wifiSwitch.isChecked
-        settings.includeNote = noteSwitch.isChecked
-        settings.markUncleared = unclearedSwitch.isChecked
-        settings.reviewMode = reviewSwitch.isChecked
-        settings.skipExisting = skipExistingSwitch.isChecked
-        settings.alertsOn = alertsSwitch.isChecked
-        settings.appLock = lockSwitch.isChecked
-        if (reviewSwitch.isChecked) askForNotificationPermission()
-        if (store.counts()[Store.PENDING] > 0) Uploader.schedule(this, replace = true)
-        toast("Saved")
-        refresh()
-    }
-
-    /** What the user just typed wins over the saved token, so accounts can be listed before saving. */
-    private fun token() = tokenInput.text.toString().trim().ifEmpty { settings.token }
-
-    /**
-     * The connection card always says where things stand. With a token saved, the field stays hidden
-     * behind "Change token"; with none, it's shown straight away.
-     */
-    private fun renderToken() {
-        val hasToken = settings.token.isNotEmpty()
-        val editing = editingToken || !hasToken
-        findViewById<TextView>(R.id.tokenStatus).apply {
-            text = when {
-                !hasToken -> "Not connected. Paste your Wallet API token to start sending transactions."
-                settings.authError -> "Wallet rejected the saved token. Transactions are waiting until you change it."
-                settings.tokenVerified -> "Connected ✓ Your token is saved and working."
-                else -> "Token saved but not checked yet."
-            }
-            val color = if (hasToken && settings.authError) {
-                com.google.android.material.R.attr.colorError
-            } else {
-                com.google.android.material.R.attr.colorOnSurface
-            }
-            setTextColor(MaterialColors.getColor(this, color))
-        }
-        findViewById<View>(R.id.tokenEdit).visibility = if (editing) View.VISIBLE else View.GONE
-        findViewById<Button>(R.id.tokenCheck).text = if (editing) "Save and check" else "Check connection"
-        findViewById<Button>(R.id.tokenChange).apply {
-            visibility = if (hasToken) View.VISIBLE else View.GONE
-            text = if (editing) "Cancel" else "Change token"
-        }
-    }
-
-    /**
-     * Checks the token being typed, or the saved one. A new token is saved only once Wallet accepts
-     * it, so a typo can't break a working connection.
-     */
-    private fun checkToken() {
-        val editing = editingToken || settings.token.isEmpty()
-        val token = if (editing) tokenInput.text.toString().trim() else settings.token
-        if (token.isEmpty()) return toast("Paste your token first")
-        val button = findViewById<Button>(R.id.tokenCheck).apply { isEnabled = false }
-        val status = findViewById<TextView>(R.id.tokenStatus)
-        status.text = "Checking…"
-        Pickers.withAccounts(this, token, onError = {
-            button.isEnabled = true
-            renderToken()
-            status.text = if (editing && settings.token.isNotEmpty()) "$it. Your saved token hasn't changed." else it
-        }) { accounts ->
-            button.isEnabled = true
-            if (editing) settings.token = token
-            settings.tokenVerified = true
-            settings.authError = false
-            editingToken = false
-            tokenInput.text = null
-            if (store.counts()[Store.PENDING] > 0) Uploader.schedule(this, 0, replace = true)
-            refresh()
-            status.text = "Connected ✓ Found ${accounts.size} Wallet account(s)."
-        }
-    }
-
     private fun refresh() {
-        val apps = settings.rules().map { it.pkg }.distinct().size
-        findViewById<TextView>(R.id.statusText).text = buildString {
-            append("Notification access: ")
-                .append(
-                    when {
-                        !Permissions.accessEnabled(this@MainActivity) -> "OFF, tap the button below"
-                        BankNotificationListener.instance == null -> "on, but not connected. Reconnecting…"
-                        else -> "on"
-                    }
-                )
-                .append('\n')
-            append("Battery: ")
-                .append(if (Permissions.batteryExempt(this@MainActivity)) "unrestricted" else "optimised (may miss alerts)")
-                .append('\n')
-            append("Wallet: ").append(
-                when {
-                    settings.token.isEmpty() -> "not connected"
-                    settings.authError -> "token rejected. Records are waiting; change the token below."
-                    settings.tokenVerified -> "connected"
-                    else -> "token saved, not checked"
-                }
-            ).append('\n')
-            append("Watching $apps app(s)")
-            if (settings.paused) append("\nCapture is paused")
-            if (settings.reviewMode) append("\nAsking before sending")
-        }
-        renderToken()
-        Pickers.renderRules(this, rulesList, settings) { refresh() }
-        Pickers.renderCategoryRules(this, categoriesList, settings) { refresh() }
-
         val c = store.counts()
-        findViewById<TextView>(R.id.queueText).text =
-            "${c[Store.PENDING]} waiting · ${c[Store.REVIEW]} to review · ${c[Store.SYNCED]} synced · " +
-                "${c[Store.FAILED]} failed · ${c[Store.UNPARSED]} not understood"
+        renderHero(c)
+        renderChecks()
+        renderCounts(c)
+        Pickers.renderRules(this, rulesList, settings) { refresh() }
         renderRecent()
+    }
+
+    /** The one thing that matters most right now, worst problem first, with the button that fixes it. */
+    private fun renderHero(c: IntArray) {
+        val apps = settings.rules().map { it.pkg }.distinct().size
+        val waiting = c[Store.PENDING]
+        class Hero(val tone: Tone, val icon: Int, val title: String, val text: String, val action: String? = null, val onAction: (Button) -> Unit = {})
+        val hero = when {
+            !Permissions.accessEnabled(this) -> Hero(
+                Tone.BAD, R.drawable.ic_error, "Not reading alerts",
+                "Turn on notification access so the app can see your bank's alerts.", "Turn on"
+            ) { Permissions.openAccessSettings(this) }
+            BankNotificationListener.instance == null -> Hero(
+                Tone.WARN, R.drawable.ic_sync, "Reconnecting…",
+                "Notification access is on, but Android hasn't connected the app yet. This usually takes a moment."
+            )
+            settings.token.isEmpty() -> Hero(
+                Tone.BAD, R.drawable.ic_wallet, "Wallet isn't connected",
+                "Add your Wallet API token so transactions can be sent.", "Connect"
+            ) { openSettings() }
+            settings.authError -> Hero(
+                Tone.BAD, R.drawable.ic_error, "Wallet rejected your token",
+                "$waiting transaction(s) waiting. Change the token to send them.", "Change token"
+            ) { openSettings() }
+            apps == 0 -> Hero(
+                Tone.WARN, R.drawable.ic_apps, "Choose a bank app",
+                "Pick the bank apps to watch and the Wallet account each one feeds.", "Add bank app"
+            ) { addApp(it) }
+            settings.paused -> Hero(
+                Tone.WARN, R.drawable.ic_pause_circle, "Paused",
+                "Bank alerts are being ignored until you resume.", "Resume"
+            ) {
+                settings.paused = false
+                refresh()
+            }
+            else -> Hero(
+                Tone.GOOD, R.drawable.ic_check_circle, "All set",
+                "Watching $apps bank app${if (apps == 1) "" else "s"}." +
+                    if (settings.reviewMode) " You'll be asked before each transaction is sent." else ""
+            )
+        }
+        val fg = window.decorView.themeColor(hero.tone.onContainer)
+        findViewById<MaterialCardView>(R.id.heroCard).setCardBackgroundColor(window.decorView.themeColor(hero.tone.container))
+        findViewById<ImageView>(R.id.heroIcon).apply {
+            setImageResource(hero.icon)
+            imageTintList = android.content.res.ColorStateList.valueOf(fg)
+        }
+        findViewById<TextView>(R.id.heroTitle).apply { text = hero.title; setTextColor(fg) }
+        findViewById<TextView>(R.id.heroText).apply { text = hero.text; setTextColor(fg) }
+        findViewById<MaterialButton>(R.id.heroAction).apply {
+            visibility = if (hero.action == null) View.GONE else View.VISIBLE
+            text = hero.action
+            setOnClickListener { hero.onAction(this) }
+        }
+    }
+
+    /** Smaller things worth fixing that don't stop the app working. */
+    private fun renderChecks() {
+        val list = findViewById<LinearLayout>(R.id.checksList)
+        list.removeAllViews()
+        fun add(icon: Int, title: String, text: String, action: String, onClick: () -> Unit) {
+            val card = LayoutInflater.from(this).inflate(R.layout.item_check, list, false)
+            card.findViewById<ImageView>(R.id.checkIcon).badge(icon, Tone.WARN)
+            card.findViewById<TextView>(R.id.checkTitle).text = title
+            card.findViewById<TextView>(R.id.checkText).text = text
+            card.findViewById<Button>(R.id.checkAction).apply {
+                this.text = action
+                setOnClickListener { onClick() }
+            }
+            list.addView(card)
+        }
+        if (Permissions.accessEnabled(this) && !Permissions.batteryExempt(this)) {
+            add(R.drawable.ic_battery, "Battery saver may stop alerts", "Some phones stop the app to save battery.", "Fix") {
+                Permissions.requestBattery(this)
+            }
+        }
+        if (settings.token.isNotEmpty() && !settings.tokenVerified && !settings.authError) {
+            add(R.drawable.ic_wallet, "Wallet token not checked", "Check it works before transactions arrive.", "Check") {
+                openSettings()
+            }
+        }
+    }
+
+    private fun renderCounts(c: IntArray) {
+        val attention = c[Store.FAILED] + c[Store.REVIEW] + c[Store.UNPARSED]
+        findViewById<TextView>(R.id.countWaiting).text = c[Store.PENDING].toString()
+        findViewById<TextView>(R.id.countSynced).text = c[Store.SYNCED].toString()
+        findViewById<TextView>(R.id.countAttention).text = attention.toString()
+        // The tile only turns red when there's something to do.
+        val tile = findViewById<MaterialCardView>(R.id.tileAttention)
+        val tone = if (attention > 0) Tone.BAD else null
+        tile.setCardBackgroundColor(tile.themeColor(tone?.container ?: M.attr.colorSurfaceContainerLow))
+        val fg = tile.themeColor(tone?.onContainer ?: M.attr.colorOnSurface)
+        findViewById<TextView>(R.id.countAttention).setTextColor(fg)
+        findViewById<TextView>(R.id.labelAttention).setTextColor(
+            if (tone == null) tile.themeColor(M.attr.colorOnSurfaceVariant) else fg
+        )
+        findViewById<View>(R.id.retryButton).visibility = if (c[Store.FAILED] > 0) View.VISIBLE else View.GONE
     }
 
     private fun renderRecent() {
         val list = recentList
         list.removeAllViews()
         val recs = store.recent(25)
-        if (recs.isEmpty()) {
-            list.addView(TextView(this).apply { text = "Nothing captured yet" })
-            return
-        }
-        val fmt = SimpleDateFormat("d MMM HH:mm", Locale.getDefault())
+        if (recs.isEmpty()) return Pickers.addEmpty(this, list, "Nothing captured yet. New bank alerts show up here.")
+
+        val fmt = SimpleDateFormat("d MMM, HH:mm", Locale.getDefault())
         val iso = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'", Locale.US).apply { timeZone = TimeZone.getTimeZone("UTC") }
-        val pad = (6 * resources.displayMetrics.density).toInt()
-        val labels = listOf("waiting", "synced", "failed", "not understood", "to review")
+        val accounts = settings.rules().associate { it.accountId to it.accountName }
+        val inflater = LayoutInflater.from(this)
         for (r in recs) {
+            val row = inflater.inflate(R.layout.item_record, list, false)
             val whenText = iso.parse(r.date)?.let { fmt.format(it) } ?: r.date
-            val what = if (r.amount != null) {
-                String.format(Locale.US, "%+.2f  %s", r.amount, r.payee.orEmpty())
-            } else {
-                r.note.orEmpty().take(60)
+            val income = (r.amount ?: 0.0) > 0
+            val (icon, tone, state) = when (r.status) {
+                Store.UNPARSED -> Triple(R.drawable.ic_help, Tone.WARN, "Not understood · tap to enter it")
+                Store.REVIEW -> Triple(R.drawable.ic_schedule, Tone.WARN, "Tap to approve")
+                Store.FAILED -> Triple(R.drawable.ic_error, Tone.BAD, r.error ?: "Couldn't be sent")
+                Store.PENDING -> Triple(R.drawable.ic_schedule, Tone.NEUTRAL, "Waiting to send")
+                else -> Triple(
+                    if (income) R.drawable.ic_arrow_in else R.drawable.ic_arrow_out,
+                    if (income) Tone.GOOD else Tone.NEUTRAL,
+                    r.error ?: accounts[r.account] ?: "Sent"
+                )
             }
-            val clickable = r.status == Store.UNPARSED || r.status == Store.REVIEW || r.status == Store.FAILED
-            val row = TextView(this).apply {
-                text = "• $whenText  $what  [${labels[r.status]}]" +
-                    (r.error?.let { "\n   $it" } ?: "") + if (clickable) "\n   tap to open" else ""
-                setPadding(0, pad, 0, pad)
-                if (clickable) {
-                    setTextColor(MaterialColors.getColor(this, androidx.appcompat.R.attr.colorPrimary))
-                    setOnClickListener { openRecord(r) }
-                }
+            row.findViewById<ImageView>(R.id.recIcon).badge(icon, tone)
+            row.findViewById<TextView>(R.id.recTitle).text = when {
+                r.status == Store.UNPARSED -> r.note.orEmpty().ifEmpty { "Bank alert" }
+                !r.payee.isNullOrBlank() -> r.payee
+                income -> "Money in"
+                else -> "Payment"
+            }
+            row.findViewById<TextView>(R.id.recSub).text = "$whenText · $state"
+            row.findViewById<TextView>(R.id.recAmount).apply {
+                text = r.amount?.let { String.format(Locale.US, "%s%,.2f", if (it > 0) "+" else "−", kotlin.math.abs(it)) }
+                setTextColor(themeColor(if (income) M.attr.colorPrimary else M.attr.colorOnSurface))
+            }
+            if (r.status == Store.UNPARSED || r.status == Store.REVIEW || r.status == Store.FAILED) {
+                row.setOnClickListener { openRecord(r) }
+            } else {
+                row.background = null
             }
             list.addView(row)
         }
@@ -432,6 +345,18 @@ class MainActivity : AppCompatActivity() {
                 refresh()
             }
         }.start()
+    }
+
+    private fun confirmClear() {
+        MaterialAlertDialogBuilder(this)
+            .setTitle("Clear sent history?")
+            .setMessage("Removes sent and not-understood items from this phone. Nothing in Wallet changes, and anything still waiting stays.")
+            .setPositiveButton("Clear") { _, _ ->
+                store.clearHistory()
+                refresh()
+            }
+            .setNegativeButton("Cancel", null)
+            .show()
     }
 
     private fun openRecord(r: Rec) {
@@ -470,12 +395,5 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    private fun toast(msg: String) = Snackbar.make(findViewById(R.id.saveButton), msg, Snackbar.LENGTH_SHORT).show()
-
-    private companion object {
-        const val GRACE_MS = 60_000L
-
-        /** Process-wide so the unlock survives the activity being recreated; 0 means never unlocked. */
-        var lastActive = 0L
-    }
+    private fun toast(msg: String) = Snackbar.make(findViewById(R.id.root), msg, Snackbar.LENGTH_SHORT).show()
 }

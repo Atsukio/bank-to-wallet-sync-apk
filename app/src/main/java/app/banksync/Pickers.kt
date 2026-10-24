@@ -4,14 +4,17 @@ import android.app.Activity
 import android.content.Intent
 import android.text.InputType
 import android.view.LayoutInflater
+import android.view.View
 import android.view.ViewGroup
 import android.widget.ArrayAdapter
 import android.widget.AutoCompleteTextView
 import android.widget.Button
 import android.widget.EditText
 import android.widget.FrameLayout
+import android.widget.ImageView
 import android.widget.TextView
 import androidx.appcompat.app.AlertDialog
+import com.google.android.material.color.MaterialColors
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 
 /** The add-a-bank-app and add-a-category flows plus the rule lists, shared by the main screen and setup guide. */
@@ -88,7 +91,7 @@ object Pickers {
      */
     fun addRule(activity: Activity, token: String, trigger: Button?, onAdded: (Rule) -> Unit, onError: (String) -> Unit) {
         if (token.isEmpty()) return onError("Enter your Wallet API token first, so your accounts can be listed")
-        val done = busy(trigger, "Loading accounts…")
+        val done = busy(trigger, "Loading…")
         val fail = { msg: String -> done(); onError(msg) }
 
         background(activity, fail, { launcherApps(activity) to WalletApi.accounts(token) }) { (all, allAccounts) ->
@@ -209,7 +212,7 @@ object Pickers {
             .setPositiveButton("Next") { _, _ ->
                 val contains = input.text.toString().trim()
                 if (contains.isEmpty()) return@setPositiveButton onError("Enter some text first")
-                val done = busy(trigger, "Loading categories…")
+                val done = busy(trigger, "Loading…")
                 val fail = { msg: String -> done(); onError(msg) }
                 background(activity, fail, { WalletApi.categories(token) }) { categories ->
                     done()
@@ -228,20 +231,32 @@ object Pickers {
             .show()
     }
 
-    /** Fills [container] with one row per rule, each with a Remove button. */
+    /** Fills [container] with one row per rule: the app's own icon, where its alerts go, and a remove button. */
     fun renderRules(activity: Activity, container: ViewGroup, settings: Settings, onChanged: () -> Unit = {}) {
         container.removeAllViews()
         val rules = settings.rules()
         if (rules.isEmpty()) {
-            container.addView(TextView(activity).apply { text = "No bank apps yet. Tap \"Add bank app\"." })
-            return
+            return addEmpty(activity, container, "No bank apps yet. Tap Add to choose one.")
         }
         for (rule in rules) {
-            val sub = if (rule.match.isEmpty()) "All alerts from this app" else "Only alerts containing \"${rule.match}\""
-            addRow(activity, container, "${rule.label} → ${rule.accountName}", sub) {
+            val sub = "To ${rule.accountName}" +
+                if (rule.match.isEmpty()) "" else " · alerts containing \"${rule.match}\""
+            val row = addRow(activity, container, rule.label, sub) {
                 settings.removeRule(rule)
                 renderRules(activity, container, settings, onChanged)
                 onChanged()
+            }
+            val icon = runCatching { activity.packageManager.getApplicationIcon(rule.pkg) }.getOrNull()
+            row.findViewById<ImageView>(R.id.ruleIcon).apply {
+                if (icon != null) {
+                    // A real app icon is shown as is, without the tinted badge.
+                    setImageDrawable(icon)
+                    background = null
+                    imageTintList = null
+                    setPadding(0, 0, 0, 0)
+                } else {
+                    setImageResource(R.drawable.ic_apps)
+                }
             }
         }
     }
@@ -250,23 +265,38 @@ object Pickers {
         container.removeAllViews()
         val rules = settings.categoryRules()
         if (rules.isEmpty()) {
-            container.addView(TextView(activity).apply { text = "No category rules yet." })
-            return
+            return addEmpty(activity, container, "No category rules yet.")
         }
         for (rule in rules) {
-            addRow(activity, container, "\"${rule.contains}\" → ${rule.categoryName}", "Applies to alerts containing this text") {
+            val row = addRow(activity, container, rule.categoryName, "When the alert contains \"${rule.contains}\"") {
                 settings.removeCategoryRule(rule)
                 renderCategoryRules(activity, container, settings, onChanged)
                 onChanged()
             }
+            row.findViewById<ImageView>(R.id.ruleIcon).setImageResource(R.drawable.ic_label)
         }
     }
 
-    private fun addRow(activity: Activity, container: ViewGroup, title: String, sub: String, onRemove: () -> Unit) {
+    private fun addRow(activity: Activity, container: ViewGroup, title: String, sub: String, onRemove: () -> Unit): View {
         val row = LayoutInflater.from(activity).inflate(R.layout.item_rule, container, false)
         row.findViewById<TextView>(R.id.ruleTitle).text = title
         row.findViewById<TextView>(R.id.ruleSub).text = sub
-        row.findViewById<Button>(R.id.ruleRemove).setOnClickListener { onRemove() }
+        row.findViewById<Button>(R.id.ruleRemove).apply {
+            contentDescription = "Remove $title"
+            setOnClickListener { onRemove() }
+        }
         container.addView(row)
+        return row
+    }
+
+    /** A quiet placeholder line for a list with nothing in it yet. */
+    fun addEmpty(activity: Activity, container: ViewGroup, message: String) {
+        val pad = (16 * activity.resources.displayMetrics.density).toInt()
+        container.addView(TextView(activity).apply {
+            text = message
+            setPadding(pad, pad / 2, pad, pad / 2)
+            setTextAppearance(com.google.android.material.R.style.TextAppearance_Material3_BodyMedium)
+            setTextColor(MaterialColors.getColor(this, com.google.android.material.R.attr.colorOnSurfaceVariant))
+        })
     }
 }

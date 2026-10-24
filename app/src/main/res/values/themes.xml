@@ -1,18 +1,122 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <!-- Full teal scheme for phones without Material You (Android 11 and older); 12+ follows the wallpaper. -->
     <style name="Theme.BankSync" parent="Theme.Material3.DayNight.NoActionBar">
-        <item name="colorPrimary">#0E6F66</item>
+        <item name="colorPrimary">#006A60</item>
         <item name="colorOnPrimary">#FFFFFF</item>
         <item name="colorPrimaryContainer">#74F8E5</item>
         <item name="colorOnPrimaryContainer">#00201C</item>
+        <item name="colorSecondary">#4A635F</item>
+        <item name="colorOnSecondary">#FFFFFF</item>
         <item name="colorSecondaryContainer">#CCE8E2</item>
         <item name="colorOnSecondaryContainer">#05201C</item>
+        <item name="colorTertiary">#456179</item>
+        <item name="colorOnTertiary">#FFFFFF</item>
+        <item name="colorTertiaryContainer">#CCE5FF</item>
+        <item name="colorOnTertiaryContainer">#001E31</item>
+        <item name="colorError">#BA1A1A</item>
+        <item name="colorOnError">#FFFFFF</item>
+        <item name="colorErrorContainer">#FFDAD6</item>
+        <item name="colorOnErrorContainer">#410002</item>
+        <item name="android:colorBackground">#F4FBF8</item>
+        <item name="colorOnBackground">#161D1C</item>
+        <item name="colorSurface">#F4FBF8</item>
+        <item name="colorOnSurface">#161D1C</item>
+        <item name="colorSurfaceVariant">#DAE5E1</item>
+        <item name="colorOnSurfaceVariant">#3F4947</item>
+        <item name="colorOutline">#6F7977</item>
+        <item name="colorOutlineVariant">#BEC9C6</item>
+        <item name="colorSurfaceContainerLowest">#FFFFFF</item>
+        <item name="colorSurfaceContainerLow">#EEF5F2</item>
+        <item name="colorSurfaceContainer">#E9EFEC</item>
+        <item name="colorSurfaceContainerHigh">#E3EAE7</item>
+        <item name="colorSurfaceContainerHighest">#DDE4E1</item>
+        <item name="colorSurfaceDim">#D5DBD9</item>
+        <item name="colorSurfaceBright">#F4FBF8</item>
+        <item name="colorSurfaceInverse">#2B3230</item>
+        <item name="colorOnSurfaceInverse">#ECF2EF</item>
+        <item name="colorPrimaryInverse">#53DBC9</item>
         <item name="android:statusBarColor">@android:color/transparent</item>
         <item name="android:navigationBarColor">@android:color/transparent</item>
         <item name="android:windowLightStatusBar">true</item>
+        <item name="materialCardViewStyle">@style/Widget.BankSync.Card</item>
+        <item name="shapeAppearanceCornerLarge">@style/ShapeAppearance.BankSync.Large</item>
+        <item name="shapeAppearanceCornerExtraLarge">@style/ShapeAppearance.BankSync.ExtraLarge</item>
     </style>
 
+    <style name="ShapeAppearance.BankSync.Large" parent="ShapeAppearance.Material3.Corner.Large">
+        <item name="cornerSize">20dp</item>
+    </style>
+
+    <style name="ShapeAppearance.BankSync.ExtraLarge" parent="ShapeAppearance.Material3.Corner.ExtraLarge">
+        <item name="cornerSize">28dp</item>
+    </style>
+
+    <!-- Borderless, softly tinted cards with large corners. -->
     <style name="Widget.BankSync.Card" parent="Widget.Material3.CardView.Filled">
-        <item name="android:layout_marginBottom">12dp</item>
+        <item name="cardBackgroundColor">?attr/colorSurfaceContainerLow</item>
+        <item name="shapeAppearance">@style/ShapeAppearance.BankSync.Large</item>
+    </style>
+
+    <!-- Small all-caps-free label above each group of rows. -->
+    <style name="Widget.BankSync.SectionTitle" parent="">
+        <item name="android:layout_width">match_parent</item>
+        <item name="android:layout_height">wrap_content</item>
+        <item name="android:layout_marginTop">24dp</item>
+        <item name="android:layout_marginBottom">8dp</item>
+        <item name="android:paddingStart">4dp</item>
+        <item name="android:textAppearance">?attr/textAppearanceTitleSmall</item>
+        <item name="android:textColor">?attr/colorPrimary</item>
+    </style>
+
+    <!-- A switch with a title and a line of explanation; the explanation is the TextView under it. -->
+    <style name="Widget.BankSync.SettingSwitch" parent="Widget.Material3.CompoundButton.MaterialSwitch">
+        <item name="android:layout_width">match_parent</item>
+        <item name="android:layout_height">wrap_content</item>
+        <item name="android:paddingTop">12dp</item>
+        <item name="android:textAppearance">?attr/textAppearanceBodyLarge</item>
+    </style>
+
+    <style name="Widget.BankSync.SettingHint" parent="">
+        <item name="android:layout_width">match_parent</item>
+        <item name="android:layout_height">wrap_content</item>
+        <item name="android:layout_marginEnd">64dp</item>
+        <item name="android:paddingBottom">12dp</item>
+        <item name="android:textAppearance">?attr/textAppearanceBodyMedium</item>
+        <item name="android:textColor">?attr/colorOnSurfaceVariant</item>
+    </style>
+
+    <style name="Widget.BankSync.Field" parent="Widget.Material3.TextInputLayout.OutlinedBox">
+        <item name="android:layout_width">match_parent</item>
+        <item name="android:layout_height">wrap_content</item>
+        <item name="android:layout_marginTop">12dp</item>
+    </style>
+
+    <!-- Round tinted badge behind a list row's icon. -->
+    <style name="Widget.BankSync.RowIcon" parent="">
+        <item name="android:layout_width">40dp</item>
+        <item name="android:layout_height">40dp</item>
+        <item name="android:padding">8dp</item>
+        <item name="android:background">@drawable/bg_circle</item>
+        <item name="android:backgroundTint">?attr/colorSecondaryContainer</item>
+        <item name="tint">?attr/colorOnSecondaryContainer</item>
+        <item name="android:importantForAccessibility">no</item>
+    </style>
+
+    <!-- Large badge at the top of each setup step. -->
+    <style name="Widget.BankSync.StepIcon" parent="Widget.BankSync.RowIcon">
+        <item name="android:layout_width">64dp</item>
+        <item name="android:layout_height">64dp</item>
+        <item name="android:layout_marginBottom">20dp</item>
+        <item name="android:padding">16dp</item>
+        <item name="android:backgroundTint">?attr/colorPrimaryContainer</item>
+        <item name="tint">?attr/colorOnPrimaryContainer</item>
+    </style>
+
+    <!-- A count with a label under it, for the summary tiles on the home screen. -->
+    <style name="Widget.BankSync.Tile" parent="Widget.BankSync.Card">
+        <item name="android:layout_width">0dp</item>
+        <item name="android:layout_height">wrap_content</item>
+        <item name="android:layout_weight">1</item>
     </style>
 </resources>

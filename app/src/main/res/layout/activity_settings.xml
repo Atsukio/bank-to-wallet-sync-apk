@@ -1,0 +1,435 @@
+<?xml version="1.0" encoding="utf-8"?>
+<androidx.coordinatorlayout.widget.CoordinatorLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:id="@+id/root"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:fitsSystemWindows="true">
+
+    <com.google.android.material.appbar.AppBarLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:fitsSystemWindows="true">
+
+        <com.google.android.material.appbar.CollapsingToolbarLayout
+            style="?attr/collapsingToolbarLayoutLargeStyle"
+            android:layout_width="match_parent"
+            android:layout_height="?attr/collapsingToolbarLayoutLargeSize"
+            app:layout_scrollFlags="scroll|exitUntilCollapsed|snap"
+            app:title="Settings">
+
+            <com.google.android.material.appbar.MaterialToolbar
+                android:id="@+id/toolbar"
+                android:layout_width="match_parent"
+                android:layout_height="?attr/actionBarSize"
+                android:elevation="0dp"
+                app:layout_collapseMode="pin"
+                app:navigationContentDescription="Back"
+                app:navigationIcon="@drawable/ic_back"
+                app:navigationIconTint="?attr/colorOnSurface" />
+        </com.google.android.material.appbar.CollapsingToolbarLayout>
+    </com.google.android.material.appbar.AppBarLayout>
+
+    <androidx.core.widget.NestedScrollView
+        android:id="@+id/scroll"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:clipToPadding="false"
+        android:paddingBottom="24dp"
+        app:layout_behavior="@string/appbar_scrolling_view_behavior">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:paddingStart="16dp"
+            android:paddingEnd="16dp">
+
+            <!-- Wallet connection -->
+            <TextView
+                style="@style/Widget.BankSync.SectionTitle"
+                android:layout_marginTop="0dp"
+                android:text="Wallet connection" />
+
+            <com.google.android.material.card.MaterialCardView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content">
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical"
+                    android:padding="16dp">
+
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:gravity="center_vertical"
+                        android:orientation="horizontal">
+
+                        <ImageView
+                            android:id="@+id/tokenIcon"
+                            style="@style/Widget.BankSync.RowIcon"
+                            android:src="@drawable/ic_wallet" />
+
+                        <TextView
+                            android:id="@+id/tokenStatus"
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_marginStart="16dp"
+                            android:layout_weight="1"
+                            android:textAppearance="?attr/textAppearanceBodyLarge" />
+                    </LinearLayout>
+
+                    <!-- Shown only while entering a new token. -->
+                    <LinearLayout
+                        android:id="@+id/tokenEdit"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="vertical"
+                        android:visibility="gone">
+
+                        <com.google.android.material.textfield.TextInputLayout
+                            android:id="@+id/tokenLayout"
+                            style="@style/Widget.BankSync.Field"
+                            android:layout_marginTop="16dp"
+                            android:hint="API token"
+                            app:endIconMode="password_toggle">
+
+                            <com.google.android.material.textfield.TextInputEditText
+                                android:id="@+id/tokenInput"
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:inputType="textPassword" />
+                        </com.google.android.material.textfield.TextInputLayout>
+
+                        <TextView
+                            android:id="@+id/tokenHelp"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="4dp"
+                            android:textAppearance="?attr/textAppearanceBodySmall"
+                            android:textColor="?attr/colorOnSurfaceVariant" />
+                    </LinearLayout>
+
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="12dp"
+                        android:gravity="end"
+                        android:orientation="horizontal">
+
+                        <Button
+                            android:id="@+id/tokenChange"
+                            style="@style/Widget.Material3.Button.TextButton"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="Change token" />
+
+                        <Button
+                            android:id="@+id/tokenCheck"
+                            style="@style/Widget.Material3.Button.TonalButton"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:layout_marginStart="8dp"
+                            android:text="Check connection" />
+                    </LinearLayout>
+                </LinearLayout>
+            </com.google.android.material.card.MaterialCardView>
+
+            <!-- Categories -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="16dp"
+                android:gravity="center_vertical"
+                android:orientation="horizontal">
+
+                <TextView
+                    style="@style/Widget.BankSync.SectionTitle"
+                    android:layout_width="0dp"
+                    android:layout_marginTop="0dp"
+                    android:layout_marginBottom="0dp"
+                    android:layout_weight="1"
+                    android:text="Categories" />
+
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/addCategoryButton"
+                    style="@style/Widget.Material3.Button.TextButton.Icon"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Add"
+                    app:icon="@drawable/ic_add" />
+            </LinearLayout>
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginBottom="8dp"
+                android:paddingStart="4dp"
+                android:paddingEnd="4dp"
+                android:text="File transactions under a Wallet category automatically, based on text in the alert such as a shop name."
+                android:textAppearance="?attr/textAppearanceBodyMedium"
+                android:textColor="?attr/colorOnSurfaceVariant" />
+
+            <com.google.android.material.card.MaterialCardView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content">
+
+                <LinearLayout
+                    android:id="@+id/categoriesList"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical"
+                    android:paddingTop="8dp"
+                    android:paddingBottom="8dp" />
+            </com.google.android.material.card.MaterialCardView>
+
+            <!-- Capture -->
+            <TextView
+                style="@style/Widget.BankSync.SectionTitle"
+                android:text="Capture" />
+
+            <com.google.android.material.card.MaterialCardView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content">
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical"
+                    android:paddingStart="16dp"
+                    android:paddingTop="4dp"
+                    android:paddingEnd="16dp"
+                    android:paddingBottom="16dp">
+
+                    <com.google.android.material.materialswitch.MaterialSwitch
+                        android:id="@+id/pausedSwitch"
+                        style="@style/Widget.BankSync.SettingSwitch"
+                        android:text="Pause capture" />
+
+                    <TextView
+                        style="@style/Widget.BankSync.SettingHint"
+                        android:text="Ignore bank alerts for now. Also available as a Quick Settings tile." />
+
+                    <com.google.android.material.materialswitch.MaterialSwitch
+                        android:id="@+id/reviewSwitch"
+                        style="@style/Widget.BankSync.SettingSwitch"
+                        android:text="Ask before sending" />
+
+                    <TextView
+                        style="@style/Widget.BankSync.SettingHint"
+                        android:text="Each transaction waits for you to tap Send in a notification." />
+
+                    <com.google.android.material.textfield.TextInputLayout
+                        style="@style/Widget.BankSync.Field"
+                        android:hint="Ignore alerts containing"
+                        app:helperText="Comma-separated words, for example OTP, promo">
+
+                        <com.google.android.material.textfield.TextInputEditText
+                            android:id="@+id/ignoreInput"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:inputType="textNoSuggestions" />
+                    </com.google.android.material.textfield.TextInputLayout>
+
+                    <com.google.android.material.textfield.TextInputLayout
+                        style="@style/Widget.BankSync.Field"
+                        android:hint="Catch-up window (hours)"
+                        app:helperText="How far back &quot;Scan for missed alerts&quot; looks">
+
+                        <com.google.android.material.textfield.TextInputEditText
+                            android:id="@+id/catchUpInput"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:inputType="number" />
+                    </com.google.android.material.textfield.TextInputLayout>
+                </LinearLayout>
+            </com.google.android.material.card.MaterialCardView>
+
+            <!-- Uploads -->
+            <TextView
+                style="@style/Widget.BankSync.SectionTitle"
+                android:text="Uploads" />
+
+            <com.google.android.material.card.MaterialCardView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content">
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical"
+                    android:paddingStart="16dp"
+                    android:paddingTop="4dp"
+                    android:paddingEnd="16dp"
+                    android:paddingBottom="16dp">
+
+                    <com.google.android.material.materialswitch.MaterialSwitch
+                        android:id="@+id/retrySwitch"
+                        style="@style/Widget.BankSync.SettingSwitch"
+                        android:text="Retry automatically" />
+
+                    <TextView
+                        style="@style/Widget.BankSync.SettingHint"
+                        android:text="Keep trying when you're offline or Wallet is down. Off: a failed upload waits for you to retry it." />
+
+                    <com.google.android.material.materialswitch.MaterialSwitch
+                        android:id="@+id/wifiSwitch"
+                        style="@style/Widget.BankSync.SettingSwitch"
+                        android:text="Wi-Fi only" />
+
+                    <TextView
+                        style="@style/Widget.BankSync.SettingHint"
+                        android:text="Hold transactions until you're on Wi-Fi." />
+
+                    <com.google.android.material.materialswitch.MaterialSwitch
+                        android:id="@+id/skipExistingSwitch"
+                        style="@style/Widget.BankSync.SettingSwitch"
+                        android:text="Skip money Wallet already has" />
+
+                    <TextView
+                        style="@style/Widget.BankSync.SettingHint"
+                        android:text="Avoids counting a transfer twice when you recorded it in Wallet yourself." />
+
+                    <com.google.android.material.textfield.TextInputLayout
+                        style="@style/Widget.BankSync.Field"
+                        android:hint="Batch delay (minutes)"
+                        app:helperText="Longer saves battery: bursts go out as one request">
+
+                        <com.google.android.material.textfield.TextInputEditText
+                            android:id="@+id/delayInput"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:inputType="number" />
+                    </com.google.android.material.textfield.TextInputLayout>
+
+                    <com.google.android.material.textfield.TextInputLayout
+                        style="@style/Widget.BankSync.Field"
+                        android:hint="Give up after (attempts)">
+
+                        <com.google.android.material.textfield.TextInputEditText
+                            android:id="@+id/attemptsInput"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:inputType="number" />
+                    </com.google.android.material.textfield.TextInputLayout>
+                </LinearLayout>
+            </com.google.android.material.card.MaterialCardView>
+
+            <!-- Records -->
+            <TextView
+                style="@style/Widget.BankSync.SectionTitle"
+                android:text="Records in Wallet" />
+
+            <com.google.android.material.card.MaterialCardView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content">
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical"
+                    android:paddingStart="16dp"
+                    android:paddingTop="4dp"
+                    android:paddingEnd="16dp"
+                    android:paddingBottom="4dp">
+
+                    <com.google.android.material.materialswitch.MaterialSwitch
+                        android:id="@+id/noteSwitch"
+                        style="@style/Widget.BankSync.SettingSwitch"
+                        android:text="Add the alert text as a note" />
+
+                    <TextView
+                        style="@style/Widget.BankSync.SettingHint"
+                        android:text="Handy for checking later, but the full alert text is sent to Wallet." />
+
+                    <com.google.android.material.materialswitch.MaterialSwitch
+                        android:id="@+id/unclearedSwitch"
+                        style="@style/Widget.BankSync.SettingSwitch"
+                        android:text="Mark as uncleared" />
+
+                    <TextView
+                        style="@style/Widget.BankSync.SettingHint"
+                        android:text="So you can tick them off against your statement." />
+                </LinearLayout>
+            </com.google.android.material.card.MaterialCardView>
+
+            <!-- Privacy -->
+            <TextView
+                style="@style/Widget.BankSync.SectionTitle"
+                android:text="Alerts and privacy" />
+
+            <com.google.android.material.card.MaterialCardView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content">
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical"
+                    android:paddingStart="16dp"
+                    android:paddingTop="4dp"
+                    android:paddingEnd="16dp"
+                    android:paddingBottom="16dp">
+
+                    <com.google.android.material.materialswitch.MaterialSwitch
+                        android:id="@+id/alertsSwitch"
+                        style="@style/Widget.BankSync.SettingSwitch"
+                        android:text="Tell me when something needs attention" />
+
+                    <TextView
+                        style="@style/Widget.BankSync.SettingHint"
+                        android:text="A notification when Wallet rejects the token or a transaction can't be sent." />
+
+                    <com.google.android.material.materialswitch.MaterialSwitch
+                        android:id="@+id/lockSwitch"
+                        style="@style/Widget.BankSync.SettingSwitch"
+                        android:text="Lock the app" />
+
+                    <TextView
+                        style="@style/Widget.BankSync.SettingHint"
+                        android:text="Ask for your screen lock when opening the app." />
+
+                    <com.google.android.material.textfield.TextInputLayout
+                        style="@style/Widget.BankSync.Field"
+                        android:hint="Keep history (days)"
+                        app:helperText="Sent and not-understood alerts are deleted from this phone after this">
+
+                        <com.google.android.material.textfield.TextInputEditText
+                            android:id="@+id/keepInput"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:inputType="number" />
+                    </com.google.android.material.textfield.TextInputLayout>
+                </LinearLayout>
+            </com.google.android.material.card.MaterialCardView>
+
+            <!-- Phone -->
+            <TextView
+                style="@style/Widget.BankSync.SectionTitle"
+                android:text="Phone settings" />
+
+            <com.google.android.material.card.MaterialCardView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content">
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical"
+                    android:paddingTop="8dp"
+                    android:paddingBottom="8dp">
+
+                    <include
+                        android:id="@+id/accessRow"
+                        layout="@layout/item_link" />
+
+                    <include
+                        android:id="@+id/batteryRow"
+                        layout="@layout/item_link" />
+                </LinearLayout>
+            </com.google.android.material.card.MaterialCardView>
+        </LinearLayout>
+    </androidx.core.widget.NestedScrollView>
+</androidx.coordinatorlayout.widget.CoordinatorLayout>
