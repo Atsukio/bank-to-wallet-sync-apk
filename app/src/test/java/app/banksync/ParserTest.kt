@@ -262,6 +262,14 @@ class ParserTest {
     }
 
     @Test
+    fun noteKeepsAReferenceCodeInAMerchantName() {
+        val text = "Sample Bank: You've just spent RM 55.00 at Sample Music P486B2FF25 Stockholm SE with your card ending 1234."
+        val p = Parser.parse(text)!!
+        assertEquals("Sample Music P486B2FF25 Stockholm SE", p.payee)
+        assertEquals("Sample Music P486B2FF25 Stockholm SE", Parser.walletText(text, p.payee, "MYR", true).note)
+    }
+
+    @Test
     fun onlySendersAreWalletPayees() {
         val card = "MAE Maybank2u: Card Transaction You've just spent RM 20.00 at SAMPLE CAFE SB TOWN MY with your Maybank Visa P..."
         assertEquals("SAMPLE CAFE SB TOWN MY", Parser.parse(card)!!.payee)

@@ -250,7 +250,8 @@ object Uploader {
             // The stored text is the whole alert; Wallet only gets the payment details from it.
             val w = Parser.walletText(r.note.orEmpty(), r.payee, currencies[r.account].orEmpty(), s.includeNote)
             w.payee?.let { o.put("counterParty", it) }
-            w.note?.let { o.put("note", it) }
+            // A note the user wrote replaces the built one; blank means they cleared it.
+            (r.noteEdit ?: w.note)?.takeIf { it.isNotBlank() }?.let { o.put("note", it) }
             when (val plan = plans[r.id]) {
                 is Transfers.Send.Existing -> o.put("transfer", JSONObject().put("pairingMode", "existing").put("recordId", plan.walletId))
                 is Transfers.Send.New -> o.put("transfer", JSONObject().put("pairingMode", "new").put("accountId", plan.toAccount))

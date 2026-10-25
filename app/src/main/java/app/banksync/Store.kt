@@ -28,13 +28,15 @@ class Rec(
     val walletId: String? = null,
     /** The local id of the other side when this is one half of a transfer ([Transfers]). */
     val pairId: Long? = null,
+    /** A note the user wrote for Wallet, used as is; blank means no note, null means build it from the alert. */
+    val noteEdit: String? = null,
 )
 
 /**
  * Local queue. A row survives offline periods and process death until Wallet confirms it. A null
  * [name] is the in-memory queue that [Demo] fills.
  */
-class Store private constructor(context: Context, name: String?) : SQLiteOpenHelper(context, name, null, 5) {
+class Store private constructor(context: Context, name: String?) : SQLiteOpenHelper(context, name, null, 6) {
 
     override fun onCreate(db: SQLiteDatabase) {
         db.execSQL(
@@ -47,7 +49,7 @@ class Store private constructor(context: Context, name: String?) : SQLiteOpenHel
                 uncertain INTEGER NOT NULL DEFAULT 0, categoryId TEXT, transferTo TEXT,
                 posted INTEGER NOT NULL DEFAULT 0,
                 categoryName TEXT, labelIds TEXT, categorySource TEXT,
-                walletId TEXT, pairId INTEGER)"""
+                walletId TEXT, pairId INTEGER, noteEdit TEXT)"""
         )
         db.execSQL("CREATE INDEX rec_status ON rec(status)")
         db.execSQL("CREATE INDEX rec_hash ON rec(hash, created)")
@@ -72,6 +74,10 @@ class Store private constructor(context: Context, name: String?) : SQLiteOpenHel
             // Transfers: Wallet's id for a sent record, and the local id of the other side.
             db.execSQL("ALTER TABLE rec ADD COLUMN walletId TEXT")
             db.execSQL("ALTER TABLE rec ADD COLUMN pairId INTEGER")
+        }
+        if (old < 6) {
+            // A note the user wrote while the record was waiting to send.
+            db.execSQL("ALTER TABLE rec ADD COLUMN noteEdit TEXT")
         }
     }
 
@@ -134,8 +140,8 @@ class Store private constructor(context: Context, name: String?) : SQLiteOpenHel
      * The user's changes to a record that hasn't gone yet. Returns false when it was sent (or removed)
      * in the meantime, so the change came too late.
      */
-    fun edit(id: Long, account: String, category: CategoryPick?): Boolean {
-        val v = ContentValues().apply { put("account", account); putCategory(category) }
+    fun edit(id: Long, account: String, category: CategoryPick?, noteEdit: String?): Boolean {
+        val v = ContentValues().apply { put("account", account); putCategory(category); put("noteEdit", noteEdit) }
         return writableDatabase.update("rec", v, "id=? AND status IN ($PENDING,$REVIEW)", arrayOf(id.toString())) > 0
     }
 
@@ -167,12 +173,12 @@ class Store private constructor(context: Context, name: String?) : SQLiteOpenHel
         writableDatabase.delete("rec", "id=? AND status IN ($PENDING,$REVIEW)", arrayOf(id.toString())) > 0
 
     /** Drops the raw notification text once Wallet has the record. */
-    fun markSynced(ids: List<Long>) = exec("status=$SYNCED, note=NULL, error=NULL, uncertain=0", ids)
+    fun markSynced(ids: List<Long>) = exec("status=$SYNCED, note=NULL, noteEdit=NULL, error=NULL, uncertain=0", ids)
 
     /** Like [markSynced] for one record, keeping Wallet's id for it when the answer had one. */
     fun markSynced(id: Long, walletId: String?) {
         val v = ContentValues().apply {
-            put("status", SYNCED); putNull("note"); putNull("error"); put("uncertain", 0)
+            put("status", SYNCED); putNull("note"); putNull("noteEdit"); putNull("error"); put("uncertain", 0)
             walletId?.let { put("walletId", it) }
         }
         writableDatabase.update("rec", v, "id=?", arrayOf(id.toString()))
@@ -274,7 +280,7 @@ class Store private constructor(context: Context, name: String?) : SQLiteOpenHel
             "rec",
             arrayOf(
                 "id", "pkg", "account", "amount", "payee", "note", "date", "status", "attempts", "error",
-                "categoryId", "uncertain", "categoryName", "labelIds", "categorySource", "walletId", "pairId"
+                "categoryId", "uncertain", "categoryName", "labelIds", "categorySource", "walletId", "pairId", "noteEdit"
             ),
             where, null, null, null, order, limit.toString()
         ).use {
@@ -287,6 +293,7 @@ class Store private constructor(context: Context, name: String?) : SQLiteOpenHel
                     it.getString(10), it.getInt(11) == 1,
                     it.getString(12), it.getString(13)?.split(',')?.filter { s -> s.isNotEmpty() }.orEmpty(),
                     it.getString(14), it.getString(15), if (it.isNull(16)) null else it.getLong(16),
+                    it.getString(17),
                 )
             }
         }

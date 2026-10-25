@@ -152,10 +152,18 @@ object Dialogs {
         }
         val chooser = CategoryChooser(activity, view, initial) { rec.payee }
 
+        // The note Wallet would get as it stands; the field starts with it, or with the user's earlier edit.
+        val autoNote = Parser.walletText(rec.note.orEmpty(), rec.payee, target.currency, settings.includeNote).note.orEmpty()
+        val noteField = view.findViewById<EditText>(R.id.recordNote)
+        noteField.setText(rec.noteEdit ?: autoNote)
+
         /** Saves the changes; false (with a message) when the record was sent meanwhile. */
         fun save(): Boolean {
             chooser.commit()
-            if (store.edit(rec.id, target.id, chooser.result { initial })) return true
+            // Left as it was shown, the note keeps following the alert; anything else is sent as typed.
+            val typed = noteField.text.toString().trim()
+            val noteEdit = if (rec.noteEdit == null && typed == autoNote) null else typed
+            if (store.edit(rec.id, target.id, chooser.result { initial }, noteEdit)) return true
             Toast.makeText(activity, "Too late: it was already sent", Toast.LENGTH_LONG).show()
             return false
         }
@@ -170,7 +178,8 @@ object Dialogs {
             onDone()
         }
 
-        val builder = MaterialAlertDialogBuilder(activity).setView(view)
+        // Scrollable so the note field stays reachable above the keyboard.
+        val builder = MaterialAlertDialogBuilder(activity).setView(android.widget.ScrollView(activity).apply { addView(view) })
         if (rec.status == Store.REVIEW) {
             builder.setTitle("Send to Wallet?")
                 .setPositiveButton("Send") { _, _ ->
