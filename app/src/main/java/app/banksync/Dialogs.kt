@@ -8,7 +8,9 @@ import android.view.View
 import android.widget.ArrayAdapter
 import android.widget.AutoCompleteTextView
 import android.widget.CheckBox
+import android.view.WindowManager
 import android.widget.EditText
+import android.widget.ListView
 import android.widget.RadioButton
 import android.widget.TextView
 import android.widget.Toast
@@ -213,11 +215,23 @@ object Dialogs {
                         layout.helperText = "Couldn't load your Wallet categories"
                         return@runOnUiThread
                     }
-                    val names = listOf(NONE) + list.map { it.label }
-                    field.setAdapter(ArrayAdapter(activity, android.R.layout.simple_list_item_1, names))
-                    field.setOnItemClickListener { _, _, i, _ -> choose(if (i == 0) null else list[i - 1]) }
+                    categories = list
                 }
             }.start()
+            // A searchable list instead of a long dropdown; the field only opens it.
+            field.isFocusable = false
+            field.setOnClickListener { open() }
+            layout.setEndIconOnClickListener { open() }
+        }
+
+        private var categories: List<WalletApi.Category>? = null
+
+        private fun open() {
+            val list = categories ?: return Toast.makeText(activity, "Still loading your categories", Toast.LENGTH_SHORT).show()
+            pickCategory(activity, "Category", list, NONE) { c ->
+                field.setText(c?.label ?: NONE, false)
+                choose(c)
+            }
         }
 
         private fun choose(c: WalletApi.Category?) {
@@ -254,6 +268,57 @@ object Dialogs {
                 else -> "chosen by you"
             }
         }
+    }
+
+    /**
+     * A category list you can type into to narrow it down ([CategorySearch.filter]). With [noneLabel],
+     * that row comes first (while nothing is typed) and picks null.
+     */
+    fun pickCategory(
+        activity: Activity,
+        title: String,
+        list: List<WalletApi.Category>,
+        noneLabel: String?,
+        onPick: (WalletApi.Category?) -> Unit,
+    ) {
+        val view = LayoutInflater.from(activity).inflate(R.layout.dialog_search, null)
+        val search = view.findViewById<EditText>(R.id.searchField)
+        val empty = view.findViewById<TextView>(R.id.searchEmpty)
+        val listView = view.findViewById<ListView>(R.id.searchList)
+        val labels = list.map { it.label }
+        var shown: List<WalletApi.Category?> = emptyList()
+        val adapter = ArrayAdapter<String>(activity, android.R.layout.simple_list_item_1)
+        listView.adapter = adapter
+        fun render() {
+            val q = search.text.toString()
+            val hits = CategorySearch.filter(labels, q).map { list[it] }
+            shown = (if (noneLabel != null && q.isBlank()) listOf(null) else emptyList<WalletApi.Category?>()) + hits
+            adapter.clear()
+            adapter.addAll(shown.map { it?.label ?: noneLabel })
+            empty.visibility = if (shown.isEmpty()) View.VISIBLE else View.GONE
+        }
+        render()
+        search.doAfterTextChanged { render() }
+        val dialog = MaterialAlertDialogBuilder(activity)
+            .setTitle(title)
+            .setView(view)
+            .setNegativeButton("Cancel", null)
+            .create()
+        listView.setOnItemClickListener { _, _, i, _ ->
+            dialog.dismiss()
+            onPick(shown[i])
+        }
+        // Enter with a single match picks it, as a select box would.
+        search.setOnEditorActionListener { _, _, _ ->
+            if (shown.size == 1) {
+                dialog.dismiss()
+                onPick(shown[0])
+            }
+            true
+        }
+        dialog.window?.setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_STATE_VISIBLE)
+        dialog.show()
+        search.requestFocus()
     }
 
     /** "What's new" after an update, or the full changelog from Settings. */

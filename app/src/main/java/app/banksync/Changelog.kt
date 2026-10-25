@@ -22,6 +22,7 @@ object Changelog {
                 "A bank app with a single rule now uses it even when the alert leaves out the card number, such as for transfers.",
                 "When you enter an alert that matched no rule, you can have that account used for the rest of that app's alerts.",
                 "Wallet notes keep a shop's full name as the alert wrote it, such as its phone number.",
+                "Search when choosing a category: type part of its name or group, such as \"food\", to narrow the list.",
                 "Alerts that couldn't be read now say why on the home screen, such as no bank-app rule matching.",
                 "Notifications from the app no longer show amounts or payees on the lock screen.",
             )

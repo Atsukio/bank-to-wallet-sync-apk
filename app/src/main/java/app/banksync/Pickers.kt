@@ -217,14 +217,11 @@ object Pickers {
                 background(activity, fail, { WalletApi.categories(token) }) { categories ->
                     done()
                     if (categories.isEmpty()) return@background onError("No categories found in Wallet")
-                    MaterialAlertDialogBuilder(activity)
-                        .setTitle("Use which category?")
-                        .setItems(categories.map { it.label }.toTypedArray()) { _, i ->
-                            Settings(activity).addCategoryRule(CategoryRule(contains, categories[i].id, categories[i].label))
-                            onAdded()
-                        }
-                        .setNegativeButton("Cancel", null)
-                        .show()
+                    Dialogs.pickCategory(activity, "Use which category?", categories, null) { c ->
+                        c ?: return@pickCategory
+                        Settings(activity).addCategoryRule(CategoryRule(contains, c.id, c.label))
+                        onAdded()
+                    }
                 }
             }
             .setNegativeButton("Cancel", null)
