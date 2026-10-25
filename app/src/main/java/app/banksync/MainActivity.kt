@@ -116,8 +116,33 @@ class MainActivity : LockedActivity() {
         }
     }
 
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+    }
+
+    override fun onUnlocked() = openFromNotification()
+
+    /**
+     * "Change" on a "picked up" notification: opens that record, once. Only a real record still
+     * waiting can be opened, so a stale or forged id just lands on the home screen.
+     */
+    private fun openFromNotification() {
+        val id = intent.getLongExtra(EXTRA_RECORD, -1)
+        if (id < 0 || isLocked) return
+        intent.removeExtra(EXTRA_RECORD)
+        if (Demo.active) return
+        val rec = Store.get(this).get(id)
+        if (rec == null || (rec.status != Store.PENDING && rec.status != Store.REVIEW)) {
+            return toast("Too late to change: it was already sent")
+        }
+        Dialogs.showRecord(this, rec) { refresh() }
+    }
+
     override fun onResume() {
         super.onResume()
+        Summary.schedule(this)
+        openFromNotification()
         // Binding takes a moment, so look again shortly after asking for a rebind.
         if (Permissions.reconnectIfStopped(this)) window.decorView.postDelayed({ if (!isFinishing) refresh() }, 2_000)
         refresh()
@@ -443,4 +468,9 @@ class MainActivity : LockedActivity() {
     }
 
     private fun toast(msg: String) = Snackbar.make(findViewById(R.id.root), msg, Snackbar.LENGTH_SHORT).show()
+
+    companion object {
+        /** The record a "picked up" notification's Change button opens. */
+        const val EXTRA_RECORD = "app.banksync.RECORD"
+    }
 }

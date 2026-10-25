@@ -100,6 +100,16 @@ class Settings(context: Context) {
         get() = p.getBoolean("capturedOn", true)
         set(v) = p.edit().putBoolean("capturedOn", v).apply()
 
+    /** Hold a transaction no category could be picked for, like [reviewMode] does for every one. */
+    var askNoCategory: Boolean
+        get() = p.getBoolean("askNoCategory", false)
+        set(v) = p.edit().putBoolean("askNoCategory", v).apply()
+
+    /** An evening notification with the day's totals; see [Summary]. */
+    var dailySummary: Boolean
+        get() = p.getBoolean("dailySummary", false)
+        set(v) = p.edit().putBoolean("dailySummary", v).apply()
+
     var appLock: Boolean
         get() = p.getBoolean("appLock", false)
         set(v) = p.edit().putBoolean("appLock", v).apply()
@@ -220,7 +230,8 @@ class Settings(context: Context) {
                 .put("wifiOnly", wifiOnly).put("batchDelayMin", batchDelayMin).put("includeNote", includeNote)
                 .put("markUncleared", markUncleared).put("keepDays", keepDays).put("reviewMode", reviewMode)
                 .put("catchUpHours", catchUpHours).put("skipExisting", skipExisting)
-                .put("alertsOn", alertsOn).put("capturedOn", capturedOn).put("appLock", appLock)
+                .put("alertsOn", alertsOn).put("capturedOn", capturedOn).put("askNoCategory", askNoCategory)
+                .put("dailySummary", dailySummary).put("appLock", appLock)
                 .put("hideDetails", hideDetails)
         )
         .toString(2)
@@ -249,6 +260,8 @@ class Settings(context: Context) {
         reviewMode = s.optBoolean("reviewMode", reviewMode)
         alertsOn = s.optBoolean("alertsOn", alertsOn)
         capturedOn = s.optBoolean("capturedOn", capturedOn)
+        askNoCategory = s.optBoolean("askNoCategory", askNoCategory)
+        dailySummary = s.optBoolean("dailySummary", dailySummary)
         appLock = s.optBoolean("appLock", appLock)
         hideDetails = s.optBoolean("hideDetails", hideDetails)
     }

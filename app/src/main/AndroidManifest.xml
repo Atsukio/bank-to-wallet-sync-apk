@@ -60,6 +60,11 @@
             android:name=".ReviewReceiver"
             android:exported="false" />
 
+        <!-- The opt-in daily summary's alarm. -->
+        <receiver
+            android:name=".SummaryReceiver"
+            android:exported="false" />
+
         <!-- Quick Settings tile to pause and resume capture. -->
         <service
             android:name=".PauseTileService"

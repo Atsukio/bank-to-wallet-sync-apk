@@ -137,6 +137,19 @@ class Store private constructor(context: Context, name: String?) : SQLiteOpenHel
         return out
     }
 
+    /** Like [counts], for records captured at or after [ms]. */
+    fun countsSince(ms: Long): IntArray {
+        val out = IntArray(5)
+        readableDatabase.rawQuery("SELECT status, COUNT(*) FROM rec WHERE created>=? GROUP BY status", arrayOf(ms.toString())).use {
+            while (it.moveToNext()) out[it.getInt(0)] = it.getInt(1)
+        }
+        return out
+    }
+
+    /** Removes a record the user doesn't want sent, unless it has gone already. Returns whether it was removed. */
+    fun discardWaiting(id: Long): Boolean =
+        writableDatabase.delete("rec", "id=? AND status IN ($PENDING,$REVIEW)", arrayOf(id.toString())) > 0
+
     /** Drops the raw notification text once Wallet has the record. */
     fun markSynced(ids: List<Long>) = exec("status=$SYNCED, note=NULL, error=NULL, uncertain=0", ids)
 

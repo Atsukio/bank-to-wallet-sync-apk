@@ -246,6 +246,7 @@ class UploadJobService : JobService() {
                 Uploader.Result.Retry
             }
 
+            Notifier.capturedSent(this)
             // Only speak up when something new needs attention, not on every retry.
             val newlyFailed = store.counts()[Store.FAILED] - failedBefore
             if (settings.authError && !authBefore) {

@@ -215,6 +215,15 @@ class ParserTest {
     }
 
     @Test
+    fun noteKeepsTheMerchantsPhoneAndCountry() {
+        val text = "Maybank2u: Card Transaction You've just spent RM 20.00 at Sample Bill Payment 03-12345678 MY " +
+            "with your Maybank Shopee Visa Platinum ending 1234. View your receipt now."
+        val p = Parser.parse(text)!!
+        assertEquals("Sample Bill Payment", p.payee)
+        assertEquals("Sample Bill Payment 03-12345678 MY", Parser.walletText(text, p.payee, "MYR", true).note)
+    }
+
+    @Test
     fun onlySendersAreWalletPayees() {
         val card = "MAE Maybank2u: Card Transaction You've just spent RM 20.00 at SAMPLE CAFE SB TOWN MY with your Maybank Visa P..."
         assertEquals("SAMPLE CAFE SB TOWN MY", Parser.parse(card)!!.payee)

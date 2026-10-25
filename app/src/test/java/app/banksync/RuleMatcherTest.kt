@@ -23,15 +23,22 @@ class RuleMatcherTest {
     }
 
     @Test
-    fun noAppWideRuleAndNoMatchMeansNoAccount() {
-        assertNull(RuleMatcher.pick(listOf(card), "You spent RM 5.00 at X with your Visa ending 9999."))
+    fun onlyRuleIsUsedWhenItsMatchIsMissing() {
+        val r = RuleMatcher.pick(listOf(card), "You've sent RM10.00 to Sample Person using your Main Account")
+        assertEquals("acc-card", r!!.accountId)
+    }
+
+    @Test
+    fun severalSpecificRulesAndNoMatchMeansNoAccount() {
+        val other = Rule("app.mae", "MAE", "5678", "acc-other", "Other")
+        assertNull(RuleMatcher.pick(listOf(card, other), "You spent RM 5.00 at X with your Visa ending 9999."))
     }
 
     @Test
     fun endingIsNotMatchedInsideALongerNumber() {
         val r = RuleMatcher.pick(listOf(any, card), "You spent RM 12345.00 at X with your Visa ending 9999.")
         assertEquals("acc-savings", r!!.accountId)
-        assertNull(RuleMatcher.pick(listOf(card), "Ref 5512346 RM 5.00 spent at X"))
+        assertFalse(RuleMatcher.contains("Ref 5512346 RM 5.00 spent at X", "1234"))
     }
 
     @Test

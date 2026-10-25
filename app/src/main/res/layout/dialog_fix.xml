@@ -88,4 +88,11 @@
     </com.google.android.material.textfield.TextInputLayout>
 
     <include layout="@layout/part_category" />
+
+    <com.google.android.material.checkbox.MaterialCheckBox
+        android:id="@+id/fixRemember"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="8dp"
+        android:visibility="gone" />
 </LinearLayout>

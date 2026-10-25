@@ -20,6 +20,7 @@ class BankNotificationListener : NotificationListenerService() {
         val store = Store.get(this)
         store.purge(Settings(this).keepDays)
         if (store.counts()[Store.PENDING] > 0) Uploader.schedule(this)
+        Summary.schedule(this)
         // Alerts that arrived while we weren't bound may still be in the shade.
         Thread { catchUp() }.start()
     }
@@ -102,7 +103,7 @@ class BankNotificationListener : NotificationListenerService() {
 
         // From what's already on the phone, so capturing never waits on the network.
         val category = WalletCache.pick(this, text, parsed.payee, parsed.amount, rule.accountId)
-        val status = if (settings.reviewMode) Store.REVIEW else Store.PENDING
+        val status = if (settings.reviewMode || (settings.askNoCategory && category == null)) Store.REVIEW else Store.PENDING
         val id = store.insert(
             hash, pkg, rule.accountId, parsed.amount, parsed.payee, note, date, status,
             category = category, posted = posted
@@ -115,7 +116,7 @@ class BankNotificationListener : NotificationListenerService() {
             Notifier.review(this, id, what)
         } else {
             Uploader.schedule(this)
-            Notifier.captured(this, if (settings.hideDetails) "From ${rule.label}, going to Wallet." else {
+            Notifier.captured(this, id, if (settings.hideDetails) "From ${rule.label}, going to Wallet." else {
                 String.format(Locale.US, "%+.2f", parsed.amount) + " " + rule.accountCurrency +
                     (parsed.payee?.let { " · $it" } ?: "") + " → " + rule.accountName + "\n" +
                     (category?.name?.let { "Category: $it" } ?: "No category yet: tap to choose one")

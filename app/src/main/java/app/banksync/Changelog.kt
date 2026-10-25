@@ -16,7 +16,12 @@ object Changelog {
             4, "1.3", "25 Oct 2026",
             listOf(
                 "A notification when a bank alert couldn't be read, so it doesn't sit unnoticed in the app.",
-                "A silent notification for each transaction picked up, with the amount, account and category. Turn it off in Settings › Alerts and privacy.",
+                "A silent notification for each transaction picked up, with the amount, account and category, and Change or Don't send buttons until it goes. Turn it off in Settings › Alerts and privacy.",
+                "Optional daily summary around 9 pm: how many went to Wallet and anything that needs you.",
+                "Optional \"Ask when there's no category\": only those transactions wait for you to pick one.",
+                "A bank app with a single rule now uses it even when the alert leaves out the card number, such as for transfers.",
+                "When you enter an alert that matched no rule, you can have that account used for the rest of that app's alerts.",
+                "Wallet notes keep a shop's full name as the alert wrote it, such as its phone number.",
                 "Alerts that couldn't be read now say why on the home screen, such as no bank-app rule matching.",
                 "Notifications from the app no longer show amounts or payees on the lock screen.",
             )

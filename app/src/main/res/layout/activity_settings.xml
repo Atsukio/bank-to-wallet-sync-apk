@@ -288,6 +288,15 @@
                         style="@style/Widget.BankSync.SettingHint"
                         android:text="Each transaction waits for you to tap Send in a notification." />
 
+                    <com.google.android.material.materialswitch.MaterialSwitch
+                        android:id="@+id/askNoCategorySwitch"
+                        style="@style/Widget.BankSync.SettingSwitch"
+                        android:text="Ask when there's no category" />
+
+                    <TextView
+                        style="@style/Widget.BankSync.SettingHint"
+                        android:text="Only transactions no category could be picked for wait for you; the rest go straight away. Off, they go to Wallet as Unknown." />
+
                     <com.google.android.material.textfield.TextInputLayout
                         style="@style/Widget.BankSync.Field"
                         android:hint="Ignore alerts containing"
@@ -456,7 +465,16 @@
 
                     <TextView
                         style="@style/Widget.BankSync.SettingHint"
-                        android:text="A silent notification with the amount, account and category, so you can fix it before it goes. Hidden details also hide it here." />
+                        android:text="A silent notification with the amount, account and category, with Change and Don't send while it hasn't gone yet. Hidden details also hide it here." />
+
+                    <com.google.android.material.materialswitch.MaterialSwitch
+                        android:id="@+id/summarySwitch"
+                        style="@style/Widget.BankSync.SettingSwitch"
+                        android:text="Daily summary" />
+
+                    <TextView
+                        style="@style/Widget.BankSync.SettingHint"
+                        android:text="Around 9 pm: how many transactions went to Wallet that day, and anything that needs you. Nothing on a day with nothing to say." />
 
                     <com.google.android.material.materialswitch.MaterialSwitch
                         android:id="@+id/lockSwitch"

@@ -67,6 +67,7 @@ abstract class LockedActivity : AppCompatActivity() {
                 locking = false
                 lastActive = SystemClock.elapsedRealtime()
                 findViewById<View>(android.R.id.content).visibility = View.VISIBLE
+                onUnlocked()
             }
 
             // Cancelled, backed out of, or left for another app: stay locked. A wrong finger or PIN isn't an
@@ -77,6 +78,11 @@ abstract class LockedActivity : AppCompatActivity() {
             }
         })
     }
+
+    /** The unlock prompt is up; anything private (such as a record dialog) waits for [onUnlocked]. */
+    protected val isLocked get() = locking
+
+    protected open fun onUnlocked() {}
 
     override fun onStart() {
         super.onStart()

@@ -160,7 +160,18 @@ object Parser {
         )
     }
 
-    private val refRe = Regex("""\bref(?:erence)?\b\s*(?:no\.?)?\s*:?\s*([A-Z0-9][A-Z0-9-]{2,})""", RegexOption.IGNORE_CASE)
+    /**
+     * [payee] as the alert wrote it, with the phone number and country a card merchant may carry
+     * ("SAMPLE SHOP 03-12345678 MY"). The payee itself is kept short so the same shop matches for
+     * categories; the note shows it in full.
+     */
+    private fun fullName(text: String, payee: String): String =
+        Regex(
+            """\b(?:at|to)\s+(""" + Regex.escape(payee) + """[^.,\n]*?)(?=\s+(?:on|with|using|via|for|ending|card)\b|[.,\n]|$)""",
+            RegexOption.IGNORE_CASE
+        ).find(text)?.groupValues?.get(1)?.trim() ?: payee
+
+    private val refRe =Regex("""\bref(?:erence)?\b\s*(?:no\.?)?\s*:?\s*([A-Z0-9][A-Z0-9-]{2,})""", RegexOption.IGNORE_CASE)
 
     /**
      * The Wallet note: just the payment details (who was paid, reference) instead of the whole alert,
@@ -172,7 +183,7 @@ object Parser {
         val m = amountRe.find(text)
         val currency = m?.let { currencyOf(it.groupValues[1]) }
         val parts = listOfNotNull(
-            payee?.trim()?.takeIf { it.isNotEmpty() },
+            payee?.trim()?.takeIf { it.isNotEmpty() }?.let { fullName(text, it) },
             refRe.find(text)?.let { "Ref ${it.groupValues[1]}" },
             if (m != null && currency != null && accountCurrency.isNotEmpty() && currency != accountCurrency) {
                 "$currency ${m.groupValues[2]}"

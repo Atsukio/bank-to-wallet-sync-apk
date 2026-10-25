@@ -63,6 +63,15 @@ class SettingsActivity : LockedActivity() {
             settings.capturedOn = it
             if (it) askForNotificationPermission()
         }
+        switch(R.id.summarySwitch, settings.dailySummary) {
+            settings.dailySummary = it
+            Summary.schedule(this)
+            if (it) askForNotificationPermission()
+        }
+        switch(R.id.askNoCategorySwitch, settings.askNoCategory) {
+            settings.askNoCategory = it
+            if (it) askForNotificationPermission()
+        }
         findViewById<MaterialSwitch>(R.id.lockSwitch).apply {
             isChecked = settings.appLock
             setOnCheckedChangeListener { button, on ->

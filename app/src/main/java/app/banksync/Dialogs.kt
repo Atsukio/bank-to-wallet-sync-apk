@@ -58,6 +58,15 @@ object Dialogs {
             if (Demo.active) null else WalletCache.pick(activity, text, payee, amount, account)
         val chooser = CategoryChooser(activity, view, guess(parsed?.payee, parsed?.amount ?: -1.0, rec.account), ::payee)
 
+        // An app whose rules all need match text: offer to make the chosen account its catch-all, so the
+        // next alert like this one goes straight through.
+        val appRules = if (Demo.active) null else settings.rulesFor(rec.pkg)
+        val remember = view.findViewById<CheckBox>(R.id.fixRemember)
+        if (appRules != null && appRules.size > 1 && appRules.none { it.match.isEmpty() }) {
+            remember.visibility = View.VISIBLE
+            remember.text = "Use this account for other ${appRules[0].label} alerts that match no rule"
+        }
+
         lateinit var dialog: AlertDialog
         fun amount() = amountField.text.toString().replace(",", "").toDoubleOrNull()?.takeIf { it > 0 }
         fun refresh() {
@@ -98,6 +107,9 @@ object Dialogs {
                 // Untouched, the category is worked out again from what was finally entered.
                 val category = chooser.result { guess(payee, signed, target.id) }
                 chooser.commit()
+                if (remember.isChecked && appRules != null) {
+                    settings.addRule(Rule(rec.pkg, appRules[0].label, "", target.id, target.name, target.currency))
+                }
                 Store.shown(activity).fix(rec.id, target.id, signed, payee, category)
                 if (!Demo.active) Uploader.schedule(activity, 0, replace = true)
                 onDone()

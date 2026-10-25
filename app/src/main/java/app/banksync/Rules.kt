@@ -15,10 +15,14 @@ data class Rule(
 )
 
 object RuleMatcher {
-    /** A specific match wins over the app-wide rule; null when nothing applies. */
+    /**
+     * A specific match wins over the app-wide rule. An app with a single rule always uses it: alerts
+     * such as transfers often leave out the card number the match looks for. Null when nothing applies.
+     */
     fun pick(rules: List<Rule>, text: String): Rule? =
         rules.firstOrNull { it.match.isNotEmpty() && contains(text, it.match) }
             ?: rules.firstOrNull { it.match.isEmpty() }
+            ?: rules.singleOrNull()
 
     /**
      * Case-insensitive, and the match can't be part of a longer number or word: ending "1234" must not
