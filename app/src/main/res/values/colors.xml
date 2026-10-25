@@ -14,6 +14,10 @@
     <color name="mark_on_failed">#FFFFFF</color>
     <color name="mark_transfer">#6A1B9A</color>
     <color name="mark_on_transfer">#FFFFFF</color>
+    <!-- Status text: fine, still to do, broken. Readable on the plain background, unlike the fills above. -->
+    <color name="status_good">#2E7D32</color>
+    <color name="status_warn">#B26A00</color>
+    <color name="status_bad">#C62828</color>
     <!-- Amounts in the activity list: green in, red out. -->
     <color name="amount_in">#2E7D32</color>
     <color name="amount_out">#D32F2F</color>

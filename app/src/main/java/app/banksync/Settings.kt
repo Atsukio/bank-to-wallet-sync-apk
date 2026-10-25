@@ -106,6 +106,11 @@ class Settings(context: Context) {
         get() = p.getBoolean("askNoCategory", false)
         set(v) = p.edit().putBoolean("askNoCategory", v).apply()
 
+    /** Drop Touch 'n Go Cash in alerts. Set by choice when no GO+ account is linked, and can be turned off later. */
+    var cashInIgnored: Boolean
+        get() = p.getBoolean("cashInIgnored", false)
+        set(v) = p.edit().putBoolean("cashInIgnored", v).apply()
+
     /** An evening notification with the day's totals; see [Summary]. */
     var dailySummary: Boolean
         get() = p.getBoolean("dailySummary", false)
@@ -152,10 +157,22 @@ class Settings(context: Context) {
 
     fun addRule(rule: Rule) {
         if (rules().isEmpty()) catchUpSince = System.currentTimeMillis()
-        saveRules(rules().filterNot { it.pkg == rule.pkg && it.match.equals(rule.match, ignoreCase = true) } + rule)
+        // A GO+ rule is kept apart from the app's ordinary ones, whatever its (unused) match says.
+        val kind = GoPlus.isGoPlus(rule)
+        saveRules(rules().filterNot { it.pkg == rule.pkg && GoPlus.isGoPlus(it) == kind && (kind || it.match.equals(rule.match, ignoreCase = true)) } + rule)
     }
 
     fun removeRule(rule: Rule) = saveRules(rules() - rule)
+
+    /** Wallet account names by id, for transfers to accounts no bank app is linked to. A cache, so not exported. */
+    fun accountName(id: String): String? =
+        runCatching { JSONObject(p.getString("accountNames", "{}")!!).optString(id) }.getOrNull()?.takeIf { it.isNotEmpty() }
+
+    fun rememberAccountNames(accounts: List<WalletApi.Account>) {
+        val names = runCatching { JSONObject(p.getString("accountNames", "{}")!!) }.getOrDefault(JSONObject())
+        accounts.forEach { names.put(it.id, it.name) }
+        p.edit().putString("accountNames", names.toString()).apply()
+    }
 
     private fun saveRules(list: List<Rule>) {
         p.edit().putString("rules", rulesToJson(list).toString()).apply()
@@ -245,7 +262,7 @@ class Settings(context: Context) {
                 .put("catchUpHours", catchUpHours)
                 .put("alertsOn", alertsOn).put("capturedOn", capturedOn).put("askNoCategory", askNoCategory)
                 .put("dailySummary", dailySummary).put("appLock", appLock)
-                .put("hideDetails", hideDetails)
+                .put("hideDetails", hideDetails).put("cashInIgnored", cashInIgnored)
         )
         .toString(2)
 
@@ -277,6 +294,7 @@ class Settings(context: Context) {
         dailySummary = s.optBoolean("dailySummary", dailySummary)
         appLock = s.optBoolean("appLock", appLock)
         hideDetails = s.optBoolean("hideDetails", hideDetails)
+        cashInIgnored = s.optBoolean("cashInIgnored", cashInIgnored)
     }
 
     private fun rulesToJson(list: List<Rule>) = JSONArray().also { arr ->

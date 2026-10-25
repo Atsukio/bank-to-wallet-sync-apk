@@ -33,8 +33,11 @@ object Transfers {
         /** Bind to the partner already in Wallet (`pairingMode: existing`). */
         class Existing(val walletId: String) : Send()
 
-        /** Send this one as the whole transfer; Wallet creates the partner on [toAccount] (`pairingMode: new`). */
-        class New(val toAccount: String, val partnerId: Long) : Send()
+        /**
+         * Send this one as the whole transfer; Wallet creates the partner on [toAccount] (`pairingMode: new`).
+         * [partnerId] is null for a record the user turned into a transfer, which has no partner here.
+         */
+        class New(val toAccount: String, val partnerId: Long? = null) : Send()
 
         /** The partner sends the transfer (or still waits for approval); this one isn't sent itself. */
         object Wait : Send()

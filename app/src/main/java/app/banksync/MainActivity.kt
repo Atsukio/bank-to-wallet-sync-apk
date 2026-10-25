@@ -1,8 +1,13 @@
 package app.banksync
 
 import android.content.Intent
+import android.graphics.Typeface
 import android.os.Build
 import android.os.Bundle
+import android.text.SpannableString
+import android.text.Spanned
+import android.text.style.ForegroundColorSpan
+import android.text.style.StyleSpan
 import android.util.TypedValue
 import android.view.LayoutInflater
 import android.view.View
@@ -11,6 +16,7 @@ import android.widget.Button
 import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.TextView
+import androidx.appcompat.widget.TooltipCompat
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.core.widget.NestedScrollView
 import com.google.android.material.appbar.MaterialToolbar
@@ -105,7 +111,6 @@ class MainActivity : LockedActivity() {
         }
 
         findViewById<Button>(R.id.syncButton).setOnClickListener {
-            if (store.counts()[Store.PENDING] == 0) return@setOnClickListener toast("Nothing waiting to send")
             if (Demo.active) {
                 toast("Demo: ${Demo.sendAll()} marked as sent. Nothing went to Wallet.")
                 return@setOnClickListener refresh()
@@ -115,7 +120,10 @@ class MainActivity : LockedActivity() {
             Uploader.schedule(this, 0, replace = true)
             renderSync()
         }
-        findViewById<Button>(R.id.scanButton).setOnClickListener { scan() }
+        findViewById<Button>(R.id.scanButton).apply {
+            setOnClickListener { scan() }
+            TooltipCompat.setTooltipText(this, "Reads bank alerts still in your notification shade that weren't picked up")
+        }
         findViewById<Button>(R.id.clearButton).setOnClickListener { confirmClear() }
         findViewById<Button>(R.id.retryButton).setOnClickListener {
             val n = store.retryFailed()
@@ -291,11 +299,14 @@ class MainActivity : LockedActivity() {
             )
         }
         val busy = Uploader.requested || Uploader.running
-        button.isEnabled = !busy
+        // Nothing to send means nothing to press; otherwise say how many it will send.
+        val waiting = store.counts()[Store.PENDING]
+        button.isEnabled = !busy && waiting > 0
         button.text = when {
             Uploader.running -> "Sending…"
             Uploader.requested -> "Waiting for network…"
-            else -> "Sync now"
+            waiting > 0 -> "Send $waiting waiting"
+            else -> "Nothing to send"
         }
         bar.visibility = if (busy) View.VISIBLE else View.GONE
     }
@@ -445,8 +456,15 @@ class MainActivity : LockedActivity() {
         val attention = c[Store.FAILED] + c[Store.REVIEW] + c[Store.UNPARSED]
         // Everything fixed: the "needs you" notification would only be stale now.
         if (!Demo.active && c[Store.UNPARSED] == 0) Notifier.cancelUnparsed(this)
-        findViewById<TextView>(R.id.countWaiting).countTo(c[Store.PENDING])
-        findViewById<TextView>(R.id.countSynced).countTo(c[Store.SYNCED])
+        findViewById<TextView>(R.id.countWaiting).apply {
+            countTo(c[Store.PENDING])
+            // Blue while something waits, green once something is sent; a zero stays plain.
+            setTextColor(if (c[Store.PENDING] > 0) getColor(R.color.mark_wait) else themeColor(M.attr.colorOnSurface))
+        }
+        findViewById<TextView>(R.id.countSynced).apply {
+            countTo(c[Store.SYNCED])
+            setTextColor(if (c[Store.SYNCED] > 0) getColor(R.color.amount_in) else themeColor(M.attr.colorOnSurface))
+        }
         findViewById<TextView>(R.id.countAttention).countTo(attention)
         // The tile only turns red when there's something to do, and fades there.
         val tile = findViewById<MaterialCardView>(R.id.tileAttention)
@@ -504,6 +522,8 @@ class MainActivity : LockedActivity() {
             val whenText = iso.parse(r.date)?.let { fmt.format(it) } ?: r.date
             val income = (r.amount ?: 0.0) > 0
             val partner = otherHalf(r)
+            // One sent to another account by itself is a transfer too, with no second record here.
+            val isTransfer = r.pairId != null || r.transferTo != null
             // The half that decides what the row says: the one with the most pressing status.
             val src = if (partner != null && urgency(partner.status) > urgency(r.status)) partner else r
             val status = src.status
@@ -513,18 +533,18 @@ class MainActivity : LockedActivity() {
                 Store.REVIEW -> Triple(R.drawable.ic_schedule, Mark.ATTENTION, "Tap to approve")
                 Store.FAILED -> Triple(R.drawable.ic_error, Mark.FAILED, src.error ?: "Couldn't be sent")
                 Store.PENDING -> Triple(
-                    if (r.pairId != null) R.drawable.ic_swap else R.drawable.ic_schedule,
-                    if (r.pairId != null) Mark.TRANSFER else Mark.WAIT,
+                    if (isTransfer) R.drawable.ic_swap else R.drawable.ic_schedule,
+                    if (isTransfer) Mark.TRANSFER else Mark.WAIT,
                     "Waiting to send · tap to change"
                 )
                 else -> Triple(
                     when {
-                        r.pairId != null -> R.drawable.ic_swap
+                        isTransfer -> R.drawable.ic_swap
                         income -> R.drawable.ic_arrow_in
                         else -> R.drawable.ic_arrow_out
                     },
                     when {
-                        r.pairId != null -> Mark.TRANSFER
+                        isTransfer -> Mark.TRANSFER
                         income -> Mark.IN
                         else -> Mark.OUT
                     },
@@ -549,25 +569,35 @@ class MainActivity : LockedActivity() {
             // Hidden, a row keeps only what kind of thing it is, when, and what it needs.
             row.findViewById<TextView>(R.id.recTitle).text = when {
                 r.status == Store.UNPARSED -> if (hide) "Bank alert" else r.note.orEmpty().ifEmpty { "Bank alert" }
-                partner != null -> "Transfer"
+                partner != null || r.transferTo != null -> "Transfer"
                 !hide && !r.payee.isNullOrBlank() -> r.payee
                 income -> "Money in"
                 else -> "Payment"
             }
-            row.findViewById<TextView>(R.id.recSub).text = "$whenText · $state"
+            row.findViewById<TextView>(R.id.recSub).text = if (status == Store.UNPARSED || status == Store.REVIEW) {
+                // Waiting on the user: the action part stands out in red and bold.
+                val red = row.themeColor(M.attr.colorError)
+                SpannableString("$whenText · $state").apply {
+                    val from = whenText.length + 3
+                    setSpan(ForegroundColorSpan(red), from, length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+                    setSpan(StyleSpan(Typeface.BOLD), from, length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+                }
+            } else {
+                "$whenText · $state"
+            }
             row.findViewById<TextView>(R.id.recAmount).apply {
                 // A transfer moves your own money, so it has no sign; otherwise green in, red out.
                 text = r.amount?.let {
                     when {
                         hide -> "••••"
-                        partner != null -> String.format(Locale.US, "%,.2f", kotlin.math.abs(it))
+                        partner != null || r.transferTo != null -> String.format(Locale.US, "%,.2f", kotlin.math.abs(it))
                         else -> String.format(Locale.US, "%s%,.2f", if (it > 0) "+" else "−", kotlin.math.abs(it))
                     }
                 }
                 setTextColor(
                     context.getColor(
                         when {
-                            r.pairId != null -> R.color.mark_transfer
+                            isTransfer -> R.color.mark_transfer
                             income -> R.color.amount_in
                             else -> R.color.amount_out
                         }
@@ -579,6 +609,13 @@ class MainActivity : LockedActivity() {
                 val waiting = r.status == Store.PENDING || r.status == Store.REVIEW
                 when {
                     hide -> return@apply
+                    r.transferTo != null -> {
+                        // An account no bank app is linked to is named from what Wallet last told us, else looked up once.
+                        val there = accounts[r.transferTo] ?: settings.accountName(r.transferTo)
+                        if (there == null) resolveAccountNames()
+                        text = "⇄ ${accounts[r.account] ?: "this account"} → ${there ?: "another account"}"
+                        setTextColor(themeColor(M.attr.colorTertiary))
+                    }
                     r.pairId != null -> {
                         // Wallet files a transfer itself; show where the money moved instead.
                         val here = accounts[r.account] ?: "this account"
@@ -628,7 +665,7 @@ class MainActivity : LockedActivity() {
             }
 
             // New rows drop in; a row whose status changed (waiting to sent, say) flashes and its badge pops.
-            val key = "${r.status}|${partner?.status}|${r.pairId}"
+            val key = "${r.status}|${partner?.status}|${r.pairId}|${r.transferTo}"
             states[r.id] = key
             if (animateRows) {
                 val before = rowStates[r.id]
@@ -693,7 +730,7 @@ class MainActivity : LockedActivity() {
             .setMessage(
                 "Removes the $n sent or not-understood item${if (n == 1) "" else "s"} from this list. " +
                     "Nothing in Wallet changes, and anything waiting, failed or needing you stays.\n\n" +
-                    "If the bank's alert is still in your notification shade, \"Missed alerts\" would pick it up again and send it twice."
+                    "If the bank's alert is still in your notification shade, \"Scan notifications\" would pick it up again and send it twice."
             )
             .setPositiveButton("Clear") { _, _ ->
                 store.clearHistory()
@@ -714,7 +751,7 @@ class MainActivity : LockedActivity() {
             .setMessage(
                 (if (sent) "It stays in Wallet; only this phone forgets it. " else "It won't be sent to Wallet. ") +
                     (if (other != null) "Both sides are removed. " else "") +
-                    "If the bank's notification is still in your notification shade, Missed alerts picks it up again as new."
+                    "If the bank's notification is still in your notification shade, Scan notifications picks it up again as new."
             )
             .setPositiveButton("Remove") { _, _ ->
                 // A transfer is removed with both sides; a lone half leaves its partner as a normal record.
@@ -733,9 +770,24 @@ class MainActivity : LockedActivity() {
             .show()
     }
 
+    private var namesRequested = false
+
+    /** Asks Wallet once for account names, so a transfer to an account no bank app is linked to can say where. */
+    private fun resolveAccountNames() {
+        if (namesRequested || Demo.active || settings.token.isEmpty()) return
+        namesRequested = true
+        Thread {
+            val all = runCatching { WalletApi.accounts(settings.token) }.getOrNull() ?: return@Thread
+            settings.rememberAccountNames(all)
+            runOnUiThread { if (!isFinishing && !isDestroyed) refresh() }
+        }.start()
+    }
+
     private fun openRecord(r: Rec) {
         when (r.status) {
-            Store.UNPARSED -> Dialogs.showFix(this, r) { refresh() }
+            Store.UNPARSED ->
+                if (!Demo.active && Parser.isCashIn(r.note.orEmpty())) Dialogs.showCashIn(this, r) { refresh() }
+                else Dialogs.showFix(this, r) { refresh() }
             Store.REVIEW, Store.PENDING -> Dialogs.showRecord(this, r) { refresh() }
             Store.FAILED -> MaterialAlertDialogBuilder(this)
                 .setTitle("Couldn't be sent")

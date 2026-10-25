@@ -29,6 +29,23 @@ object Parser {
         RegexOption.IGNORE_CASE
     )
 
+    /** Touch 'n Go: "Cash in Successful You have successfuly cashed in RM14.85 into your GO+ account." */
+    private val cashInRe = Regex("""\bcash(?:ed)?[\s-]?in\b[\s\S]{0,120}?\bgo\s?\+""", RegexOption.IGNORE_CASE)
+
+    fun isCashIn(text: String): Boolean = cashInRe.containsMatchIn(text)
+
+    /**
+     * A Cash in to GO+ as money leaving the wallet it was taken from, or null when [text] isn't one or has
+     * no amount. It has no payment word for [parse] to read a direction from, and no payee: the other
+     * end is a GO+ account, picked by the caller.
+     */
+    fun cashIn(text: String): Parsed? {
+        if (!isCashIn(text)) return null
+        val m = amountRe.find(text) ?: return null
+        val amount = m.groupValues[2].replace(",", "").toDoubleOrNull()?.takeIf { it != 0.0 } ?: return null
+        return Parsed(-amount, null, currencyOf(m.groupValues[1]))
+    }
+
     /**
      * "<method> of RM 10.00 to <name>": an amount followed by "to someone" with no verb. Reads as
      * money going out, unless the "someone" is the user ("to you" / "to your account").

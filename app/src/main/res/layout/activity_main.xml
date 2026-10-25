@@ -189,7 +189,7 @@
                     style="@style/Widget.Material3.Button.TonalButton.Icon"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:text="Sync now"
+                    android:text="Nothing to send"
                     app:icon="@drawable/ic_sync" />
 
                 <com.google.android.material.button.MaterialButton
@@ -198,7 +198,7 @@
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:layout_marginStart="8dp"
-                    android:text="Missed alerts"
+                    android:text="Scan notifications"
                     app:icon="@drawable/ic_notifications" />
 
                 <com.google.android.material.button.MaterialButton

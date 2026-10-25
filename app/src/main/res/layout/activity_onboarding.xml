@@ -130,6 +130,7 @@
                     android:textAppearance="?attr/textAppearanceBodyMedium" />
 
                 <com.google.android.material.textfield.TextInputLayout
+                    android:id="@+id/obTokenLayout"
                     style="@style/Widget.Material3.TextInputLayout.OutlinedBox"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
@@ -283,9 +284,90 @@
                     android:text="Add bank app" />
             </LinearLayout>
 
-            <!-- 5: done -->
+            <!-- 5: preferences -->
             <LinearLayout
                 android:id="@+id/step5"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:visibility="gone">
+
+                <ImageView
+                    style="@style/Widget.BankSync.StepIcon"
+                    android:src="@drawable/ic_settings" />
+
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="How should it behave?"
+                    android:textAppearance="?attr/textAppearanceHeadlineSmall" />
+
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="12dp"
+                    android:text="The usual choices are already set. Change any of them now or later in Settings."
+                    android:textAppearance="?attr/textAppearanceBodyMedium" />
+
+                <com.google.android.material.materialswitch.MaterialSwitch
+                    android:id="@+id/obReviewSwitch"
+                    style="@style/Widget.BankSync.SettingSwitch"
+                    android:layout_marginTop="8dp"
+                    android:text="Ask before sending" />
+
+                <TextView
+                    style="@style/Widget.BankSync.SettingHint"
+                    android:text="Each transaction waits for you to tap Send in a notification. Off, they go to Wallet straight away." />
+
+                <com.google.android.material.materialswitch.MaterialSwitch
+                    android:id="@+id/obAskNoCategorySwitch"
+                    style="@style/Widget.BankSync.SettingSwitch"
+                    android:text="Ask when there's no category" />
+
+                <TextView
+                    style="@style/Widget.BankSync.SettingHint"
+                    android:text="Only transactions no category could be picked for wait for you. Off, they go to Wallet as Unknown." />
+
+                <com.google.android.material.materialswitch.MaterialSwitch
+                    android:id="@+id/obCapturedSwitch"
+                    style="@style/Widget.BankSync.SettingSwitch"
+                    android:text="Tell me when a transaction is picked up" />
+
+                <TextView
+                    style="@style/Widget.BankSync.SettingHint"
+                    android:text="A silent notification with the amount, account and category, with Change and Don't send." />
+
+                <com.google.android.material.materialswitch.MaterialSwitch
+                    android:id="@+id/obSummarySwitch"
+                    style="@style/Widget.BankSync.SettingSwitch"
+                    android:text="Daily summary" />
+
+                <TextView
+                    style="@style/Widget.BankSync.SettingHint"
+                    android:text="Around 9 pm: how many transactions went to Wallet that day, and anything that needs you." />
+
+                <com.google.android.material.materialswitch.MaterialSwitch
+                    android:id="@+id/obWifiSwitch"
+                    style="@style/Widget.BankSync.SettingSwitch"
+                    android:text="Wi-Fi only" />
+
+                <TextView
+                    style="@style/Widget.BankSync.SettingHint"
+                    android:text="Hold transactions until you're on Wi-Fi." />
+
+                <com.google.android.material.materialswitch.MaterialSwitch
+                    android:id="@+id/obLockSwitch"
+                    style="@style/Widget.BankSync.SettingSwitch"
+                    android:text="Lock the app" />
+
+                <TextView
+                    style="@style/Widget.BankSync.SettingHint"
+                    android:text="Ask for your screen lock when opening the app." />
+            </LinearLayout>
+
+            <!-- 6: done -->
+            <LinearLayout
+                android:id="@+id/step6"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:orientation="vertical"

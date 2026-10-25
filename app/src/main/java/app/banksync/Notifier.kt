@@ -102,6 +102,19 @@ object Notifier {
 
     fun cancelReview(context: Context, id: Long) = manager(context).cancel(REVIEW_BASE + id.toInt())
 
+    /** A Cash in with no GO+ account to go to [id]: asks whether to drop every future one. */
+    fun askIgnoreCashIn(context: Context, id: Long) {
+        if (!canPost(context)) return
+        val icon = Icon.createWithResource(context, R.drawable.ic_stat)
+        val n = base(
+            context, REVIEW, "Ignore Cash in alerts?",
+            "No GO+ account is linked to this app, so a Cash in has nowhere to go. Ignore all future ones? " +
+                "You can change this in Settings, and you'll be asked again if you link a GO+ account."
+        ).addAction(Notification.Action.Builder(icon, "Ignore them", action(context, ReviewReceiver.IGNORE_CASH_IN, id)).build())
+            .build()
+        manager(context).notify(REVIEW_BASE + id.toInt(), n)
+    }
+
     private fun action(context: Context, action: String, id: Long): PendingIntent {
         val intent = Intent(context, ReviewReceiver::class.java).setAction(action).putExtra("id", id)
         val code = id.toInt() * 3 + when (action) {

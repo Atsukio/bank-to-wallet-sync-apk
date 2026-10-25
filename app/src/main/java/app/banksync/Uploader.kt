@@ -110,6 +110,8 @@ object Uploader {
             // Halves of a transfer: bind to the side already in Wallet, send both as one, or wait for the other.
             val plans = HashMap<Long, Transfers.Send>()
             for (rec in batch) {
+                // A record the user (or a Cash in) made a transfer to an account goes as the whole transfer.
+                rec.transferTo?.takeIf { rec.pairId == null }?.let { plans[rec.id] = Transfers.Send.New(it) }
                 val partnerId = rec.pairId ?: continue
                 val partner = store.get(partnerId)
                 val plan = Transfers.plan(rec.id, partnerId, partner?.status, partner?.walletId, partner?.account.orEmpty())
@@ -168,7 +170,7 @@ object Uploader {
      */
     private fun synced(store: Store, rec: Rec, item: JSONObject?, plan: Transfers.Send?) {
         store.markSynced(rec.id, item?.optString("id")?.takeIf { it.isNotEmpty() })
-        if (plan is Transfers.Send.New) {
+        if (plan is Transfers.Send.New && plan.partnerId != null) {
             store.markSynced(plan.partnerId, item?.optString("createdMirrorRecordId")?.takeIf { it.isNotEmpty() })
         }
     }

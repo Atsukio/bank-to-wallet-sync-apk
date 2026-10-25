@@ -72,6 +72,7 @@ class SettingsActivity : LockedActivity() {
             settings.askNoCategory = it
             if (it) askForNotificationPermission()
         }
+        switch(R.id.cashInSwitch, settings.cashInIgnored) { settings.cashInIgnored = it }
         findViewById<MaterialSwitch>(R.id.lockSwitch).apply {
             isChecked = settings.appLock
             setOnCheckedChangeListener { button, on ->
@@ -93,12 +94,14 @@ class SettingsActivity : LockedActivity() {
             movementMethod = LinkMovementMethod.getInstance()
         }
         findViewById<Button>(R.id.tokenCheck).setOnClickListener { checkToken() }
-        findViewById<Button>(R.id.tokenChange).setOnClickListener {
+        val changeToken = View.OnClickListener {
             editingToken = !editingToken
             tokenInput.text = null
             renderToken()
             if (editingToken) tokenInput.requestFocus()
         }
+        findViewById<Button>(R.id.tokenChange).setOnClickListener(changeToken)
+        findViewById<Button>(R.id.tokenChangeShort).setOnClickListener(changeToken)
         findViewById<Button>(R.id.addAppButton).setOnClickListener {
             Pickers.addRule(this, settings.token, it as Button, onAdded = { renderRules() }, onError = ::toast)
         }
@@ -199,18 +202,24 @@ class SettingsActivity : LockedActivity() {
 
     /**
      * The connection card always says where things stand. With a token saved, the field stays hidden
-     * behind "Change token"; with none, it's shown straight away.
+     * behind "Change token"; with none, it's shown straight away. A working token shrinks the card
+     * to one line, like the home screen's status card when all is well.
      */
     private fun renderToken() {
         val hasToken = settings.token.isNotEmpty()
         val editing = editingToken || !hasToken
         val problem = !hasToken || settings.authError
-        findViewById<TextView>(R.id.tokenStatus).text = when {
-            !hasToken -> "Not connected. Paste your Wallet API token to start sending transactions."
-            settings.authError -> "Wallet rejected the saved token. Transactions are waiting until you change it."
-            settings.tokenVerified -> "Connected. Your token is saved and working."
-            else -> "Token saved but not checked yet."
+        val compact = !editing && !problem && settings.tokenVerified
+        findViewById<TextView>(R.id.tokenStatus).apply {
+            when {
+                !hasToken -> status("Not connected. Paste your Wallet API token to start sending transactions.", Status.BAD)
+                settings.authError -> status("Wallet rejected the saved token. Transactions are waiting until you change it.", Status.BAD)
+                settings.tokenVerified -> status("Connected", Status.GOOD)
+                else -> status("Token saved but not checked yet.", Status.WARN)
+            }
         }
+        findViewById<View>(R.id.tokenActions).visibility = if (compact) View.GONE else View.VISIBLE
+        findViewById<View>(R.id.tokenChangeShort).visibility = if (compact) View.VISIBLE else View.GONE
         findViewById<ImageView>(R.id.tokenIcon).let {
             when {
                 problem -> it.badge(R.drawable.ic_error, Tone.BAD)
@@ -236,11 +245,11 @@ class SettingsActivity : LockedActivity() {
         if (token.isEmpty()) return toast("Paste your token first")
         val button = findViewById<Button>(R.id.tokenCheck).apply { isEnabled = false }
         val status = findViewById<TextView>(R.id.tokenStatus)
-        status.text = "Checking…"
+        status.status("Checking…", Status.WARN)
         Pickers.withAccounts(this, token, onError = {
             button.isEnabled = true
             renderToken()
-            status.text = if (editing && settings.token.isNotEmpty()) "$it. Your saved token hasn't changed." else it
+            status.status(if (editing && settings.token.isNotEmpty()) "$it. Your saved token hasn't changed." else it, Status.BAD)
         }) { accounts ->
             button.isEnabled = true
             if (editing) settings.token = token
@@ -250,7 +259,7 @@ class SettingsActivity : LockedActivity() {
             tokenInput.text = null
             if (store.counts()[Store.PENDING] > 0) Uploader.schedule(this, 0, replace = true)
             renderToken()
-            status.text = "Connected. Found ${accounts.size} Wallet account(s)."
+            status.status("Connected · ${accounts.size} account${if (accounts.size == 1) "" else "s"}", Status.GOOD)
             refreshWalletData()
         }
     }

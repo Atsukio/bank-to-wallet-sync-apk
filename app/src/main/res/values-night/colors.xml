@@ -12,6 +12,9 @@
     <color name="mark_on_failed">#410002</color>
     <color name="mark_transfer">#E1BEE7</color>
     <color name="mark_on_transfer">#38006B</color>
+    <color name="status_good">#6FD488</color>
+    <color name="status_warn">#FFD54F</color>
+    <color name="status_bad">#FF8A80</color>
     <color name="amount_in">#6FD488</color>
     <color name="amount_out">#FF8A80</color>
 </resources>

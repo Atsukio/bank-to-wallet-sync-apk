@@ -58,7 +58,10 @@ class BankNotificationListener : NotificationListenerService() {
 
     private fun handleLocked(sbn: StatusBarNotification, catchUp: Boolean): Boolean {
         val settings = Settings(this)
-        val rules = settings.rulesFor(sbn.packageName) ?: return false
+        val linked = settings.rulesFor(sbn.packageName) ?: return false
+        // A GO+ account takes Cash ins only; it never picks up the app's ordinary alerts.
+        val rules = linked.filterNot(GoPlus::isGoPlus)
+        val goPlus = linked.filter(GoPlus::isGoPlus)
         if (settings.paused) return false
         val n = sbn.notification
         if (n.flags and Notification.FLAG_GROUP_SUMMARY != 0) return false
@@ -97,28 +100,47 @@ class BankNotificationListener : NotificationListenerService() {
             return true
         }
 
+        // A Cash in to GO+ moves money from the app's main account into its GO+ account.
+        val cashIn = Parser.cashIn(text)
+        if (cashIn != null && settings.cashInIgnored) return false
+
         val rule = RuleMatcher.pick(rules, text) ?: return hold("", "No bank-app rule matched this alert")
-        val parsed = Parser.parse(text) ?: return hold(rule.accountId, "Couldn't read the amount or direction")
+        val parsed = cashIn ?: Parser.parse(text) ?: return hold(rule.accountId, "Couldn't read the amount or direction")
+        val goPlusRule = if (cashIn != null) goPlus.firstOrNull() else null
+        if (cashIn != null && goPlusRule == null) {
+            // Nowhere to put it: keep it, and ask whether Cash ins should be ignored from now on.
+            val id = store.insert(
+                hash, pkg, rule.accountId, null, null, note, date, Store.UNPARSED,
+                error = "Cash in to GO+, but no GO+ account is linked", posted = posted
+            )
+            Notifier.unparsed(this, store.counts()[Store.UNPARSED], "Cash in to GO+, but no GO+ account is linked")
+            Notifier.askIgnoreCashIn(this, id)
+            return true
+        }
 
         // Wallet rejects a record whose currency differs from its account's, and converting would be a guess.
         if (parsed.currency != null && rule.accountCurrency.isNotEmpty() && parsed.currency != rule.accountCurrency) {
             return hold(rule.accountId, "Alert is in ${parsed.currency} but ${rule.accountName} is ${rule.accountCurrency}")
         }
+        if (parsed.currency != null && goPlusRule != null && goPlusRule.accountCurrency.isNotEmpty() && parsed.currency != goPlusRule.accountCurrency) {
+            return hold(rule.accountId, "Alert is in ${parsed.currency} but ${goPlusRule.accountName} is ${goPlusRule.accountCurrency}")
+        }
 
         // Money out of one linked account and the same amount into another moments later is a transfer.
-        val partner = transferPartner(store, settings, parsed.amount, rule, whenMs)
-        val transfer = partner?.let {
+        val partner = if (cashIn != null) null else transferPartner(store, settings, parsed.amount, rule, whenMs)
+        val transfer = goPlusRule?.let { "${rule.accountName} → ${it.accountName}" } ?: partner?.let {
             val other = settings.rules().firstOrNull { r -> r.accountId == it.account }?.accountName ?: "another account"
             if (parsed.amount < 0) "${rule.accountName} → $other" else "$other → ${rule.accountName}"
         }
 
         // From what's already on the phone, so capturing never waits on the network. A transfer has no category.
-        val category = if (partner != null) null else WalletCache.pick(this, text, parsed.payee, parsed.amount, rule.accountId)
-        val ask = settings.reviewMode || (partner == null && settings.askNoCategory && category == null)
+        val isTransfer = partner != null || goPlusRule != null
+        val category = if (isTransfer) null else WalletCache.pick(this, text, parsed.payee, parsed.amount, rule.accountId)
+        val ask = settings.reviewMode || (!isTransfer && settings.askNoCategory && category == null)
         val status = if (ask) Store.REVIEW else Store.PENDING
         val id = store.insert(
             hash, pkg, rule.accountId, parsed.amount, parsed.payee, note, date, status,
-            category = category, posted = posted
+            category = category, posted = posted, transferTo = goPlusRule?.accountId
         )
         if (partner != null) store.pair(id, partner.id)
 

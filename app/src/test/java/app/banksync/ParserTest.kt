@@ -270,6 +270,20 @@ class ParserTest {
     }
 
     @Test
+    fun cashInToGoPlusIsMoneyOutOfTheWallet() {
+        val text = "Cash in Successful You have successfuly cashed in RM14.85 into your GO+ account."
+        assertTrue(Parser.isCashIn(text))
+        val p = Parser.cashIn(text)!!
+        assertEquals(-14.85, p.amount, 0.001)
+        assertEquals("MYR", p.currency)
+        assertNull(p.payee)
+        // A cash in to anything else, or an ordinary payment, isn't one.
+        assertNull(Parser.cashIn("You've paid RM14.85 at Sample Shop"))
+        assertNull(Parser.cashIn("Cash in Successful You have cashed in RM14.85 into your wallet."))
+        assertFalse(Parser.isCashIn("Top up GO+ pocket reminder"))
+    }
+
+    @Test
     fun onlySendersAreWalletPayees() {
         val card = "MAE Maybank2u: Card Transaction You've just spent RM 20.00 at SAMPLE CAFE SB TOWN MY with your Maybank Visa P..."
         assertEquals("SAMPLE CAFE SB TOWN MY", Parser.parse(card)!!.payee)

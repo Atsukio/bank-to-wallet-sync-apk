@@ -3,6 +3,7 @@ package app.banksync
 import android.content.res.ColorStateList
 import android.view.View
 import android.widget.ImageView
+import android.widget.TextView
 import com.google.android.material.color.MaterialColors
 import com.google.android.material.R as M
 
@@ -31,6 +32,19 @@ fun ImageView.mark(icon: Int, mark: Mark) {
     setImageResource(icon)
     backgroundTintList = ColorStateList.valueOf(context.getColor(mark.fill))
     imageTintList = ColorStateList.valueOf(context.getColor(mark.glyph))
+}
+
+/** How a line of status text should be coloured: fine, still to do, or broken. */
+enum class Status(val color: Int) {
+    GOOD(R.color.status_good),
+    WARN(R.color.status_warn),
+    BAD(R.color.status_bad),
+}
+
+/** Shows [text] in the colour for [status]. */
+fun TextView.status(text: CharSequence, status: Status) {
+    this.text = text
+    setTextColor(context.getColor(status.color))
 }
 
 /** Sets a round badge's icon and colours it for [tone]. */

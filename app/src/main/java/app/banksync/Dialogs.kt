@@ -28,6 +28,66 @@ object Dialogs {
     }
 
     /**
+     * A Touch 'n Go Cash in held because no GO+ account is linked: offers to ignore every future one (and
+     * drop this one), or to enter this one by hand through [showFix].
+     */
+    fun showCashIn(activity: Activity, rec: Rec, onDone: () -> Unit) {
+        val settings = Settings(activity)
+        val store = Store.shown(activity)
+        val linked = settings.rulesFor(rec.pkg)?.firstOrNull(GoPlus::isGoPlus)
+
+        /** Queues this Cash in as a transfer into [go], and stops ignoring Cash ins. */
+        fun move(go: Rule) {
+            val amount = Parser.cashIn(rec.note.orEmpty())?.amount
+                ?: return Toast.makeText(activity, "Couldn't read the amount", Toast.LENGTH_LONG).show()
+            settings.cashInIgnored = false
+            store.makeTransfer(rec.id, rec.account, amount, go.accountId)
+            Uploader.schedule(activity, 0, replace = true)
+            onDone()
+        }
+
+        /** Lets the user pick one of Wallet's GO+ accounts, links it to the app, and moves this Cash in there. */
+        fun link() {
+            val error = { msg: String -> Toast.makeText(activity, msg, Toast.LENGTH_LONG).show() }
+            Pickers.withAccounts(activity, settings.token, error) { all ->
+                val taken = settings.rules().map { it.accountId }.toSet()
+                val goPlus = all.filter { GoPlus.isGoPlus(it.name) && it.id !in taken }
+                if (goPlus.isEmpty()) return@withAccounts error("No GO+ account left to link in your Wallet")
+                MaterialAlertDialogBuilder(activity)
+                    .setTitle("Which GO+ account?")
+                    .setItems(goPlus.map { it.label }.toTypedArray()) { _, i ->
+                        val a = goPlus[i]
+                        val label = settings.rulesFor(rec.pkg)?.firstOrNull()?.label ?: "Touch 'n Go"
+                        val rule = Rule(rec.pkg, label, "", a.id, a.name, a.currency)
+                        settings.addRule(rule)
+                        move(rule)
+                    }
+                    .setNegativeButton("Cancel", null)
+                    .show()
+            }
+        }
+
+        MaterialAlertDialogBuilder(activity)
+            .setTitle("Ignore Cash in alerts?")
+            .setMessage(
+                (if (linked != null) "A GO+ account is linked now, so this Cash in can move into ${linked.accountName}.\n\n" else
+                    "This Cash in has nowhere to go: no GO+ account is linked to the app.\n\n") +
+                    "Ignore all future Cash in alerts and drop this one? You can change that in Settings, and you'll be asked again if you link a GO+ account."
+            )
+            .setPositiveButton("Ignore Cash ins") { _, _ ->
+                settings.cashInIgnored = true
+                store.delete(rec.id)
+                if (store.counts()[Store.UNPARSED] == 0) Notifier.cancelUnparsed(activity)
+                onDone()
+            }
+            .setNegativeButton("Enter it myself") { _, _ -> showFix(activity, rec, onDone) }
+            .setNeutralButton(if (linked != null) "Move to ${linked.accountName}" else "Link a GO+ account") { _, _ ->
+                if (linked != null) move(linked) else link()
+            }
+            .show()
+    }
+
+    /**
      * Lets the user finish a "not understood" alert by hand: the original text is shown, the account,
      * amount, direction and payee are pre-filled from what could be read, and the result joins the
      * normal upload queue.
@@ -157,13 +217,53 @@ object Dialogs {
         val noteField = view.findViewById<EditText>(R.id.recordNote)
         noteField.setText(rec.noteEdit ?: autoNote)
 
+        // Money out can be turned into a transfer to another Wallet account; Wallet files that itself, so no category.
+        var transferTo: String? = rec.transferTo
+        val canTransfer = amount < 0 && rec.pairId == null
+        if (canTransfer) {
+            val layout = view.findViewById<View>(R.id.transferLayout)
+            val field = view.findViewById<AutoCompleteTextView>(R.id.recordTransfer)
+            layout.visibility = View.VISIBLE
+            val notTransfer = "Not a transfer"
+            var choices: List<Target> = targets.filter { it.id != rec.account }
+            val knownName = transferTo?.let { settings.accountName(it) }
+            fun showChoices() {
+                field.setAdapter(ArrayAdapter(activity, android.R.layout.simple_list_item_1, listOf(notTransfer) + choices.map { it.label }))
+            }
+            fun categoryVisible() {
+                view.findViewById<View>(R.id.categoryLayout).visibility = if (transferTo == null) View.VISIBLE else View.GONE
+            }
+            field.setText(choices.firstOrNull { it.id == transferTo }?.label ?: knownName ?: if (transferTo == null) notTransfer else "Another Wallet account", false)
+            showChoices()
+            field.setOnItemClickListener { _, _, i, _ ->
+                transferTo = if (i == 0) null else choices[i - 1].id
+                categoryVisible()
+            }
+            categoryVisible()
+            // Any Wallet account, not only the linked ones.
+            if (!Demo.active && settings.token.isNotEmpty()) {
+                Thread {
+                    val all = runCatching { WalletApi.accounts(settings.token) }.getOrNull()
+                    activity.runOnUiThread {
+                        if (activity.isFinishing || activity.isDestroyed || all.isNullOrEmpty()) return@runOnUiThread
+                        settings.rememberAccountNames(all)
+                        choices = all.filter { it.id != rec.account }.map { Target(it.id, it.name, it.currency) }
+                        showChoices()
+                        choices.firstOrNull { it.id == transferTo }?.let { field.setText(it.label, false) }
+                    }
+                }.start()
+            }
+        }
+
         /** Saves the changes; false (with a message) when the record was sent meanwhile. */
         fun save(): Boolean {
-            chooser.commit()
+            val toAccount = transferTo?.takeIf { canTransfer && it != target.id }
+            if (toAccount == null) chooser.commit()
             // Left as it was shown, the note keeps following the alert; anything else is sent as typed.
             val typed = noteField.text.toString().trim()
             val noteEdit = if (rec.noteEdit == null && typed == autoNote) null else typed
-            if (store.edit(rec.id, target.id, chooser.result { initial }, noteEdit)) return true
+            val category = if (toAccount != null) null else chooser.result { initial }
+            if (store.edit(rec.id, target.id, category, noteEdit, toAccount)) return true
             Toast.makeText(activity, "Too late: it was already sent", Toast.LENGTH_LONG).show()
             return false
         }

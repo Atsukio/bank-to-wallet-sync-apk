@@ -31,7 +31,7 @@ object Pickers {
         val names = when {
             "cimb" in label || "octo" in label -> listOf("cimb", "octo")
             Regex("""\bryt\b""").containsMatchIn(label) -> listOf("ryt")
-            "touch" in label || Regex("""\btng\b""").containsMatchIn(label) -> listOf("tng", "touch")
+            "touch" in label || Regex("""\btng\b""").containsMatchIn(label) -> listOf("tng", "touch", "go+")
             Regex("""maybank|\bmae\b|\bm2u""").containsMatchIn(label) -> listOf("maybank", "mae", "m2u")
             else -> return false
         }
@@ -182,14 +182,69 @@ object Pickers {
                 dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener {
                     val (label, pkg) = app ?: return@setOnClickListener
                     val acc = account ?: return@setOnClickListener
-                    val rule = Rule(pkg, label, matchField.text.toString().trim(), acc.id, acc.name, acc.currency)
+                    val typed = Rule(pkg, label, matchField.text.toString().trim(), acc.id, acc.name, acc.currency)
+                    // A GO+ account takes Cash ins, not alerts by text, so whatever filled the ending is dropped.
+                    val rule = if (GoPlus.isGoPlus(typed)) typed.copy(match = "") else typed
                     Settings(activity).addRule(rule)
                     onAdded(rule)
                     dialog.dismiss()
+                    cashInFollowUp(activity, rule, allAccounts, onAdded)
                 }
             }
             dialog.show()
         }
+    }
+
+    /**
+     * Touch 'n Go Cash ins move money into a GO+ account, so linking the app (or a GO+ account) is when to
+     * settle where they go. A main account with no GO+ linked offers the Wallet's GO+ accounts, or asks to
+     * ignore Cash ins when there are none. A GO+ account linked while they are ignored asks to start using it.
+     */
+    private fun cashInFollowUp(activity: Activity, rule: Rule, accounts: List<WalletApi.Account>, onAdded: (Rule) -> Unit) {
+        if (!GoPlus.isTng(rule.label)) return
+        val settings = Settings(activity)
+        if (GoPlus.isGoPlus(rule)) {
+            if (!settings.cashInIgnored) return
+            MaterialAlertDialogBuilder(activity)
+                .setTitle("Move Cash ins into ${rule.accountName}?")
+                .setMessage("Touch 'n Go Cash in alerts are being ignored. Start moving them from your Touch 'n Go account into ${rule.accountName} instead?")
+                .setPositiveButton("Move them") { _, _ -> settings.cashInIgnored = false }
+                .setNegativeButton("Keep ignoring", null)
+                .show()
+            return
+        }
+        if (settings.rules().any { it.pkg == rule.pkg && GoPlus.isGoPlus(it) }) return
+        val linked = settings.rules().map { it.accountId }.toSet()
+        val goAccounts = accounts.filter { GoPlus.isGoPlus(it.name) && it.id !in linked }
+        if (goAccounts.isEmpty()) {
+            if (settings.cashInIgnored) return
+            MaterialAlertDialogBuilder(activity)
+                .setTitle("Ignore Cash in alerts?")
+                .setMessage(
+                    "Your Wallet has no GO+ account, so Touch 'n Go Cash in alerts have nowhere to go. Ignore them? " +
+                        "You can change this in Settings, and you'll be asked again if you link a GO+ account later."
+                )
+                .setPositiveButton("Ignore them") { _, _ -> settings.cashInIgnored = true }
+                .setNegativeButton("Not now", null)
+                .show()
+            return
+        }
+        val choices = (goAccounts.map { it.label } + "None: ignore Cash ins").toTypedArray()
+        MaterialAlertDialogBuilder(activity)
+            .setTitle("Which GO+ account do Cash ins go into?")
+            .setItems(choices) { _, i ->
+                if (i < goAccounts.size) {
+                    val a = goAccounts[i]
+                    val go = Rule(rule.pkg, rule.label, "", a.id, a.name, a.currency)
+                    settings.addRule(go)
+                    settings.cashInIgnored = false
+                    onAdded(go)
+                } else {
+                    settings.cashInIgnored = true
+                }
+            }
+            .setNegativeButton("Not now", null)
+            .show()
     }
 
     /** "When the alert contains X, use this Wallet category." */
@@ -236,7 +291,7 @@ object Pickers {
             return addEmpty(activity, container, "No bank apps yet. Tap Add to choose one.")
         }
         for (rule in rules) {
-            val sub = "To ${rule.accountName}" +
+            val sub = if (GoPlus.isGoPlus(rule)) "Cash ins go into ${rule.accountName}" else "To ${rule.accountName}" +
                 if (rule.match.isEmpty()) "" else " · alerts containing \"${rule.match}\""
             val row = addRow(activity, container, rule.label, sub) {
                 settings.removeRule(rule)

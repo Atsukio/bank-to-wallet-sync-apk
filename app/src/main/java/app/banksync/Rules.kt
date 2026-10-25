@@ -39,6 +39,22 @@ object RuleMatcher {
     }
 }
 
+/**
+ * Touch 'n Go's GO+ pocket is its own Wallet account. A rule whose account is named like one is not for
+ * the app's ordinary alerts: it is where Cash ins go, as a transfer from the app's main account.
+ */
+object GoPlus {
+    private val name = Regex("""\bgo\s?\+""", RegexOption.IGNORE_CASE)
+
+    fun isGoPlus(accountName: String): Boolean = name.containsMatchIn(accountName)
+
+    /** Only Touch 'n Go's own rules: another bank's account that happens to be named like one is an ordinary rule. */
+    fun isGoPlus(rule: Rule): Boolean = isTng(rule.label) && isGoPlus(rule.accountName)
+
+    /** Touch 'n Go's app, by the label it is linked under. */
+    fun isTng(appLabel: String): Boolean = Regex("""touch|\btng\b""", RegexOption.IGNORE_CASE).containsMatchIn(appLabel)
+}
+
 object IgnoreWords {
     /** True when [text] contains one of the comma-separated [words] as a whole word ("otp" but not "hotpot"). */
     fun matches(words: String, text: String): Boolean =

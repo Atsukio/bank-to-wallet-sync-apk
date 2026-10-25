@@ -30,6 +30,8 @@ class Rec(
     val pairId: Long? = null,
     /** A note the user wrote for Wallet, used as is; blank means no note, null means build it from the alert. */
     val noteEdit: String? = null,
+    /** The Wallet account this goes to as a transfer, when it was made one by hand or is a Cash in; null otherwise. */
+    val transferTo: String? = null,
 )
 
 /**
@@ -107,10 +109,10 @@ class Store private constructor(context: Context, name: String?) : SQLiteOpenHel
     fun insert(
         hash: String, pkg: String, account: String, amount: Double?,
         payee: String?, note: String?, date: String, status: Int,
-        error: String? = null, category: CategoryPick? = null, posted: Long = 0L,
+        error: String? = null, category: CategoryPick? = null, posted: Long = 0L, transferTo: String? = null,
     ): Long {
         val v = ContentValues().apply {
-            put("hash", hash); put("pkg", pkg); put("account", account)
+            put("hash", hash); put("pkg", pkg); put("account", account); put("transferTo", transferTo)
             put("amount", amount); put("payee", payee); put("note", note)
             put("date", date); put("status", status); put("error", error)
             putCategory(category); put("posted", posted)
@@ -140,8 +142,10 @@ class Store private constructor(context: Context, name: String?) : SQLiteOpenHel
      * The user's changes to a record that hasn't gone yet. Returns false when it was sent (or removed)
      * in the meantime, so the change came too late.
      */
-    fun edit(id: Long, account: String, category: CategoryPick?, noteEdit: String?): Boolean {
-        val v = ContentValues().apply { put("account", account); putCategory(category); put("noteEdit", noteEdit) }
+    fun edit(id: Long, account: String, category: CategoryPick?, noteEdit: String?, transferTo: String? = null): Boolean {
+        val v = ContentValues().apply {
+            put("account", account); putCategory(category); put("noteEdit", noteEdit); put("transferTo", transferTo)
+        }
         return writableDatabase.update("rec", v, "id=? AND status IN ($PENDING,$REVIEW)", arrayOf(id.toString())) > 0
     }
 
@@ -197,13 +201,14 @@ class Store private constructor(context: Context, name: String?) : SQLiteOpenHel
 
     /** Marks [a] and [b] as the two sides of one transfer. */
     fun pair(a: Long, b: Long) {
-        writableDatabase.execSQL("UPDATE rec SET pairId=$b WHERE id=$a")
-        writableDatabase.execSQL("UPDATE rec SET pairId=$a WHERE id=$b")
+        // A matched pair is the transfer; neither side also goes to an account by itself.
+        writableDatabase.execSQL("UPDATE rec SET pairId=$b, transferTo=NULL WHERE id=$a")
+        writableDatabase.execSQL("UPDATE rec SET pairId=$a, transferTo=NULL WHERE id=$b")
     }
 
-    /** "Not a transfer": both sides go back to being normal records. */
+    /** "Not a transfer": both sides go back to being normal records, and a transfer to an account is dropped. */
     fun unpair(id: Long) {
-        writableDatabase.execSQL("UPDATE rec SET pairId=NULL WHERE id=$id OR pairId=$id")
+        writableDatabase.execSQL("UPDATE rec SET pairId=NULL, transferTo=NULL WHERE id=$id OR pairId=$id")
     }
 
     fun markUncertain(ids: List<Long>) = exec("uncertain=1", ids)
@@ -255,6 +260,15 @@ class Store private constructor(context: Context, name: String?) : SQLiteOpenHel
         writableDatabase.update("rec", v, "id=?", arrayOf(id.toString()))
     }
 
+    /** Turns a held "not understood" row into a queued transfer of [amount] (signed) from [account] to [toAccount]. */
+    fun makeTransfer(id: Long, account: String, amount: Double, toAccount: String) {
+        val v = ContentValues().apply {
+            put("account", account); put("amount", amount); put("transferTo", toAccount)
+            putCategory(null); put("status", PENDING); put("attempts", 0); putNull("error")
+        }
+        writableDatabase.update("rec", v, "id=? AND status=$UNPARSED", arrayOf(id.toString()))
+    }
+
     fun retryFailed(): Int {
         val v = ContentValues().apply { put("status", PENDING); put("attempts", 0); putNull("error") }
         return writableDatabase.update("rec", v, "status=$FAILED AND amount IS NOT NULL", null)
@@ -280,7 +294,7 @@ class Store private constructor(context: Context, name: String?) : SQLiteOpenHel
             "rec",
             arrayOf(
                 "id", "pkg", "account", "amount", "payee", "note", "date", "status", "attempts", "error",
-                "categoryId", "uncertain", "categoryName", "labelIds", "categorySource", "walletId", "pairId", "noteEdit"
+                "categoryId", "uncertain", "categoryName", "labelIds", "categorySource", "walletId", "pairId", "noteEdit", "transferTo"
             ),
             where, null, null, null, order, limit.toString()
         ).use {
@@ -293,7 +307,7 @@ class Store private constructor(context: Context, name: String?) : SQLiteOpenHel
                     it.getString(10), it.getInt(11) == 1,
                     it.getString(12), it.getString(13)?.split(',')?.filter { s -> s.isNotEmpty() }.orEmpty(),
                     it.getString(14), it.getString(15), if (it.isNull(16)) null else it.getLong(16),
-                    it.getString(17),
+                    it.getString(17), it.getString(18),
                 )
             }
         }

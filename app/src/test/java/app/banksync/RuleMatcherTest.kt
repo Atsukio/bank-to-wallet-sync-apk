@@ -7,6 +7,14 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class RuleMatcherTest {
+    @Test
+    fun goPlusRulesAreOnlyTouchNGoAccountsNamedLikeOne() {
+        assertTrue(GoPlus.isGoPlus(Rule("p.tng", "Touch 'n Go eWallet", "", "a1", "TNG GO+ Sample", "MYR")))
+        assertFalse(GoPlus.isGoPlus(Rule("p.tng", "Touch 'n Go eWallet", "", "a2", "TNG eWallet Sample", "MYR")))
+        // Another bank's account with the same words in its name is an ordinary rule.
+        assertFalse(GoPlus.isGoPlus(Rule("p.cimb", "CIMB OCTO MY", "", "a3", "GO+ Savings Sample", "MYR")))
+    }
+
     private val any = Rule("app.mae", "MAE", "", "acc-savings", "Savings")
     private val card = Rule("app.mae", "MAE", "1234", "acc-card", "Visa")
 

@@ -78,6 +78,15 @@
                             android:layout_marginStart="16dp"
                             android:layout_weight="1"
                             android:textAppearance="?attr/textAppearanceBodyLarge" />
+
+                        <!-- Shown instead of the button row when the token works. -->
+                        <Button
+                            android:id="@+id/tokenChangeShort"
+                            style="@style/Widget.Material3.Button.TextButton"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="Change"
+                            android:visibility="gone" />
                     </LinearLayout>
 
                     <!-- Shown only while entering a new token. -->
@@ -112,6 +121,7 @@
                     </LinearLayout>
 
                     <LinearLayout
+                        android:id="@+id/tokenActions"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:layout_marginTop="12dp"
@@ -296,6 +306,15 @@
                     <TextView
                         style="@style/Widget.BankSync.SettingHint"
                         android:text="Only transactions no category could be picked for wait for you; the rest go straight away. Off, they go to Wallet as Unknown." />
+
+                    <com.google.android.material.materialswitch.MaterialSwitch
+                        android:id="@+id/cashInSwitch"
+                        style="@style/Widget.BankSync.SettingSwitch"
+                        android:text="Ignore Touch 'n Go Cash ins" />
+
+                    <TextView
+                        style="@style/Widget.BankSync.SettingHint"
+                        android:text="Cash in alerts normally move money from the app's account into its GO+ account. Turn this on to drop them, for example when you have no GO+ account." />
 
                     <com.google.android.material.materialswitch.MaterialSwitch
                         android:id="@+id/noticesSwitch"
