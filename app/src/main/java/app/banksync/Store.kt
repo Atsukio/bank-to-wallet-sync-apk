@@ -24,13 +24,17 @@ class Rec(
     val labelIds: List<String> = emptyList(),
     /** A [CategorySource] value, or null when nothing picked a category. */
     val categorySource: String? = null,
+    /** Wallet's id for the record once sent, so a later transfer side can be bound to it. */
+    val walletId: String? = null,
+    /** The local id of the other side when this is one half of a transfer ([Transfers]). */
+    val pairId: Long? = null,
 )
 
 /**
  * Local queue. A row survives offline periods and process death until Wallet confirms it. A null
  * [name] is the in-memory queue that [Demo] fills.
  */
-class Store private constructor(context: Context, name: String?) : SQLiteOpenHelper(context, name, null, 4) {
+class Store private constructor(context: Context, name: String?) : SQLiteOpenHelper(context, name, null, 5) {
 
     override fun onCreate(db: SQLiteDatabase) {
         db.execSQL(
@@ -42,7 +46,8 @@ class Store private constructor(context: Context, name: String?) : SQLiteOpenHel
                 error TEXT, created INTEGER NOT NULL,
                 uncertain INTEGER NOT NULL DEFAULT 0, categoryId TEXT, transferTo TEXT,
                 posted INTEGER NOT NULL DEFAULT 0,
-                categoryName TEXT, labelIds TEXT, categorySource TEXT)"""
+                categoryName TEXT, labelIds TEXT, categorySource TEXT,
+                walletId TEXT, pairId INTEGER)"""
         )
         db.execSQL("CREATE INDEX rec_status ON rec(status)")
         db.execSQL("CREATE INDEX rec_hash ON rec(hash, created)")
@@ -62,6 +67,11 @@ class Store private constructor(context: Context, name: String?) : SQLiteOpenHel
             db.execSQL("ALTER TABLE rec ADD COLUMN categoryName TEXT")
             db.execSQL("ALTER TABLE rec ADD COLUMN labelIds TEXT")
             db.execSQL("ALTER TABLE rec ADD COLUMN categorySource TEXT")
+        }
+        if (old < 5) {
+            // Transfers: Wallet's id for a sent record, and the local id of the other side.
+            db.execSQL("ALTER TABLE rec ADD COLUMN walletId TEXT")
+            db.execSQL("ALTER TABLE rec ADD COLUMN pairId INTEGER")
         }
     }
 
@@ -114,6 +124,12 @@ class Store private constructor(context: Context, name: String?) : SQLiteOpenHel
         writableDatabase.update("rec", v, "id=? AND categoryId IS NULL", arrayOf(id.toString()))
     }
 
+    /** Drops a category Wallet refused; the record stays queued and gets another pick before it goes. */
+    fun clearCategory(id: Long) {
+        val v = ContentValues().apply { putCategory(null) }
+        writableDatabase.update("rec", v, "id=?", arrayOf(id.toString()))
+    }
+
     /**
      * The user's changes to a record that hasn't gone yet. Returns false when it was sent (or removed)
      * in the meantime, so the change came too late.
@@ -153,12 +169,35 @@ class Store private constructor(context: Context, name: String?) : SQLiteOpenHel
     /** Drops the raw notification text once Wallet has the record. */
     fun markSynced(ids: List<Long>) = exec("status=$SYNCED, note=NULL, error=NULL, uncertain=0", ids)
 
-    /** Not sent because Wallet already holds it; the reason stays visible in the activity list. */
-    fun markSkipped(id: Long, reason: String) {
+    /** Like [markSynced] for one record, keeping Wallet's id for it when the answer had one. */
+    fun markSynced(id: Long, walletId: String?) {
         val v = ContentValues().apply {
-            put("status", SYNCED); put("error", reason); putNull("note"); put("uncertain", 0)
+            put("status", SYNCED); putNull("note"); putNull("error"); put("uncertain", 0)
+            walletId?.let { put("walletId", it) }
         }
         writableDatabase.update("rec", v, "id=?", arrayOf(id.toString()))
+    }
+
+    /**
+     * Records that could be the other side of a transfer: captured with an amount between [fromIso] and
+     * [toIso] (alert times, ISO UTC, so they compare as text), not already paired, and not failed.
+     */
+    fun transferCandidates(fromIso: String, toIso: String): List<Rec> =
+        query(
+            "pairId IS NULL AND amount IS NOT NULL AND status IN ($PENDING,$REVIEW,$SYNCED) " +
+                "AND date>='$fromIso' AND date<='$toIso'",
+            "id", 50
+        )
+
+    /** Marks [a] and [b] as the two sides of one transfer. */
+    fun pair(a: Long, b: Long) {
+        writableDatabase.execSQL("UPDATE rec SET pairId=$b WHERE id=$a")
+        writableDatabase.execSQL("UPDATE rec SET pairId=$a WHERE id=$b")
+    }
+
+    /** "Not a transfer": both sides go back to being normal records. */
+    fun unpair(id: Long) {
+        writableDatabase.execSQL("UPDATE rec SET pairId=NULL WHERE id=$id OR pairId=$id")
     }
 
     fun markUncertain(ids: List<Long>) = exec("uncertain=1", ids)
@@ -235,7 +274,7 @@ class Store private constructor(context: Context, name: String?) : SQLiteOpenHel
             "rec",
             arrayOf(
                 "id", "pkg", "account", "amount", "payee", "note", "date", "status", "attempts", "error",
-                "categoryId", "uncertain", "categoryName", "labelIds", "categorySource"
+                "categoryId", "uncertain", "categoryName", "labelIds", "categorySource", "walletId", "pairId"
             ),
             where, null, null, null, order, limit.toString()
         ).use {
@@ -247,7 +286,7 @@ class Store private constructor(context: Context, name: String?) : SQLiteOpenHel
                     it.getInt(7), it.getInt(8), it.getString(9),
                     it.getString(10), it.getInt(11) == 1,
                     it.getString(12), it.getString(13)?.split(',')?.filter { s -> s.isNotEmpty() }.orEmpty(),
-                    it.getString(14),
+                    it.getString(14), it.getString(15), if (it.isNull(16)) null else it.getLong(16),
                 )
             }
         }

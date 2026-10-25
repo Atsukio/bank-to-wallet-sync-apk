@@ -16,6 +16,25 @@ object Uploader {
     private const val JOB_ID = 1
     private const val BATCH = 50
 
+    /** True while the upload job is running, so the home screen can show it. */
+    @Volatile
+    var running = false
+
+    /** True from a "Sync now" tap until the job that answers it ends. */
+    @Volatile
+    var requested = false
+
+    /** Told, from any thread, whenever the queue changed or the job started or ended; the home screen refreshes. */
+    @Volatile
+    var onChange: (() -> Unit)? = null
+
+    fun changed() {
+        onChange?.invoke()
+    }
+
+    /** Whether a job is waiting for its turn (no network yet, say) rather than running. */
+    fun waiting(context: Context): Boolean = context.getSystemService(JobScheduler::class.java).getPendingJob(JOB_ID) != null
+
     sealed interface Result {
         object Done : Result
         object Retry : Result
@@ -53,9 +72,6 @@ object Uploader {
         // The network is up anyway, so this is the cheap moment to bring Wallet's rules and history up to date.
         WalletCache.refresh(context, token)
 
-        // Incoming records already checked against Wallet this run and found missing.
-        val checked = HashSet<Long>()
-
         while (true) {
             if (cancelled()) return Result.Retry
             val batch = store.pending(BATCH)
@@ -77,49 +93,42 @@ object Uploader {
                     } catch (e: IOException) {
                         return transient(store, s, listOf(rec.id))
                     }
-                    if (exists) store.markSynced(listOf(rec.id)) else store.clearUncertain(rec.id)
+                    if (exists) {
+                        store.markSynced(listOf(rec.id))
+                        // It went as a whole transfer, so Wallet made the other side too.
+                        val partner = rec.pairId?.let { store.get(it) }
+                        if (partner != null && partner.status == Store.PENDING && partner.id > rec.id) {
+                            store.markSynced(listOf(partner.id))
+                        }
+                    } else {
+                        store.clearUncertain(rec.id)
+                    }
                 }
                 continue
             }
 
-            // Money received that Wallet already holds is usually the other leg of a transfer the user
-            // recorded themselves. Sending it again would count the money twice.
-            if (s.skipExisting) {
-                val incoming = batch.filter { (it.amount ?: 0.0) > 0 && it.id !in checked }
-                var skipped = false
-                for (rec in incoming) {
-                    val exists = try {
-                        WalletApi.recordExists(token, rec, windowSec = 180)
-                    } catch (e: WalletApi.HttpStatusException) {
-                        if (e.code == 401 || e.code == 403) {
-                            s.authError = true
-                            return Result.Done
-                        }
-                        return transient(store, s, listOf(rec.id))
-                    } catch (e: IOException) {
-                        return transient(store, s, listOf(rec.id))
-                    }
-                    if (exists) {
-                        store.markSkipped(rec.id, "Already in Wallet, so not sent again (likely a transfer)")
-                        skipped = true
-                    } else {
-                        checked += rec.id
-                    }
-                }
-                if (skipped) continue
+            // Halves of a transfer: bind to the side already in Wallet, send both as one, or wait for the other.
+            val plans = HashMap<Long, Transfers.Send>()
+            for (rec in batch) {
+                val partnerId = rec.pairId ?: continue
+                val partner = store.get(partnerId)
+                val plan = Transfers.plan(rec.id, partnerId, partner?.status, partner?.walletId, partner?.account.orEmpty())
+                if (plan === Transfers.Send.Alone) store.unpair(rec.id) else plans[rec.id] = plan
             }
+            val sending = batch.filter { plans[it.id] !== Transfers.Send.Wait }
+            if (sending.isEmpty()) return Result.Done
 
-            // A record captured before the cache had anything to go on gets another try now.
-            val ready = batch.map { rec ->
-                if (rec.categoryId != null || rec.amount == null) return@map rec
+            // A record captured before the cache had anything to go on gets another try now. Transfers have no category.
+            val ready = sending.map { rec ->
+                if (rec.id in plans || rec.categoryId != null || rec.amount == null) return@map rec
                 val pick = WalletCache.pick(context, rec.note.orEmpty(), rec.payee, rec.amount, rec.account) ?: return@map rec
                 store.setCategory(rec.id, pick)
                 store.get(rec.id) ?: rec
             }
 
-            val ids = batch.map { it.id }
+            val ids = ready.map { it.id }
             val resp = try {
-                WalletApi.postRecords(token, toJson(ready, s))
+                WalletApi.postRecords(token, toJson(ready, s, plans))
             } catch (e: WalletApi.UncertainException) {
                 store.markUncertain(ids)
                 return transient(store, s, ids)
@@ -131,11 +140,12 @@ object Uploader {
                 200 -> {
                     s.authError = false
                     s.tokenVerified = true
-                    store.markSynced(ids)
+                    val items = parseResults(resp.body, ready.size)
+                    ready.forEachIndexed { i, rec -> synced(store, rec, items?.get(i), plans[rec.id]) }
                 }
                 207, 400 -> {
                     s.authError = false
-                    val again = perItem(store, batch, resp)
+                    val again = perItem(store, s, ready, resp, plans)
                     if (again.isNotEmpty()) return transient(store, s, again)
                 }
                 401, 403 -> {
@@ -147,6 +157,19 @@ object Uploader {
                 in 500..599 -> return transient(store, s, ids)
                 else -> store.markFailed(ids, "HTTP ${resp.code}")
             }
+            // Show each batch landing, not just the end of the job.
+            changed()
+        }
+    }
+
+    /**
+     * Marks [rec] sent, keeping Wallet's id so a later transfer side can bind to it. A record sent as a
+     * whole transfer also made the other side in Wallet, so that one is done too.
+     */
+    private fun synced(store: Store, rec: Rec, item: JSONObject?, plan: Transfers.Send?) {
+        store.markSynced(rec.id, item?.optString("id")?.takeIf { it.isNotEmpty() })
+        if (plan is Transfers.Send.New) {
+            store.markSynced(plan.partnerId, item?.optString("createdMirrorRecordId")?.takeIf { it.isNotEmpty() })
         }
     }
 
@@ -161,26 +184,32 @@ object Uploader {
     }
 
     /** Applies a mixed result. Returns the ids worth retrying. */
-    private fun perItem(store: Store, batch: List<Rec>, resp: WalletApi.Resp): List<Long> {
+    private fun perItem(store: Store, s: Settings, batch: List<Rec>, resp: WalletApi.Resp, plans: Map<Long, Transfers.Send>): List<Long> {
         val items = parseResults(resp.body, batch.size)
         if (items == null) {
             // Cannot tell which rows were created; retrying could duplicate them.
             store.markFailed(batch.map { it.id }, "Mixed result from Wallet: check the app")
             return emptyList()
         }
-        val ok = ArrayList<Long>()
         val retry = ArrayList<Long>()
         val failed = HashMap<String, MutableList<Long>>()
         batch.forEachIndexed { i, rec ->
             val item = items[i]
             when {
                 item == null -> failed.getOrPut("No result returned for this record") { ArrayList() }.add(rec.id)
-                item.optBoolean("success") -> ok += rec.id
+                item.optBoolean("success") -> synced(store, rec, item, plans[rec.id])
                 isTransient(item) -> retry += rec.id
+                // Wallet wouldn't pair it (the other side changed in Wallet, say): send it as a normal record next pass.
+                rec.id in plans -> store.unpair(rec.id)
+                // Wallet's Transfer category can't go on a normal record. Never use it again, and leave
+                // the record queued: the next pass picks another category (or none) and sends it.
+                refused(item) != null -> {
+                    s.refuseCategory(refused(item)!!)
+                    store.clearCategory(rec.id)
+                }
                 else -> failed.getOrPut(item.opt("error")?.toString()?.take(200) ?: "Rejected") { ArrayList() }.add(rec.id)
             }
         }
-        store.markSynced(ok)
         failed.forEach { (msg, ids) -> store.markFailed(ids, msg) }
         return retry
     }
@@ -201,13 +230,15 @@ object Uploader {
         return out
     }
 
+    private fun refused(item: JSONObject): String? = item.opt("error")?.toString()?.let { Categorizer.refusedCategory(it) }
+
     private fun isTransient(item: JSONObject): Boolean = when (val e = item.opt("error")) {
         is JSONObject -> e.optInt("status", e.optInt("code", 0)) >= 500
         is String -> e.contains("server", true) || e.contains("timeout", true)
         else -> false
     }
 
-    private fun toJson(batch: List<Rec>, s: Settings): String {
+    private fun toJson(batch: List<Rec>, s: Settings, plans: Map<Long, Transfers.Send>): String {
         val arr = JSONArray()
         val currencies = s.rules().associate { it.accountId to it.accountCurrency }
         for (r in batch) {
@@ -220,8 +251,15 @@ object Uploader {
             val w = Parser.walletText(r.note.orEmpty(), r.payee, currencies[r.account].orEmpty(), s.includeNote)
             w.payee?.let { o.put("counterParty", it) }
             w.note?.let { o.put("note", it) }
-            r.categoryId?.takeIf { it.isNotEmpty() }?.let { o.put("categoryId", it) }
-            if (r.labelIds.isNotEmpty()) o.put("labelIds", JSONArray(r.labelIds))
+            when (val plan = plans[r.id]) {
+                is Transfers.Send.Existing -> o.put("transfer", JSONObject().put("pairingMode", "existing").put("recordId", plan.walletId))
+                is Transfers.Send.New -> o.put("transfer", JSONObject().put("pairingMode", "new").put("accountId", plan.toAccount))
+                // Wallet sets a transfer's category itself and refuses one sent with it.
+                else -> {
+                    r.categoryId?.takeIf { it.isNotEmpty() }?.let { o.put("categoryId", it) }
+                    if (r.labelIds.isNotEmpty()) o.put("labelIds", JSONArray(r.labelIds))
+                }
+            }
             arr.put(o)
         }
         return arr.toString()
@@ -235,6 +273,8 @@ class UploadJobService : JobService() {
     override fun onStartJob(params: JobParameters): Boolean {
         cancelled = false
         Thread {
+            Uploader.running = true
+            Uploader.changed()
             val settings = Settings(this)
             val store = Store.get(this)
             val failedBefore = store.counts()[Store.FAILED]
@@ -246,6 +286,7 @@ class UploadJobService : JobService() {
                 Uploader.Result.Retry
             }
 
+            Uploader.running = false
             Notifier.capturedSent(this)
             // Only speak up when something new needs attention, not on every retry.
             val newlyFailed = store.counts()[Store.FAILED] - failedBefore
@@ -258,6 +299,7 @@ class UploadJobService : JobService() {
             // Finish first so the job slot is free, then queue the follow-up for a 429.
             jobFinished(params, result is Uploader.Result.Retry)
             if (result is Uploader.Result.RetryAfter) Uploader.schedule(this, result.ms, replace = true)
+            Uploader.changed()
         }.start()
         return true
     }

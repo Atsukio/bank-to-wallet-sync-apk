@@ -214,7 +214,7 @@ object Pickers {
                 if (contains.isEmpty()) return@setPositiveButton onError("Enter some text first")
                 val done = busy(trigger, "Loading…")
                 val fail = { msg: String -> done(); onError(msg) }
-                background(activity, fail, { WalletApi.categories(token) }) { categories ->
+                background(activity, fail, { WalletApi.categories(token).filter { it.id !in Settings(activity).refusedCategories() } }) { categories ->
                     done()
                     if (categories.isEmpty()) return@background onError("No categories found in Wallet")
                     Dialogs.pickCategory(activity, "Use which category?", categories, null) { c ->

@@ -30,6 +30,11 @@ class Settings(context: Context) {
         get() = p.getString("ignoreWords", "otp,verification code,one-time,passcode").orEmpty()
         set(v) = p.edit().putString("ignoreWords", v).apply()
 
+    /** Drop bank notifications that aren't transactions (login notices, ads, reminders); see [Parser.isNotice]. */
+    var skipNotices: Boolean
+        get() = p.getBoolean("skipNotices", true)
+        set(v) = p.edit().putBoolean("skipNotices", v).apply()
+
     var paused: Boolean
         get() = p.getBoolean("paused", false)
         set(v) = p.edit().putBoolean("paused", v).apply()
@@ -80,10 +85,6 @@ class Settings(context: Context) {
         get() = p.getLong("catchUpSince", 0L)
         set(v) = p.edit().putLong("catchUpSince", v).apply()
 
-    /** Skip money received when Wallet already has a matching record (the other leg of a transfer). */
-    var skipExisting: Boolean
-        get() = p.getBoolean("skipExisting", false)
-        set(v) = p.edit().putBoolean("skipExisting", v).apply()
 
     /** Hold every captured transaction until the user approves it. */
     var reviewMode: Boolean
@@ -187,6 +188,18 @@ class Settings(context: Context) {
         p.edit().putString("categoryRules", categoryRulesToJson(list).toString()).apply()
     }
 
+    // --- Categories Wallet refuses ------------------------------------------------------------
+
+    /**
+     * Categories Wallet won't put on a normal record (its Transfer category), learned from its errors.
+     * Never picked or offered again. Learned, not chosen, so not part of the settings export.
+     */
+    fun refusedCategories(): Set<String> = p.getStringSet("refusedCategories", null).orEmpty()
+
+    fun refuseCategory(id: String) {
+        p.edit().putStringSet("refusedCategories", refusedCategories() + id).apply()
+    }
+
     // --- Remembered category choices ---------------------------------------------------------
 
     /** Merchant key ([Merchant.memoryKey]) → (category id, name) the user picked by hand. */
@@ -226,10 +239,10 @@ class Settings(context: Context) {
         .put(
             "settings",
             JSONObject()
-                .put("ignoreWords", ignoreWords).put("autoRetry", autoRetry).put("maxAttempts", maxAttempts)
+                .put("ignoreWords", ignoreWords).put("skipNotices", skipNotices).put("autoRetry", autoRetry).put("maxAttempts", maxAttempts)
                 .put("wifiOnly", wifiOnly).put("batchDelayMin", batchDelayMin).put("includeNote", includeNote)
                 .put("markUncleared", markUncleared).put("keepDays", keepDays).put("reviewMode", reviewMode)
-                .put("catchUpHours", catchUpHours).put("skipExisting", skipExisting)
+                .put("catchUpHours", catchUpHours)
                 .put("alertsOn", alertsOn).put("capturedOn", capturedOn).put("askNoCategory", askNoCategory)
                 .put("dailySummary", dailySummary).put("appLock", appLock)
                 .put("hideDetails", hideDetails)
@@ -248,8 +261,8 @@ class Settings(context: Context) {
         saveCategoryRules(cats)
         memory?.let { saveMemory(it) }
         catchUpHours = s.optInt("catchUpHours", catchUpHours)
-        skipExisting = s.optBoolean("skipExisting", skipExisting)
         ignoreWords = s.optString("ignoreWords", ignoreWords)
+        skipNotices = s.optBoolean("skipNotices", skipNotices)
         autoRetry = s.optBoolean("autoRetry", autoRetry)
         maxAttempts = s.optInt("maxAttempts", maxAttempts)
         wifiOnly = s.optBoolean("wifiOnly", wifiOnly)

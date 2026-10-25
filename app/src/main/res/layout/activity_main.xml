@@ -6,24 +6,25 @@
     android:layout_height="match_parent">
 
     <com.google.android.material.appbar.AppBarLayout
+        android:id="@+id/appBar"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:fitsSystemWindows="true">
 
-        <com.google.android.material.appbar.CollapsingToolbarLayout
-            style="?attr/collapsingToolbarLayoutLargeStyle"
+        <!-- A slim bar: the logo on the left, Settings and the menu on the right. -->
+        <com.google.android.material.appbar.MaterialToolbar
+            android:id="@+id/toolbar"
             android:layout_width="match_parent"
-            android:layout_height="?attr/collapsingToolbarLayoutLargeSize"
-            app:layout_scrollFlags="scroll|exitUntilCollapsed|snap"
-            app:title="Bank to Wallet">
+            android:layout_height="?attr/actionBarSize"
+            android:elevation="0dp">
 
-            <com.google.android.material.appbar.MaterialToolbar
-                android:id="@+id/toolbar"
-                android:layout_width="match_parent"
-                android:layout_height="?attr/actionBarSize"
-                android:elevation="0dp"
-                app:layout_collapseMode="pin" />
-        </com.google.android.material.appbar.CollapsingToolbarLayout>
+            <ImageView
+                android:layout_width="32dp"
+                android:layout_height="32dp"
+                android:layout_gravity="start|center_vertical"
+                android:contentDescription="Bank to Wallet"
+                android:src="@drawable/ic_logo" />
+        </com.google.android.material.appbar.MaterialToolbar>
     </com.google.android.material.appbar.AppBarLayout>
 
     <androidx.core.widget.NestedScrollView
@@ -49,6 +50,7 @@
                 app:shapeAppearance="@style/ShapeAppearance.BankSync.ExtraLarge">
 
                 <LinearLayout
+                    android:id="@+id/heroBody"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:orientation="vertical"
@@ -191,6 +193,15 @@
                     app:icon="@drawable/ic_sync" />
 
                 <com.google.android.material.button.MaterialButton
+                    android:id="@+id/scanButton"
+                    style="@style/Widget.Material3.Button.OutlinedButton.Icon"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="8dp"
+                    android:text="Missed alerts"
+                    app:icon="@drawable/ic_notifications" />
+
+                <com.google.android.material.button.MaterialButton
                     android:id="@+id/retryButton"
                     style="@style/Widget.Material3.Button.TextButton"
                     android:layout_width="wrap_content"
@@ -198,6 +209,15 @@
                     android:layout_marginStart="8dp"
                     android:text="Retry failed" />
             </LinearLayout>
+
+            <!-- Moving while a sync is waiting or running. -->
+            <com.google.android.material.progressindicator.LinearProgressIndicator
+                android:id="@+id/syncProgress"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
+                android:indeterminate="true"
+                android:visibility="gone" />
 
             <!-- Recent -->
             <LinearLayout
@@ -214,6 +234,16 @@
                     android:layout_marginBottom="0dp"
                     android:layout_weight="1"
                     android:text="Recent activity" />
+
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/clearButton"
+                    style="@style/Widget.Material3.Button.IconButton"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:contentDescription="Clear sent history"
+                    android:visibility="gone"
+                    app:icon="@drawable/ic_delete"
+                    app:iconTint="?attr/colorOnSurfaceVariant" />
 
                 <com.google.android.material.button.MaterialButton
                     android:id="@+id/hideButton"

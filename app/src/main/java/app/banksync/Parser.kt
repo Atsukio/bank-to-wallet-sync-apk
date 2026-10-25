@@ -4,6 +4,7 @@ import java.time.Instant
 import java.time.LocalDateTime
 import java.time.ZoneId
 import java.time.ZoneOffset
+import kotlin.math.abs
 
 class Parsed(val amount: Double, val payee: String?, val currency: String?)
 
@@ -109,8 +110,46 @@ object Parser {
      * also rejects a time read in the wrong zone.
      */
     fun recordTime(text: String, postedMs: Long, zone: ZoneId): Long {
-        val t = timeOf(text, zone)?.toEpochMilli() ?: return postedMs
+        var t = timeOf(text, zone)?.toEpochMilli() ?: return postedMs
+        // Some alerts write a 12-hour clock with no AM or PM ("02:13:41" for 2:13 PM). If the other half of
+        // the day lands right on the posting time, that's the one meant.
+        clockHour(text)?.let { hour ->
+            val other = if (hour == 12) t - HALF_DAY else t + HALF_DAY
+            if (abs(other - postedMs) <= 2 * 3_600_000L && abs(other - postedMs) < abs(t - postedMs)) t = other
+        }
         return if (t in (postedMs - 3 * 86_400_000L)..(postedMs + 300_000L)) t else postedMs
+    }
+
+    private const val HALF_DAY = 12 * 3_600_000L
+
+    /** The hour as written when it could be either half of the day (1 to 12 with no AM or PM), else null. */
+    private fun clockHour(text: String): Int? {
+        val hour = timeNamedMonth.find(text)?.groupValues?.get(4)
+            ?: timeSlashed.find(text)?.takeIf { it.groupValues[7].isEmpty() }?.groupValues?.get(4)
+        return hour?.toIntOrNull()?.takeIf { it in 1..12 }
+    }
+
+    /** Wording that only ads, offers and reminders use; a transaction alert reports what happened. */
+    private val noticeRe = Regex(
+        listOf(
+            """\bup to\b""", """\bmin(?:imum)?\.?\s+spend""", """\bt\s?&\s?cs?\b""", """\bterms\s+(?:and|&)\s+conditions\b""",
+            """\bstand a chance\b""", """\bpromo(?:tion)?s?\b""", """\bcampaign\b""", """\blimited[- ]time\b""",
+            """\b(?:sign up|apply now|register now|shop now|don'?t miss)\b""", """\bvalid (?:until|till)\b""",
+            """\bwhen you (?:spend|pay|shop|top up|transfer)\b""", """\benjoy\b""",
+            """\bminimum payment\b""", """\b(?:payment )?(?:is )?due (?:on|by|date)\b""", """\bstatement is (?:ready|available)\b""",
+            """\breminder\b""",
+        ).joinToString("|"),
+    )
+
+    /**
+     * True for a bank notification that isn't a transaction: no amount and no payment word (a login or
+     * security notice), or ad, offer and reminder wording. Those are dropped instead of being kept as
+     * "not understood". An alert with a payment word but an amount it can't read is still kept.
+     */
+    fun isNotice(text: String): Boolean {
+        val lower = text.lowercase()
+        if (noticeRe.containsMatchIn(lower)) return true
+        return amountRe.find(text) == null && creditRe.find(lower) == null && debitRe.find(lower) == null
     }
 
     fun amountOf(text: String): Double? =

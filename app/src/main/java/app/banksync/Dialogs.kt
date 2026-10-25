@@ -160,6 +160,16 @@ object Dialogs {
             return false
         }
 
+        // Wallet files a transfer itself, so there's no category to choose; it can be split up again instead.
+        val paired = rec.pairId != null
+        if (paired) view.findViewById<View>(R.id.categoryLayout).visibility = View.GONE
+        fun notTransfer() {
+            store.unpair(rec.id)
+            if (!Demo.active) Uploader.schedule(activity, 0, replace = true)
+            Toast.makeText(activity, "Both sides will go to Wallet as separate records", Toast.LENGTH_LONG).show()
+            onDone()
+        }
+
         val builder = MaterialAlertDialogBuilder(activity).setView(view)
         if (rec.status == Store.REVIEW) {
             builder.setTitle("Send to Wallet?")
@@ -173,14 +183,15 @@ object Dialogs {
                     Notifier.cancelReview(activity, rec.id)
                     onDone()
                 }
-                .setNeutralButton("Cancel", null)
+                .apply { if (paired) setNeutralButton("Not a transfer") { _, _ -> notTransfer() } else setNeutralButton("Cancel", null) }
         } else {
-            builder.setTitle("Waiting to send")
+            builder.setTitle(if (paired) "Transfer waiting to send" else "Waiting to send")
                 .setPositiveButton("Save") { _, _ ->
                     save()
                     onDone()
                 }
                 .setNegativeButton("Cancel", null)
+            if (paired) builder.setNeutralButton("Not a transfer") { _, _ -> notTransfer() }
         }
         builder.show()
     }
@@ -339,7 +350,9 @@ object Dialogs {
             val text = input.text.toString().trim()
             if (text.isEmpty()) return run { result.text = "" }
             val p = Parser.parse(text)
-            result.text = if (p == null) {
+            result.text = if (Settings(activity).skipNotices && Parser.isNotice(text)) {
+                "Skipped: looks like a notice, ad or reminder, not a transaction. Turn off \"Skip ads and notices\" to keep these."
+            } else if (p == null) {
                 "Not understood: no amount found, or can't tell whether money came in or went out."
             } else {
                 val pick = WalletCache.pick(activity, text, p.payee, p.amount, "")

@@ -79,19 +79,28 @@ object Categorizer {
         appRules: List<CategoryRule>,
         walletRules: List<WalletRule>,
         history: List<PastRecord>,
+        refused: Set<String> = emptySet(),
     ): CategoryPick? {
+        // Categories Wallet has refused (such as Transfer) are skipped at every step, so the next-best evidence wins.
         val key = payee?.let { Merchant.memoryKey(it) }.orEmpty()
         if (key.isNotEmpty()) {
-            memory[key]?.let { (id, name) -> return CategoryPick(id, name, emptyList(), CategorySource.REMEMBERED) }
+            memory[key]?.takeIf { it.first !in refused }?.let { (id, name) ->
+                return CategoryPick(id, name, emptyList(), CategorySource.REMEMBERED)
+            }
         }
-        CategoryMatcher.pick(appRules, text)?.let {
+        CategoryMatcher.pick(appRules.filter { it.categoryId !in refused }, text)?.let {
             return CategoryPick(it.categoryId, it.categoryName, emptyList(), CategorySource.APP_RULE)
         }
-        matchWalletRule(text, walletRules, accountId)?.let {
+        matchWalletRule(text, walletRules.filter { it.categoryId !in refused }, accountId)?.let {
             return CategoryPick(it.categoryId, it.categoryName, it.labelIds, CategorySource.WALLET_RULE)
         }
-        return payee?.let { guess(it, amount > 0, history) }
+        return payee?.let { guess(it, amount > 0, history.filter { h -> h.categoryId !in refused }) }
     }
+
+    private val refusedRe = Regex("""category '([^']+)' is a system category""", RegexOption.IGNORE_CASE)
+
+    /** The category id in a Wallet error saying it can't be set on a normal record (Transfer), else null. */
+    fun refusedCategory(error: String): String? = refusedRe.find(error)?.groupValues?.get(1)
 
     fun matchWalletRule(text: String, rules: List<WalletRule>, accountId: String): WalletRule? {
         val lower = text.lowercase()

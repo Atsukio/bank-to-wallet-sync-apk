@@ -86,6 +86,26 @@ class CategorizerTest {
     }
 
     @Test
+    fun refusedCategoryIsSkippedForTheNextBest() {
+        val transfer = WalletRule(listOf("sample person"), "c-transfer", "Transfer", emptyList())
+        val history = listOf(PastRecord(listOf("Sample Person"), "c-gifts", "Gifts", false))
+        val p = pick("You've sent RM10.00 to Sample Person", "Sample Person", walletRules = listOf(transfer), history = history)
+        assertEquals("c-transfer", p!!.id)
+        val q = Categorizer.pick(
+            "You've sent RM10.00 to Sample Person", "Sample Person", -10.0, "a-1",
+            mapOf("sample person" to ("c-transfer" to "Transfer")), emptyList(), listOf(transfer), history, setOf("c-transfer"),
+        )
+        assertEquals("c-gifts", q!!.id)
+    }
+
+    @Test
+    fun refusedCategoryIdIsReadFromWalletsError() {
+        val err = "category 'abc-123' is a system category and cannot be assigned directly; mark the record as a transfer instead"
+        assertEquals("abc-123", Categorizer.refusedCategory(err))
+        assertNull(Categorizer.refusedCategory("amount must not be zero"))
+    }
+
+    @Test
     fun nothingKnownGivesNoCategory() {
         assertNull(pick("You spent RM 5.00", null))
     }

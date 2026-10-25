@@ -47,12 +47,12 @@ class SettingsActivity : LockedActivity() {
             if (it) askForNotificationPermission()
         }
         switch(R.id.retrySwitch, settings.autoRetry) { settings.autoRetry = it }
+        switch(R.id.noticesSwitch, settings.skipNotices) { settings.skipNotices = it }
         switch(R.id.wifiSwitch, settings.wifiOnly) {
             settings.wifiOnly = it
             // A job already waiting keeps its old network rule unless it's replaced.
             if (store.counts()[Store.PENDING] > 0) Uploader.schedule(this, replace = true)
         }
-        switch(R.id.skipExistingSwitch, settings.skipExisting) { settings.skipExisting = it }
         switch(R.id.noteSwitch, settings.includeNote) { settings.includeNote = it }
         switch(R.id.unclearedSwitch, settings.markUncleared) { settings.markUncleared = it }
         switch(R.id.alertsSwitch, settings.alertsOn) {

@@ -4,6 +4,7 @@ import android.app.Notification
 import android.service.notification.NotificationListenerService
 import android.service.notification.StatusBarNotification
 import java.text.SimpleDateFormat
+import java.time.Instant
 import java.time.ZoneId
 import java.util.Locale
 import java.util.TimeZone
@@ -70,6 +71,8 @@ class BankNotificationListener : NotificationListenerService() {
         val text = "$title $body".trim()
         if (text.isEmpty()) return false
         if (IgnoreWords.matches(settings.ignoreWords, text)) return false
+        // Banks also post logins, ads and reminders; those aren't kept or shown as "needs you".
+        if (settings.skipNotices && Parser.isNotice(text)) return false
 
         val store = Store.get(this)
         val pkg = sbn.packageName
@@ -83,7 +86,8 @@ class BankNotificationListener : NotificationListenerService() {
         // Alerts can arrive late; prefer the time written in the alert so the record lands when the
         // transaction happened.
         val posted = sbn.postTime
-        val date = isoUtc(Parser.recordTime(text, posted, ZoneId.systemDefault()))
+        val whenMs = Parser.recordTime(text, posted, ZoneId.systemDefault())
+        val date = isoUtc(whenMs)
         val note = text.take(255)
 
         // Anything we can't send with confidence is kept, with the reason, so the user can fix it in the app.
@@ -101,28 +105,51 @@ class BankNotificationListener : NotificationListenerService() {
             return hold(rule.accountId, "Alert is in ${parsed.currency} but ${rule.accountName} is ${rule.accountCurrency}")
         }
 
-        // From what's already on the phone, so capturing never waits on the network.
-        val category = WalletCache.pick(this, text, parsed.payee, parsed.amount, rule.accountId)
-        val status = if (settings.reviewMode || (settings.askNoCategory && category == null)) Store.REVIEW else Store.PENDING
+        // Money out of one linked account and the same amount into another moments later is a transfer.
+        val partner = transferPartner(store, settings, parsed.amount, rule, whenMs)
+        val transfer = partner?.let {
+            val other = settings.rules().firstOrNull { r -> r.accountId == it.account }?.accountName ?: "another account"
+            if (parsed.amount < 0) "${rule.accountName} → $other" else "$other → ${rule.accountName}"
+        }
+
+        // From what's already on the phone, so capturing never waits on the network. A transfer has no category.
+        val category = if (partner != null) null else WalletCache.pick(this, text, parsed.payee, parsed.amount, rule.accountId)
+        val ask = settings.reviewMode || (partner == null && settings.askNoCategory && category == null)
+        val status = if (ask) Store.REVIEW else Store.PENDING
         val id = store.insert(
             hash, pkg, rule.accountId, parsed.amount, parsed.payee, note, date, status,
             category = category, posted = posted
         )
+        if (partner != null) store.pair(id, partner.id)
 
         if (status == Store.REVIEW) {
             val what = String.format(Locale.US, "%+.2f", parsed.amount) +
-                (parsed.payee?.let { " $it" } ?: "") + " → " + rule.accountName +
-                "\nCategory: " + (category?.name ?: "none (Wallet will show Unknown)")
+                (parsed.payee?.let { " $it" } ?: "") + " → " + rule.accountName + "\n" +
+                (transfer?.let { "Transfer: $it" } ?: ("Category: " + (category?.name ?: "none (Wallet will show Unknown)")))
             Notifier.review(this, id, what)
         } else {
             Uploader.schedule(this)
+            Uploader.changed()
             Notifier.captured(this, id, if (settings.hideDetails) "From ${rule.label}, going to Wallet." else {
                 String.format(Locale.US, "%+.2f", parsed.amount) + " " + rule.accountCurrency +
                     (parsed.payee?.let { " · $it" } ?: "") + " → " + rule.accountName + "\n" +
-                    (category?.name?.let { "Category: $it" } ?: "No category yet: tap to choose one")
+                    (transfer?.let { "Matched as a transfer: $it" }
+                        ?: category?.name?.let { "Category: $it" } ?: "No category yet: tap to choose one")
             })
         }
         return true
+    }
+
+    /** The other side of a transfer among records captured within [Transfers.WINDOW_MS] of [whenMs], if any. */
+    private fun transferPartner(store: Store, settings: Settings, amount: Double, rule: Rule, whenMs: Long): Rec? {
+        val currencies = settings.rules().associate { it.accountId to it.accountCurrency }
+        val recs = store.transferCandidates(isoUtc(whenMs - Transfers.WINDOW_MS), isoUtc(whenMs + Transfers.WINDOW_MS))
+        val candidates = recs.mapNotNull { r ->
+            val t = runCatching { Instant.parse(r.date).toEpochMilli() }.getOrNull() ?: return@mapNotNull null
+            Transfers.Candidate(r.id, r.account, r.amount ?: return@mapNotNull null, t, currencies[r.account].orEmpty())
+        }
+        val hit = Transfers.match(candidates, amount, rule.accountId, whenMs, rule.accountCurrency) ?: return null
+        return recs.firstOrNull { it.id == hit.id }
     }
 
     private fun isoUtc(ms: Long): String =

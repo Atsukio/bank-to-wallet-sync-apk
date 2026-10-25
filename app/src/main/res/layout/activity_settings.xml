@@ -297,6 +297,15 @@
                         style="@style/Widget.BankSync.SettingHint"
                         android:text="Only transactions no category could be picked for wait for you; the rest go straight away. Off, they go to Wallet as Unknown." />
 
+                    <com.google.android.material.materialswitch.MaterialSwitch
+                        android:id="@+id/noticesSwitch"
+                        style="@style/Widget.BankSync.SettingSwitch"
+                        android:text="Skip ads and notices" />
+
+                    <TextView
+                        style="@style/Widget.BankSync.SettingHint"
+                        android:text="Login and security notices, offers (&quot;up to&quot;, &quot;T&amp;C apply&quot;) and bill reminders aren't kept. An alert that mentions a payment is still kept even if it can't be read." />
+
                     <com.google.android.material.textfield.TextInputLayout
                         style="@style/Widget.BankSync.Field"
                         android:hint="Ignore alerts containing"
@@ -358,15 +367,6 @@
                     <TextView
                         style="@style/Widget.BankSync.SettingHint"
                         android:text="Hold transactions until you're on Wi-Fi." />
-
-                    <com.google.android.material.materialswitch.MaterialSwitch
-                        android:id="@+id/skipExistingSwitch"
-                        style="@style/Widget.BankSync.SettingSwitch"
-                        android:text="Skip money Wallet already has" />
-
-                    <TextView
-                        style="@style/Widget.BankSync.SettingHint"
-                        android:text="Avoids counting a transfer twice when you recorded it in Wallet yourself." />
 
                     <com.google.android.material.textfield.TextInputLayout
                         style="@style/Widget.BankSync.Field"

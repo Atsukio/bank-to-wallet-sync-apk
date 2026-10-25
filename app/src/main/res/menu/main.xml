@@ -8,14 +8,6 @@
         app:iconTint="?attr/colorOnSurfaceVariant"
         app:showAsAction="always" />
     <item
-        android:id="@+id/menuScan"
-        android:title="Scan for missed alerts"
-        app:showAsAction="never" />
-    <item
-        android:id="@+id/menuClear"
-        android:title="Clear sent history"
-        app:showAsAction="never" />
-    <item
         android:id="@+id/menuDemo"
         android:title="Try with demo data"
         app:showAsAction="never" />

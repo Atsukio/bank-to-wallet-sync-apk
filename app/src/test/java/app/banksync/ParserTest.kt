@@ -91,6 +91,21 @@ class ParserTest {
     }
 
     @Test
+    fun twelveHourClockWithoutAmPmIsReadAsTheHalfDayNearPosting() {
+        val zone = ZoneOffset.ofHours(8)
+        // Posted at 14:14 local; the alert says "02:13:41" with no AM or PM, the other bank says 2:13 PM.
+        val posted = Instant.parse("2026-10-25T06:14:00Z").toEpochMilli()
+        val other = Parser.recordTime("on 25/10/2026, 2:13 PM (GMT+8) using", posted, zone)
+        assertEquals(Instant.parse("2026-10-25T06:13:00Z").toEpochMilli(), other)
+        val mine = Parser.recordTime("received on 25-OCT-2026, 02:13:41.", posted, zone)
+        assertEquals(Instant.parse("2026-10-25T06:13:41Z").toEpochMilli(), mine)
+        assertTrue(kotlin.math.abs(mine - other) < 5 * 60_000)
+        // A genuine 2 AM alert posted at 2 AM stays 2 AM.
+        val night = Instant.parse("2026-10-24T18:14:00Z").toEpochMilli()
+        assertEquals(Instant.parse("2026-10-24T18:13:41Z").toEpochMilli(), Parser.recordTime("on 25-OCT-2026, 02:13:41.", night, zone))
+    }
+
+    @Test
     fun implausibleAlertTimeFallsBackToPostedTime() {
         val zone = ZoneOffset.ofHours(8)
         val alert = Instant.parse("2026-10-24T04:14:16Z").toEpochMilli()
@@ -200,6 +215,29 @@ class ParserTest {
     @Test
     fun noDirectionIsNotGuessed() {
         assertNull(Parser.parse("Sample Bank RM10.00 DuitNow 1 Jan"))
+    }
+
+    @Test
+    fun noticesAdsAndRemindersAreNotTransactions() {
+        listOf(
+            "Sample Bank: We noticed that you logged in to Sample Web at 2026-10-25 13:34:30. If this wasn't you, call us.",
+            "Sample Bank Enjoy RM10 cashback when you spend RM50 or more. T&C apply.",
+            "Sample Bank Get up to 5% back on groceries this weekend!",
+            "Sample Bank Your card statement is ready. Minimum payment RM 50.00 is due on 10/11/2026.",
+            "Sample Wallet Reminder: your bill of RM 80.00 is due by 1 Nov.",
+        ).forEach { assertTrue(it, Parser.isNotice(it)) }
+    }
+
+    @Test
+    fun transactionsAreNotNotices() {
+        listOf(
+            "Ryt Bank Nice! Transfer settled! You've sent RM10.00 to Sample Person on 24/10/2026, 12:14 AM (GMT+8) using your Main Account",
+            "Ryt Bank Your money is in! You've received RM42.00 from Sample Person on 1 Jan, 10:30 AM",
+            "Maybank2u: Card Transaction You've just spent RM 110.25 at SAMPLE SHOP with your Maybank Shopee Visa Platinum ending 1234.",
+            "Sample Bank You received RM5.00 cashback on your card ending 1234.",
+            // A payment word with an amount it can't read is still kept for the user to enter.
+            "Sample Bank You've paid 13.00 MYR at Sample Shop",
+        ).forEach { assertFalse(it, Parser.isNotice(it)) }
     }
 
     @Test

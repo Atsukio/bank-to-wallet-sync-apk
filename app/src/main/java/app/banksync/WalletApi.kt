@@ -63,6 +63,8 @@ object WalletApi {
             for (i in 0 until arr.length()) {
                 val c = arr.getJSONObject(i)
                 if (!c.optBoolean("enabled", true) || c.optBoolean("archived")) continue
+                // Wallet only accepts its Transfer category through a transfer, which this app doesn't make.
+                if (c.optString("systemId").contains("transfer", ignoreCase = true)) continue
                 val name = c.optString("name")
                 if (name.isEmpty()) continue
                 val group = c.optJSONObject("group")?.optString("name").orEmpty().ifEmpty { c.optString("parentName") }
@@ -113,6 +115,8 @@ object WalletApi {
                 val catId = cat.optString("id")
                 if (catId.isEmpty() || cat.optString("name").contains("unknown", ignoreCase = true)) continue
                 if (rec.optString("recordState").equals("void", ignoreCase = true)) continue
+                // A transfer's category (Transfer) can't be set on a normal record, so it teaches nothing.
+                if (!rec.isNull("transfer") && rec.has("transfer")) continue
                 val texts = listOf(rec.optString("counterParty"), rec.optString("note")).filter { it.isNotBlank() }
                 if (texts.isEmpty()) continue
                 val income = rec.optString("recordType").equals("income", ignoreCase = true)

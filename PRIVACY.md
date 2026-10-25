@@ -20,7 +20,7 @@ In the app's private storage only:
 The app turns off Android backup, so none of this is copied to Google Drive. **Export settings** writes a file you choose; it never includes your token. Uninstalling the app deletes everything.
 
 ## Where data goes
-- Records are sent **directly from your phone to the official BudgetBakers Wallet REST API** (`https://rest.budgetbakers.com`) over HTTPS, using your own token. Each record contains the Wallet account, amount, date, category and labels, the payee when someone sent you money, and a short note with who you paid, the reference and the original amount for a payment in another currency (you can turn the note off). The full notification text is not sent.
+- Records are sent **directly from your phone to the official BudgetBakers Wallet REST API** (`https://rest.budgetbakers.com`) over HTTPS, using your own token. Each record contains the Wallet account, amount, date, category and labels, the payee when someone sent you money, and a short note with who you paid, the reference and the original amount for a payment in another currency (you can turn the note off). When money moves between two of your own accounts, the record is sent as a Wallet transfer, which also names the other account (or Wallet's id for the record already on it). The full notification text is not sent.
 - **Nothing is sent to the developer or to anyone else.** There is no developer server, no analytics, no crash reporting, no advertising and no tracking. The app makes no network requests except to the Wallet API.
 - BudgetBakers handles your Wallet data under its own privacy policy. This app is not made by, affiliated with or endorsed by BudgetBakers or any bank.
 

@@ -16,8 +16,11 @@ object WalletCache {
     private const val RULES_MAX_AGE = 60 * 60_000L
     private const val HISTORY_MAX_AGE = 12 * 60 * 60_000L
 
-    /** Bumped when category labels change shape; an older file's categories are fetched again. */
-    private const val CATEGORIES_VERSION = 2
+    /**
+     * Bumped when what's kept changes; an older file's categories and history are fetched again.
+     * 2: labels fixed ("false · …"). 3: transfers and the Transfer category left out.
+     */
+    private const val CATEGORIES_VERSION = 3
 
     class Data(
         val rules: List<WalletRule> = emptyList(),
@@ -62,17 +65,20 @@ object WalletCache {
     fun pick(context: Context, text: String, payee: String?, amount: Double, accountId: String): CategoryPick? {
         val s = Settings(context)
         val d = get(context)
-        return Categorizer.pick(text, payee, amount, accountId, s.categoryMemory(), s.categoryRules(), d.rules, d.history)
+        return Categorizer.pick(
+            text, payee, amount, accountId, s.categoryMemory(), s.categoryRules(), d.rules, d.history, s.refusedCategories()
+        )
     }
 
-    /** Categories for the pickers, fetched once if this phone has never loaded them. */
+    /** Categories for the pickers, fetched once if this phone has never loaded them; never one Wallet refused. */
     fun categories(context: Context, token: String): List<WalletApi.Category> {
+        val refused = Settings(context).refusedCategories()
         val have = get(context).categories
-        if (have.isNotEmpty()) return have
+        if (have.isNotEmpty()) return have.filter { it.id !in refused }
         val fresh = WalletApi.categories(token)
         val d = get(context)
         save(context, Data(d.rules, d.history, fresh, d.rulesAt, d.historyAt))
-        return fresh
+        return fresh.filter { it.id !in refused }
     }
 
     private fun save(context: Context, d: Data) {
@@ -106,6 +112,7 @@ object WalletCache {
 
     private fun read(context: Context): Data = try {
         val o = JSONObject(File(context.filesDir, FILE).readText())
+        val old = o.optInt("categoriesVersion") < CATEGORIES_VERSION
         fun JSONArray.strings() = (0 until length()).map { getString(it) }
         fun JSONArray.objects() = (0 until length()).map { getJSONObject(it) }
         Data(
@@ -115,14 +122,15 @@ object WalletCache {
                     it.getJSONArray("labelIds").strings(), it.optString("accountId"),
                 )
             },
-            history = o.getJSONArray("history").objects().map {
+            // An older file may hold "false · …" labels, transfers and the Transfer category; leaving
+            // them out (and the history's age at 0) forces a fresh load.
+            history = if (old) emptyList() else o.getJSONArray("history").objects().map {
                 PastRecord(it.getJSONArray("texts").strings(), it.getString("categoryId"), it.optString("categoryName"), it.getBoolean("income"))
             },
-            // 1.2 and earlier saved labels like "false · Food & Drinks"; leaving them out forces a fresh load.
-            categories = if (o.optInt("categoriesVersion") < CATEGORIES_VERSION) emptyList() else
+            categories = if (old) emptyList() else
                 o.getJSONArray("categories").objects().map { WalletApi.Category(it.getString("id"), it.getString("label")) },
-            rulesAt = o.optLong("rulesAt"),
-            historyAt = o.optLong("historyAt"),
+            rulesAt = if (old) 0 else o.optLong("rulesAt"),
+            historyAt = if (old) 0 else o.optLong("historyAt"),
         )
     } catch (e: Exception) {
         Data()

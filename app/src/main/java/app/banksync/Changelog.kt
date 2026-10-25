@@ -13,6 +13,24 @@ class Release(val code: Int, val name: String, val date: String, val changes: Li
 object Changelog {
     val releases = listOf(
         Release(
+            5, "1.4", "25 Oct 2026",
+            listOf(
+                "Transfers between your own accounts: money out of one bank and the same amount into another within 5 minutes becomes one Wallet transfer, instead of an expense and an income. Tap one that's still waiting and choose \"Not a transfer\" if it got it wrong.",
+                "\"Skip money Wallet already has\" is gone; matching transfers replaces it.",
+                "A transfer between your accounts is one row in Recent activity (amount without a sign, \"Ryt → CIMB\" underneath) instead of two. Tap it (it has a small arrow) to open both sides underneath, and tap a side that is still waiting to change it; hold it to remove both.",
+                "Sync now shows what it is doing: the button reads \"Waiting for network…\" or \"Sending…\" with a moving bar, then says how many were sent. Recent activity and the counts now update by themselves as uploads and new alerts land, without leaving the screen.",
+                "Recent activity shows each bank's own icon with a clear status badge on its corner: green arrow for money in, red for money out, blue clock for waiting, amber for needs you, dark red for failed, purple for a transfer. Amounts are green when money comes in and red when it goes out.",
+                "When everything is working, the status card at the top shrinks to its icon and \"Watching 2 bank apps\". Problems still show the full card with a button.",
+                "The home screen now moves when things change: the status card morphs and fades its colour, the counts tick up or down with a bump, new activity rows drop in, and a row that changes state (waiting to sent) flashes and pops its badge. Turning off animations in Android settings turns these off.",
+                "A \"Missed alerts\" button next to Sync now scans for bank alerts still in your notification shade, so it is no longer in the menu.",
+                "The large title is gone: a slim top bar with the logo on the left and Settings and the menu on the right, which gives you more room. A bin button beside the eye button clears sent history, and asks first, saying how many items it will remove.",
+                "Fixed alerts whose time has no AM or PM (such as \"02:13:41\" for 2:13 PM) being dated twelve hours off, which also stopped them matching as a transfer.",
+                "Long-press anything in Recent activity to remove it from the app (not from Wallet). Scan for missed alerts then picks it up again if the bank's notification is still there.",
+                "Bank ads, login notices and bill reminders are skipped instead of showing as \"not understood\". Turn this off with \"Skip ads and notices\" in Settings.",
+                "Fixed payments failing with \"is a system category\": Wallet's Transfer category is no longer suggested or offered, and a payment it was picked for goes with another category instead.",
+            )
+        ),
+        Release(
             4, "1.3", "25 Oct 2026",
             listOf(
                 "A notification when a bank alert couldn't be read, so it doesn't sit unnoticed in the app.",

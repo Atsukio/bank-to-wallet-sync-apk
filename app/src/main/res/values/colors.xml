@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Row status marks in Recent activity: a solid fill and the colour of the glyph on it. Fixed, so
+         they stay distinct whatever the wallpaper colours are. Change both files together. -->
+    <color name="mark_in">#2E7D32</color>
+    <color name="mark_on_in">#FFFFFF</color>
+    <color name="mark_out">#E53935</color>
+    <color name="mark_on_out">#FFFFFF</color>
+    <color name="mark_wait">#1565C0</color>
+    <color name="mark_on_wait">#FFFFFF</color>
+    <color name="mark_attention">#F9A825</color>
+    <color name="mark_on_attention">#3E2E00</color>
+    <color name="mark_failed">#8E0000</color>
+    <color name="mark_on_failed">#FFFFFF</color>
+    <color name="mark_transfer">#6A1B9A</color>
+    <color name="mark_on_transfer">#FFFFFF</color>
+    <!-- Amounts in the activity list: green in, red out. -->
+    <color name="amount_in">#2E7D32</color>
+    <color name="amount_out">#D32F2F</color>
+</resources>
