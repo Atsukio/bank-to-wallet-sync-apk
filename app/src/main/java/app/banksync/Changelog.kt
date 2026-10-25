@@ -13,6 +13,15 @@ class Release(val code: Int, val name: String, val date: String, val changes: Li
 object Changelog {
     val releases = listOf(
         Release(
+            4, "1.3", "25 Oct 2026",
+            listOf(
+                "A notification when a bank alert couldn't be read, so it doesn't sit unnoticed in the app.",
+                "A silent notification for each transaction picked up, with the amount, account and category. Turn it off in Settings › Alerts and privacy.",
+                "Alerts that couldn't be read now say why on the home screen, such as no bank-app rule matching.",
+                "Notifications from the app no longer show amounts or payees on the lock screen.",
+            )
+        ),
+        Release(
             3, "1.2", "24 Oct 2026",
             listOf(
                 "Try the app with demo data: made-up bank apps and transactions, nothing read or sent. Start it from the menu or the first setup screen.",

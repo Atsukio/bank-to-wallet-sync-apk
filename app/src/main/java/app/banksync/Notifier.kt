@@ -15,7 +15,10 @@ import android.os.Build
 object Notifier {
     private const val ALERTS = "alerts"
     private const val REVIEW = "review"
+    private const val CAPTURED = "captured"
     private const val ALERT_ID = 1
+    private const val UNPARSED_ID = 2
+    private const val CAPTURED_ID = 3
     private const val REVIEW_BASE = 1000
 
     fun canPost(context: Context): Boolean =
@@ -26,6 +29,21 @@ object Notifier {
         if (!Settings(context).alertsOn || !canPost(context)) return
         val nm = manager(context)
         nm.notify(ALERT_ID, base(context, ALERTS, title, text).build())
+    }
+
+    /** Bank alerts kept as "not understood"; one notification that counts them, so none is missed. */
+    fun unparsed(context: Context, count: Int, reason: String) {
+        if (!Settings(context).alertsOn || !canPost(context)) return
+        val title = if (count == 1) "A bank alert needs you" else "$count bank alerts need you"
+        manager(context).notify(UNPARSED_ID, base(context, ALERTS, title, "$reason. Tap to enter it.").build())
+    }
+
+    fun cancelUnparsed(context: Context) = manager(context).cancel(UNPARSED_ID)
+
+    /** A captured transaction, on a silent channel. The latest replaces the one before. */
+    fun captured(context: Context, text: String) {
+        if (!Settings(context).capturedOn || !canPost(context)) return
+        manager(context).notify(CAPTURED_ID, base(context, CAPTURED, "Transaction picked up", text).build())
     }
 
     /** A pending transaction waiting for approval, with Send and Discard actions on the notification. */
@@ -58,12 +76,20 @@ object Notifier {
             .setStyle(Notification.BigTextStyle().bigText(text))
             .setContentIntent(open)
             .setAutoCancel(true)
+            // Amounts and payees stay off the lock screen.
+            .setVisibility(Notification.VISIBILITY_PRIVATE)
+            .setPublicVersion(
+                Notification.Builder(context, channel).setSmallIcon(R.drawable.ic_stat)
+                    .setContentTitle(context.applicationInfo.loadLabel(context.packageManager)).build()
+            )
     }
 
     private fun manager(context: Context): NotificationManager {
         val nm = context.getSystemService(NotificationManager::class.java)
         nm.createNotificationChannel(NotificationChannel(ALERTS, "Needs attention", NotificationManager.IMPORTANCE_DEFAULT))
         nm.createNotificationChannel(NotificationChannel(REVIEW, "Review transactions", NotificationManager.IMPORTANCE_DEFAULT))
+        // Low: the bank's own alert has already made a sound.
+        nm.createNotificationChannel(NotificationChannel(CAPTURED, "Transactions picked up", NotificationManager.IMPORTANCE_LOW))
         return nm
     }
 }

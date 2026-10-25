@@ -447,7 +447,16 @@
 
                     <TextView
                         style="@style/Widget.BankSync.SettingHint"
-                        android:text="A notification when Wallet rejects the token or a transaction can't be sent." />
+                        android:text="A notification when a bank alert couldn't be read, Wallet rejects the token or a transaction can't be sent." />
+
+                    <com.google.android.material.materialswitch.MaterialSwitch
+                        android:id="@+id/capturedSwitch"
+                        style="@style/Widget.BankSync.SettingSwitch"
+                        android:text="Tell me when a transaction is picked up" />
+
+                    <TextView
+                        style="@style/Widget.BankSync.SettingHint"
+                        android:text="A silent notification with the amount, account and category, so you can fix it before it goes. Hidden details also hide it here." />
 
                     <com.google.android.material.materialswitch.MaterialSwitch
                         android:id="@+id/lockSwitch"

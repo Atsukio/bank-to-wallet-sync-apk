@@ -292,7 +292,7 @@ class MainActivity : LockedActivity() {
                 Permissions.openBatterySettings(this)
             }
         }
-        if ((settings.reviewMode || settings.alertsOn) && !Notifier.canPost(this)) {
+        if ((settings.reviewMode || settings.alertsOn || settings.capturedOn) && !Notifier.canPost(this)) {
             val what = if (settings.reviewMode) "Approval requests" else "Alerts"
             add(R.drawable.ic_notifications, "Notifications are off", "$what can't be shown.", "Turn on") {
                 openNotificationSettings()
@@ -307,6 +307,8 @@ class MainActivity : LockedActivity() {
 
     private fun renderCounts(c: IntArray) {
         val attention = c[Store.FAILED] + c[Store.REVIEW] + c[Store.UNPARSED]
+        // Everything fixed: the "needs you" notification would only be stale now.
+        if (!Demo.active && c[Store.UNPARSED] == 0) Notifier.cancelUnparsed(this)
         findViewById<TextView>(R.id.countWaiting).text = c[Store.PENDING].toString()
         findViewById<TextView>(R.id.countSynced).text = c[Store.SYNCED].toString()
         findViewById<TextView>(R.id.countAttention).text = attention.toString()
@@ -342,7 +344,7 @@ class MainActivity : LockedActivity() {
             val whenText = iso.parse(r.date)?.let { fmt.format(it) } ?: r.date
             val income = (r.amount ?: 0.0) > 0
             val (icon, tone, state) = when (r.status) {
-                Store.UNPARSED -> Triple(R.drawable.ic_help, Tone.WARN, "Not understood · tap to enter it")
+                Store.UNPARSED -> Triple(R.drawable.ic_help, Tone.WARN, (r.error ?: "Not understood") + " · tap to fix")
                 Store.REVIEW -> Triple(R.drawable.ic_schedule, Tone.WARN, "Tap to approve")
                 Store.FAILED -> Triple(R.drawable.ic_error, Tone.BAD, r.error ?: "Couldn't be sent")
                 Store.PENDING -> Triple(R.drawable.ic_schedule, Tone.NEUTRAL, "Waiting to send · tap to change")

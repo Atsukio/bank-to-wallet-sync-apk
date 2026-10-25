@@ -27,7 +27,7 @@ Single module `app/`. Kotlin, **Android Views with Material Components 1.12 (Mat
 | `Uploader.kt` | JobScheduler job (`UploadJobService`): network constraint (Wi-Fi only optional), batches of 50, backoff, `uncertain` handling via `WalletApi.recordExists` because Wallet has no duplicate protection. |
 | `WalletApi.kt` | `HttpURLConnection` client: post records, accounts, categories, record rules, history, `recordExists`. |
 | `Settings.kt` | SharedPreferences wrapper, encrypted token, rules, category rules, `categoryMemory`, export/import JSON. |
-| `Notifier.kt` | Two channels: alerts, and "ask before sending" review notifications with Send/Discard (`ReviewReceiver`). Event-driven only. |
+| `Notifier.kt` | Three channels: alerts (token, failed sends, and one counting "not understood" alerts, cleared once none are left), "ask before sending" review notifications with Send/Discard (`ReviewReceiver`), and a silent "picked up" one per captured transaction (`capturedOn`, the latest replaces the last, no details when `hideDetails`). Private on the lock screen. Event-driven only. |
 | `Permissions.kt` | Notification access, listener rebind, battery. Every "turn on access" button goes through `askAccess`, the prominent disclosure Play requires (what is read, where it goes, "Agree and continue"). Battery opens the app's info page (Battery › Unrestricted); `REQUEST_IGNORE_BATTERY_OPTIMIZATIONS` was removed because Play restricts it, so don't add it back. |
 | `PauseTileService.kt` | Quick Settings tile to pause capture. |
 | `LockedActivity.kt` | Base of every screen: app lock (`BiometricPrompt`, BIOMETRIC_WEAK or device credential, 60 s grace, process-wide `started`/`locking`), `enableEdgeToEdge()`, `applyInsets`, notification permission flow. |

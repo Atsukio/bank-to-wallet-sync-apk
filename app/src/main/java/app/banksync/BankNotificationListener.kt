@@ -88,6 +88,7 @@ class BankNotificationListener : NotificationListenerService() {
         // Anything we can't send with confidence is kept, with the reason, so the user can fix it in the app.
         fun hold(account: String, reason: String): Boolean {
             store.insert(hash, pkg, account, null, null, note, date, Store.UNPARSED, error = reason, posted = posted)
+            Notifier.unparsed(this, store.counts()[Store.UNPARSED], reason)
             return true
         }
 
@@ -114,6 +115,11 @@ class BankNotificationListener : NotificationListenerService() {
             Notifier.review(this, id, what)
         } else {
             Uploader.schedule(this)
+            Notifier.captured(this, if (settings.hideDetails) "From ${rule.label}, going to Wallet." else {
+                String.format(Locale.US, "%+.2f", parsed.amount) + " " + rule.accountCurrency +
+                    (parsed.payee?.let { " · $it" } ?: "") + " → " + rule.accountName + "\n" +
+                    (category?.name?.let { "Category: $it" } ?: "No category yet: tap to choose one")
+            })
         }
         return true
     }

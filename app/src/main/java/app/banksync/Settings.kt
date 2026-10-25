@@ -90,10 +90,15 @@ class Settings(context: Context) {
         get() = p.getBoolean("reviewMode", false)
         set(v) = p.edit().putBoolean("reviewMode", v).apply()
 
-    /** Post a notification when a token is rejected or records could not be sent. */
+    /** Post a notification when an alert couldn't be read, a token is rejected or records could not be sent. */
     var alertsOn: Boolean
         get() = p.getBoolean("alertsOn", true)
         set(v) = p.edit().putBoolean("alertsOn", v).apply()
+
+    /** A quiet notification for each transaction captured, so the user knows it was picked up. */
+    var capturedOn: Boolean
+        get() = p.getBoolean("capturedOn", true)
+        set(v) = p.edit().putBoolean("capturedOn", v).apply()
 
     var appLock: Boolean
         get() = p.getBoolean("appLock", false)
@@ -215,7 +220,8 @@ class Settings(context: Context) {
                 .put("wifiOnly", wifiOnly).put("batchDelayMin", batchDelayMin).put("includeNote", includeNote)
                 .put("markUncleared", markUncleared).put("keepDays", keepDays).put("reviewMode", reviewMode)
                 .put("catchUpHours", catchUpHours).put("skipExisting", skipExisting)
-                .put("alertsOn", alertsOn).put("appLock", appLock).put("hideDetails", hideDetails)
+                .put("alertsOn", alertsOn).put("capturedOn", capturedOn).put("appLock", appLock)
+                .put("hideDetails", hideDetails)
         )
         .toString(2)
 
@@ -242,6 +248,7 @@ class Settings(context: Context) {
         keepDays = s.optInt("keepDays", keepDays)
         reviewMode = s.optBoolean("reviewMode", reviewMode)
         alertsOn = s.optBoolean("alertsOn", alertsOn)
+        capturedOn = s.optBoolean("capturedOn", capturedOn)
         appLock = s.optBoolean("appLock", appLock)
         hideDetails = s.optBoolean("hideDetails", hideDetails)
     }
