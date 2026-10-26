@@ -40,4 +40,4 @@ The app is meant for adults managing their own finances and is not directed at c
 If what the app does with data changes, this policy is updated in the same release, with a new date above.
 
 ## Contact
-Questions about this policy: CONTACT_EMAIL
+Questions about this policy: atsukiodev@gmail.com
