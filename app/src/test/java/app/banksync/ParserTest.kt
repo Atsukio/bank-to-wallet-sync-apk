@@ -266,7 +266,8 @@ class ParserTest {
         val text = "Sample Bank: You've just spent RM 55.00 at Sample Music P486B2FF25 Stockholm SE with your card ending 1234."
         val p = Parser.parse(text)!!
         assertEquals("Sample Music P486B2FF25 Stockholm SE", p.payee)
-        assertEquals("Sample Music P486B2FF25 Stockholm SE", Parser.walletText(text, p.payee, "MYR", true).note)
+        // The payee already holds the whole name, so the note doesn't repeat it.
+        assertNull(Parser.walletText(text, p.payee, "MYR", true).note)
     }
 
     @Test
@@ -284,19 +285,18 @@ class ParserTest {
     }
 
     @Test
-    fun onlySendersAreWalletPayees() {
+    fun everyoneIsTheWalletPayee() {
         val card = "MAE Maybank2u: Card Transaction You've just spent RM 20.00 at SAMPLE CAFE SB TOWN MY with your Maybank Visa P..."
         assertEquals("SAMPLE CAFE SB TOWN MY", Parser.parse(card)!!.payee)
         assertTrue(Parser.paidTo(card, "SAMPLE CAFE SB TOWN MY"))
         assertTrue(Parser.paidTo("You've sent RM10.00 to Sample Person", "Sample Person"))
         val sent = Parser.walletText("Transfer of RM 10.00 to Sample Person. REF: ABC123", "Sample Person", "MYR", true)
-        assertNull(sent.payee)
-        assertEquals("Sample Person · Ref ABC123", sent.note)
+        assertEquals("Sample Person", sent.payee)
+        assertEquals("Ref ABC123", sent.note)
         // Someone who sent the money stays the payee, as does a payee typed by hand.
         assertFalse(Parser.paidTo("You've received RM42.00 from Sample Person", "Sample Person"))
         assertFalse(Parser.paidTo("Sample Person has transferred RM 10.00 to you.", "Sample Person"))
         assertFalse(Parser.paidTo(card, "Sample Cafe Lunch"))
-        // With notes off, the name has nowhere else to go.
         assertEquals("Sample Person", Parser.walletText("sent RM10.00 to Sample Person", "Sample Person", "MYR", false).payee)
     }
 

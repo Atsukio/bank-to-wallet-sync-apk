@@ -195,8 +195,8 @@ object Parser {
 
     /**
      * Whether [payee] is who the money went to: a card merchant ("spent RM 5.00 at SAMPLE SHOP") or
-     * someone sent money ("sent RM10.00 to Sample Person"). Those go in the Wallet note; only someone
-     * who sent the money ("from Sample Person") becomes a Wallet payee.
+     * someone sent money ("sent RM10.00 to Sample Person"), as opposed to someone who sent the money
+     * ("from Sample Person"). Used to find the merchant's fuller name for the note.
      */
     fun paidTo(text: String, payee: String): Boolean =
         Regex("""\b(?:at|to)\s+""" + Regex.escape(payee), RegexOption.IGNORE_CASE).containsMatchIn(text)
@@ -204,16 +204,13 @@ object Parser {
     class WalletText(val payee: String?, val note: String?)
 
     /**
-     * The payee and note a record gets in Wallet, from the stored alert [text] and [payee]. Each name
-     * is in one place only: who was paid in the note (unless notes are off, then it stays the payee),
-     * who sent the money as the payee.
+     * The payee and note a record gets in Wallet, from the stored alert [text] and [payee]. Wallet's
+     * `counterParty` is the payee of an expense and the payer of income, so the name always goes there.
+     * The note repeats a paid name only when the alert wrote more of it (phone number, country).
      */
     fun walletText(text: String, payee: String?, accountCurrency: String, includeNote: Boolean): WalletText {
-        val paid = payee != null && paidTo(text, payee)
-        return WalletText(
-            payee?.takeUnless { paid && includeNote },
-            if (includeNote) note(text, payee.takeIf { paid }, accountCurrency) else null,
-        )
+        val fuller = payee?.takeIf { paidTo(text, it) && fullName(text, it) != it }
+        return WalletText(payee, if (includeNote) note(text, fuller, accountCurrency) else null)
     }
 
     /**
