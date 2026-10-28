@@ -242,6 +242,12 @@ class Store private constructor(context: Context, name: String?) : SQLiteOpenHel
         return writableDatabase.update("rec", v, "id=? AND status=$REVIEW", arrayOf(id.toString())) > 0
     }
 
+    /**
+     * Transfer sides held for review although a transfer needs no category: the earlier side of a pair
+     * captured by older versions kept its "no category" hold. Only called with review mode off.
+     */
+    fun pairedReviews(): List<Long> = query("status=$REVIEW AND pairId IS NOT NULL", "id", 50).map { it.id }
+
     fun setStatus(id: Long, status: Int) {
         val v = ContentValues().apply { put("status", status); put("attempts", 0); putNull("error") }
         writableDatabase.update("rec", v, "id=?", arrayOf(id.toString()))
@@ -250,6 +256,17 @@ class Store private constructor(context: Context, name: String?) : SQLiteOpenHel
     fun delete(id: Long) {
         writableDatabase.delete("rec", "id=?", arrayOf(id.toString()))
     }
+
+    /** An alert kept as "not understood" because no rule gave it an account, with what capture needs to try again. */
+    class Held(val id: Long, val hash: String, val text: String, val posted: Long)
+
+    fun heldWithoutAccount(pkg: String): List<Held> =
+        readableDatabase.rawQuery(
+            "SELECT id, hash, note, posted FROM rec WHERE status=$UNPARSED AND account='' AND pkg=? AND note IS NOT NULL ORDER BY id",
+            arrayOf(pkg)
+        ).use { c ->
+            buildList { while (c.moveToNext()) add(Held(c.getLong(0), c.getString(1), c.getString(2), c.getLong(3))) }
+        }
 
     /** Turns a "not understood" row into a normal queued record using values the user supplied. */
     fun fix(id: Long, account: String, amount: Double, payee: String?, category: CategoryPick?) {

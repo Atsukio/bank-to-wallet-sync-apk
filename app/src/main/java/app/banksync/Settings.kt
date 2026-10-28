@@ -159,8 +159,16 @@ class Settings(context: Context) {
         if (rules().isEmpty()) catchUpSince = System.currentTimeMillis()
         // A GO+ rule is kept apart from the app's ordinary ones, whatever its (unused) match says.
         val kind = GoPlus.isGoPlus(rule)
-        saveRules(rules().filterNot { it.pkg == rule.pkg && GoPlus.isGoPlus(it) == kind && (kind || it.match.equals(rule.match, ignoreCase = true)) } + rule)
+        val kept = rules().filterNot { it.pkg == rule.pkg && GoPlus.isGoPlus(it) == kind && (kind || it.match.equals(rule.match, ignoreCase = true)) }
+        // A new default takes over from the app's old one.
+        saveRules(kept.map { if (rule.isDefault && it.pkg == rule.pkg) it.copy(isDefault = false) else it } + rule)
     }
+
+    /** Makes the app's ordinary rule for [accountId] its default, or clears the default when null. */
+    fun setDefault(pkg: String, accountId: String?) =
+        saveRules(rules().map {
+            if (it.pkg != pkg || GoPlus.isGoPlus(it)) it else it.copy(isDefault = it.accountId == accountId)
+        })
 
     fun removeRule(rule: Rule) = saveRules(rules() - rule)
 
@@ -302,7 +310,7 @@ class Settings(context: Context) {
             arr.put(
                 JSONObject().put("pkg", it.pkg).put("label", it.label).put("match", it.match)
                     .put("accountId", it.accountId).put("accountName", it.accountName)
-                    .put("accountCurrency", it.accountCurrency)
+                    .put("accountCurrency", it.accountCurrency).put("default", it.isDefault)
             )
         }
     }
@@ -312,6 +320,7 @@ class Settings(context: Context) {
         Rule(
             o.getString("pkg"), o.optString("label"), o.optString("match"),
             o.getString("accountId"), o.optString("accountName"), o.optString("accountCurrency"),
+            o.optBoolean("default"),
         )
     }
 

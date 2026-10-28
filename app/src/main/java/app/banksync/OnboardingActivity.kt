@@ -208,7 +208,7 @@ class OnboardingActivity : LockedActivity() {
     }
 
     private fun renderRules() =
-        Pickers.renderRules(this, findViewById<LinearLayout>(R.id.obRules), settings)
+        Pickers.renderRules(this, findViewById<LinearLayout>(R.id.obRules), settings, onMessage = ::toast)
 
     private fun refreshStatus() {
         val access = Permissions.accessEnabled(this)

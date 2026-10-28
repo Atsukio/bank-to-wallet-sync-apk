@@ -155,7 +155,7 @@ class SettingsActivity : LockedActivity() {
         }
     }
 
-    private fun renderRules() = Pickers.renderRules(this, findViewById<LinearLayout>(R.id.rulesList), settings)
+    private fun renderRules() = Pickers.renderRules(this, findViewById<LinearLayout>(R.id.rulesList), settings, onMessage = ::toast)
 
     private fun renderCategories() {
         Pickers.renderCategoryRules(this, findViewById<LinearLayout>(R.id.categoriesList), settings)

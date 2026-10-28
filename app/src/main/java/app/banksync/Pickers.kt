@@ -3,12 +3,14 @@ package app.banksync
 import android.app.Activity
 import android.content.Intent
 import android.text.InputType
+import android.util.TypedValue
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.widget.ArrayAdapter
 import android.widget.AutoCompleteTextView
 import android.widget.Button
+import android.widget.CheckBox
 import android.widget.EditText
 import android.widget.FrameLayout
 import android.widget.ImageView
@@ -110,6 +112,7 @@ object Pickers {
             val appField = view.findViewById<AutoCompleteTextView>(R.id.ruleApp)
             val accountField = view.findViewById<AutoCompleteTextView>(R.id.ruleAccount)
             val matchField = view.findViewById<EditText>(R.id.ruleMatch)
+            val defaultBox = view.findViewById<CheckBox>(R.id.ruleDefault)
 
             var app: Pair<String, String>? = null
             var account: WalletApi.Account? = null
@@ -118,6 +121,12 @@ object Pickers {
             lateinit var dialog: AlertDialog
             fun refresh() {
                 dialog.getButton(AlertDialog.BUTTON_POSITIVE).isEnabled = app != null && account != null
+                // Only worth asking once the app has another account: a single link already takes everything.
+                val (label, pkg) = app ?: ("" to "")
+                val others = Settings(activity).rulesFor(pkg).orEmpty().filterNot(GoPlus::isGoPlus)
+                val goPlus = account?.let { GoPlus.isTng(label) && GoPlus.isGoPlus(it.name) } == true
+                defaultBox.visibility = if (others.isNotEmpty() && !goPlus) View.VISIBLE else View.GONE
+                defaultBox.text = "Use for $label alerts that name no account"
             }
 
             var shown = accounts
@@ -183,12 +192,14 @@ object Pickers {
                 dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener {
                     val (label, pkg) = app ?: return@setOnClickListener
                     val acc = account ?: return@setOnClickListener
-                    val typed = Rule(pkg, label, matchField.text.toString().trim(), acc.id, acc.name, acc.currency)
+                    val asDefault = defaultBox.visibility == View.VISIBLE && defaultBox.isChecked
+                    val typed = Rule(pkg, label, matchField.text.toString().trim(), acc.id, acc.name, acc.currency, asDefault)
                     // A GO+ account takes Cash ins, not alerts by text, so whatever filled the ending is dropped.
-                    val rule = if (GoPlus.isGoPlus(typed)) typed.copy(match = "") else typed
+                    val rule = if (GoPlus.isGoPlus(typed)) typed.copy(match = "", isDefault = false) else typed
                     Settings(activity).addRule(rule)
                     onAdded(rule)
                     dialog.dismiss()
+                    recheckHeld(activity, pkg, label, onError)
                     cashInFollowUp(activity, rule, allAccounts, onAdded)
                 }
             }
@@ -284,20 +295,38 @@ object Pickers {
             .show()
     }
 
-    /** Fills [container] with one row per rule: the app's own icon, where its alerts go, and a remove button. */
-    fun renderRules(activity: Activity, container: ViewGroup, settings: Settings, onChanged: () -> Unit = {}) {
+    /**
+     * Fills [container] with one row per rule: the app's own icon, where its alerts go, and a remove button.
+     * Tapping a row of an app with several accounts makes it (or stops it being) the app's default.
+     */
+    fun renderRules(
+        activity: Activity, container: ViewGroup, settings: Settings,
+        onChanged: () -> Unit = {}, onMessage: (String) -> Unit = {},
+    ) {
         container.removeAllViews()
         val rules = settings.rules()
         if (rules.isEmpty()) {
             return addEmpty(activity, container, "No bank apps yet. Tap Add to choose one.")
         }
+        val rerender = {
+            renderRules(activity, container, settings, onChanged, onMessage)
+            onChanged()
+        }
         for (rule in rules) {
             val sub = if (GoPlus.isGoPlus(rule)) "Cash ins go into ${rule.accountName}" else "To ${rule.accountName}" +
-                if (rule.match.isEmpty()) "" else " · alerts containing \"${rule.match}\""
+                (if (rule.match.isEmpty()) "" else " · alerts containing \"${rule.match}\"") +
+                (if (rule.isDefault) " · default for alerts that name no account" else "")
             val row = addRow(activity, container, rule.label, sub) {
                 settings.removeRule(rule)
-                renderRules(activity, container, settings, onChanged)
-                onChanged()
+                rerender()
+            }
+            val siblings = rules.filter { it.pkg == rule.pkg && !GoPlus.isGoPlus(it) }
+            if (!GoPlus.isGoPlus(rule) && siblings.size > 1) {
+                row.isClickable = true
+                row.isFocusable = true
+                val ripple = TypedValue().also { activity.theme.resolveAttribute(android.R.attr.selectableItemBackground, it, true) }
+                row.setBackgroundResource(ripple.resourceId)
+                row.setOnClickListener { askDefault(activity, rule) { rerender(); if (!rule.isDefault) recheckHeld(activity, rule.pkg, rule.label, onMessage) } }
             }
             val icon = runCatching { activity.packageManager.getApplicationIcon(rule.pkg) }.getOrNull()
             row.findViewById<ImageView>(R.id.ruleIcon).apply {
@@ -328,6 +357,41 @@ object Pickers {
             }
             row.findViewById<ImageView>(R.id.ruleIcon).setImageResource(R.drawable.ic_label)
         }
+    }
+
+    /** Makes [rule] its app's default for alerts that name no account, or stops it being one, after asking. */
+    private fun askDefault(activity: Activity, rule: Rule, onDone: () -> Unit) {
+        val settings = Settings(activity)
+        val builder = MaterialAlertDialogBuilder(activity)
+        if (rule.isDefault) {
+            builder.setTitle("Stop using ${rule.accountName} as the default?")
+                .setMessage("${rule.label} alerts that name no account will be held for you to enter by hand again.")
+                .setPositiveButton("Stop") { _, _ -> settings.setDefault(rule.pkg, null); onDone() }
+        } else {
+            builder.setTitle("Make ${rule.accountName} the default?")
+                .setMessage(
+                    "${rule.label} alerts that name none of your accounts, such as some transfers, will go to " +
+                        "${rule.accountName}. Alerts naming an account ending you haven't linked are still held for you."
+                )
+                .setPositiveButton("Make default") { _, _ -> settings.setDefault(rule.pkg, rule.accountId); onDone() }
+        }
+        builder.setNegativeButton("Cancel", null).show()
+    }
+
+    /**
+     * Runs [pkg]'s alerts held for want of an account through capture again, off the main thread, and
+     * tells [onMessage] how many now have one. Rules are real even in the demo, and so is this queue.
+     */
+    fun recheckHeld(activity: Activity, pkg: String, label: String, onMessage: (String) -> Unit) {
+        val context = activity.applicationContext
+        Thread {
+            val n = runCatching { BankNotificationListener.recheck(context, pkg) }.getOrDefault(0)
+            if (n == 0) return@Thread
+            activity.runOnUiThread {
+                if (activity.isFinishing || activity.isDestroyed) return@runOnUiThread
+                onMessage(if (n == 1) "1 held $label alert now has an account" else "$n held $label alerts now have an account")
+            }
+        }.start()
     }
 
     private fun addRow(activity: Activity, container: ViewGroup, title: String, sub: String, onRemove: () -> Unit): View {

@@ -42,6 +42,49 @@ class RuleMatcherTest {
         assertNull(RuleMatcher.pick(listOf(card, other), "You spent RM 5.00 at X with your Visa ending 9999."))
     }
 
+    private val savings = Rule("app.mae", "MAE", "5678", "acc-savings", "Savings", isDefault = true)
+
+    @Test
+    fun defaultTakesAlertsThatNameNoAccount() {
+        val r = RuleMatcher.pick(listOf(card, savings), "Maybank2u: Transfer DuitNow of RM 10.00 to Sample Person. REF: ABC123")
+        assertEquals("acc-savings", r!!.accountId)
+    }
+
+    @Test
+    fun specificMatchBeatsTheDefault() {
+        val r = RuleMatcher.pick(listOf(card, savings), "You've just spent RM 5.00 at X with your Visa ending 1234.")
+        assertEquals("acc-card", r!!.accountId)
+    }
+
+    @Test
+    fun alertNamingAnUnlinkedEndingSkipsTheDefault() {
+        assertNull(RuleMatcher.pick(listOf(card, savings), "You've received RM 10.00 in your account ending ****9999."))
+        assertNull(RuleMatcher.pick(listOf(card, savings), "RM 5.00 spent at X on your card XXXXXXXX9999."))
+    }
+
+    @Test
+    fun maskedMobileNumberIsNotAnAccount() {
+        val text = "Maybank2u: Transfer DuitNow of RM 10.00 to Sample Person. Mobile Number: ****4321. REF: ABC123"
+        assertEquals(emptyList<String>(), RuleMatcher.endings(text))
+        assertEquals("acc-savings", RuleMatcher.pick(listOf(card, savings), text)!!.accountId)
+        assertEquals(emptyList<String>(), RuleMatcher.endings("DuitNow to Mobile/ID RM 3.00 to ****4321(Mobile Number) on 24-Oct-2026"))
+    }
+
+    @Test
+    fun endingsReadsTheUsersOwnNumbers() {
+        assertEquals(listOf("1234"), RuleMatcher.endings("You've just spent RM 5.00 at X with your Maybank Visa ending 1234."))
+        assertEquals(listOf("9999"), RuleMatcher.endings("You've received RM 3.00 in your account ending ***9999. REF: ABC123"))
+        assertEquals(listOf("9999"), RuleMatcher.endings("Paid RM 5.00 from your savings account no. XXXX9999."))
+        // A payee's masked number isn't the user's.
+        assertEquals(emptyList<String>(), RuleMatcher.endings("Transfer of RM 5.00 to ****9999 is successful."))
+    }
+
+    @Test
+    fun appWideRuleStillTakesUnlinkedEndingsWithoutADefault() {
+        val r = RuleMatcher.pick(listOf(any, card), "You've received RM 10.00 in your account ending 9999.")
+        assertEquals("acc-savings", r!!.accountId)
+    }
+
     @Test
     fun endingIsNotMatchedInsideALongerNumber() {
         val r = RuleMatcher.pick(listOf(any, card), "You spent RM 12345.00 at X with your Visa ending 9999.")

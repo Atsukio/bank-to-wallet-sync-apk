@@ -186,6 +186,7 @@ class MainActivity : LockedActivity() {
     override fun onResume() {
         super.onResume()
         Summary.schedule(this)
+        if (!Demo.active) Uploader.releaseTransfers(this)
         openFromNotification()
         // Binding takes a moment, so look again shortly after asking for a rebind.
         if (Permissions.reconnectIfStopped(this)) window.decorView.postDelayed({ if (!isFinishing) refresh() }, 2_000)

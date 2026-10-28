@@ -32,6 +32,20 @@ object Uploader {
         onChange?.invoke()
     }
 
+    /**
+     * Lets go of transfer sides stuck waiting for approval, which hold their pair back with them.
+     * Capture no longer leaves any; this frees ones from before. Cheap when there are none.
+     */
+    fun releaseTransfers(context: Context) {
+        if (Settings(context).reviewMode) return
+        val store = Store.get(context)
+        val released = store.pairedReviews().filter { store.approve(it) }
+        if (released.isEmpty()) return
+        released.forEach { Notifier.cancelReview(context, it) }
+        schedule(context, 0, replace = true)
+        changed()
+    }
+
     /** Whether a job is waiting for its turn (no network yet, say) rather than running. */
     fun waiting(context: Context): Boolean = context.getSystemService(JobScheduler::class.java).getPendingJob(JOB_ID) != null
 

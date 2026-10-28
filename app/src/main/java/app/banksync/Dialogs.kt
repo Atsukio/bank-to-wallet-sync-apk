@@ -122,11 +122,11 @@ object Dialogs {
             if (Demo.active) null else WalletCache.pick(activity, text, payee, amount, account)
         val chooser = CategoryChooser(activity, view, guess(parsed?.payee, parsed?.amount ?: -1.0, rec.account), ::payee)
 
-        // An app whose rules all need match text: offer to make the chosen account its catch-all, so the
-        // next alert like this one goes straight through.
-        val appRules = if (Demo.active) null else settings.rulesFor(rec.pkg)
+        // An app with several accounts, all needing match text and none the default: offer to make the
+        // chosen account its default, so the next alert like this one goes straight through.
+        val appRules = if (Demo.active) null else settings.rulesFor(rec.pkg)?.filterNot(GoPlus::isGoPlus)
         val remember = view.findViewById<CheckBox>(R.id.fixRemember)
-        if (appRules != null && appRules.size > 1 && appRules.none { it.match.isEmpty() }) {
+        if (appRules != null && appRules.size > 1 && appRules.none { it.match.isEmpty() || it.isDefault }) {
             remember.visibility = View.VISIBLE
             remember.text = "Use this account for other ${appRules[0].label} alerts that match no rule"
         }
@@ -171,12 +171,17 @@ object Dialogs {
                 // Untouched, the category is worked out again from what was finally entered.
                 val category = chooser.result { guess(payee, signed, target.id) }
                 chooser.commit()
-                if (remember.isChecked && appRules != null) {
-                    settings.addRule(Rule(rec.pkg, appRules[0].label, "", target.id, target.name, target.currency))
+                val defaultFor = appRules?.takeIf { remember.visibility == View.VISIBLE && remember.isChecked }
+                if (defaultFor != null) {
+                    // The account's own link becomes the default; an account the app isn't linked to yet gets one.
+                    if (defaultFor.any { it.accountId == target.id }) settings.setDefault(rec.pkg, target.id)
+                    else settings.addRule(Rule(rec.pkg, defaultFor[0].label, "", target.id, target.name, target.currency, isDefault = true))
                 }
                 Store.shown(activity).fix(rec.id, target.id, signed, payee, category)
                 if (!Demo.active) Uploader.schedule(activity, 0, replace = true)
                 onDone()
+                // Other alerts held for the same reason can now go through too.
+                if (defaultFor != null) Pickers.recheckHeld(activity, rec.pkg, defaultFor[0].label) { onDone() }
             }
             .setNegativeButton("Cancel", null)
             .setNeutralButton("Delete") { _, _ ->

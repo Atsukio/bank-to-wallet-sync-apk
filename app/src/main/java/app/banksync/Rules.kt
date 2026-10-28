@@ -12,17 +12,41 @@ data class Rule(
     val accountId: String,
     val accountName: String,
     val accountCurrency: String = "",
+    /** The app's default: its alerts that name no account of the user's go here. One per app at most. */
+    val isDefault: Boolean = false,
 )
 
 object RuleMatcher {
     /**
-     * A specific match wins over the app-wide rule. An app with a single rule always uses it: alerts
-     * such as transfers often leave out the card number the match looks for. Null when nothing applies.
+     * A specific match wins. Then the app's default, but only for an alert that names none of the
+     * user's accounts: one naming an ending no rule has is someone else's account or an unlinked one,
+     * so it is held rather than guessed. Then the app-wide rule, and an app with a single rule always
+     * uses it: alerts such as transfers often leave out the card number the match looks for. Null when
+     * nothing applies.
      */
     fun pick(rules: List<Rule>, text: String): Rule? =
         rules.firstOrNull { it.match.isNotEmpty() && contains(text, it.match) }
+            ?: rules.firstOrNull { it.isDefault }?.takeIf { endings(text).isEmpty() }
             ?: rules.firstOrNull { it.match.isEmpty() }
             ?: rules.singleOrNull()
+
+    private val ending = Regex("""\bending\s*(?:no\.?|number)?\s*:?\s*[*xX•.]*\s*(\d{3,})(?!\d)""", RegexOption.IGNORE_CASE)
+    private val yourMasked = Regex(
+        """\byour\b[^.\d]{0,40}?\b(?:account|card|a/c)\b\s*(?:no\.?|number)?\s*:?\s*[*xX•]{2,}\s*(\d{3,})(?!\d)""",
+        RegexOption.IGNORE_CASE
+    )
+    private val phone = Regex("""mobile|phone|\btel\b""", RegexOption.IGNORE_CASE)
+
+    /**
+     * Account or card endings the alert says are the user's own ("account ending 1234", "your card
+     * XXXX1234"). A masked mobile number ("Mobile Number: ****1234") or a payee's number isn't one.
+     */
+    fun endings(text: String): List<String> =
+        (ending.findAll(text) + yourMasked.findAll(text))
+            .filterNot { phone.containsMatchIn(text.substring(maxOf(0, it.range.first - 25), it.range.first)) }
+            .map { it.groupValues[1] }
+            .distinct()
+            .toList()
 
     /**
      * Case-insensitive, and the match can't be part of a longer number or word: ending "1234" must not
