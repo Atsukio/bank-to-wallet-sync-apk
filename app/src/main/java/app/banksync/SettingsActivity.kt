@@ -198,6 +198,7 @@ class SettingsActivity : LockedActivity() {
             }
             .setNegativeButton("Cancel", null)
             .show()
+            .danger(android.content.DialogInterface.BUTTON_POSITIVE)
     }
 
     /**

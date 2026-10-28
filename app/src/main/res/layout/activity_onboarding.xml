@@ -147,11 +147,12 @@
 
                 <Button
                     android:id="@+id/obCheck"
-                    style="@style/Widget.Material3.Button.TonalButton"
+                    style="@style/Widget.Material3.Button.TonalButton.Icon"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:layout_marginTop="8dp"
-                    android:text="Check connection" />
+                    android:text="Check connection"
+                    app:icon="@drawable/ic_check_circle" />
 
                 <TextView
                     android:id="@+id/obTokenStatus"
@@ -277,11 +278,12 @@
 
                 <Button
                     android:id="@+id/obAddApp"
-                    style="@style/Widget.Material3.Button.TonalButton"
+                    style="@style/Widget.Material3.Button.TonalButton.Icon"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:layout_marginTop="8dp"
-                    android:text="Add bank app" />
+                    android:text="Add bank app"
+                    app:icon="@drawable/ic_add" />
             </LinearLayout>
 
             <!-- 5: preferences -->

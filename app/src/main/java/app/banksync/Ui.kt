@@ -4,6 +4,7 @@ import android.content.res.ColorStateList
 import android.view.View
 import android.widget.ImageView
 import android.widget.TextView
+import androidx.appcompat.app.AlertDialog
 import com.google.android.material.color.MaterialColors
 import com.google.android.material.R as M
 
@@ -45,6 +46,11 @@ enum class Status(val color: Int) {
 fun TextView.status(text: CharSequence, status: Status) {
     this.text = text
     setTextColor(context.getColor(status.color))
+}
+
+/** Colours a dialog button that deletes or drops something in the theme's error colour. Call after show(). */
+fun AlertDialog.danger(which: Int) {
+    getButton(which)?.let { it.setTextColor(it.themeColor(M.attr.colorError)) }
 }
 
 /** Sets a round badge's icon and colours it for [tone]. */

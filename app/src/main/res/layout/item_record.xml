@@ -57,6 +57,16 @@
             android:textColor="?attr/colorOnSurfaceVariant" />
 
         <TextView
+            android:id="@+id/recNote"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:ellipsize="end"
+            android:maxLines="1"
+            android:textAppearance="?attr/textAppearanceBodyMedium"
+            android:textColor="?attr/colorOnSurfaceVariant"
+            android:visibility="gone" />
+
+        <TextView
             android:id="@+id/recCategory"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
@@ -75,13 +85,15 @@
         android:fontFeatureSettings="tnum"
         android:textAppearance="?attr/textAppearanceTitleMedium" />
 
-    <!-- Only on a transfer: the row opens to show its two sides. -->
+    <!-- Only on a transfer: tapping it shows the two sides; the rest of the row opens the details. -->
     <ImageView
         android:id="@+id/recChevron"
-        android:layout_width="20dp"
-        android:layout_height="20dp"
-        android:layout_marginStart="4dp"
-        android:importantForAccessibility="no"
+        android:layout_width="40dp"
+        android:layout_height="40dp"
+        android:layout_marginEnd="-10dp"
+        android:background="?attr/selectableItemBackgroundBorderless"
+        android:contentDescription="Show both sides"
+        android:padding="10dp"
         android:src="@drawable/ic_expand_more"
         android:visibility="gone"
         app:tint="?attr/colorOnSurfaceVariant" />

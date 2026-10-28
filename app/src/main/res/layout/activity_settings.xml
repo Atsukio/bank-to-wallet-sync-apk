@@ -48,6 +48,7 @@
             <TextView
                 style="@style/Widget.BankSync.SectionTitle"
                 android:layout_marginTop="0dp"
+                android:drawableStart="@drawable/ic_wallet"
                 android:text="Wallet connection" />
 
             <com.google.android.material.card.MaterialCardView
@@ -135,13 +136,14 @@
                             android:layout_height="wrap_content"
                             android:text="Change token" />
 
-                        <Button
+                        <com.google.android.material.button.MaterialButton
                             android:id="@+id/tokenCheck"
-                            style="@style/Widget.Material3.Button.TonalButton"
+                            style="@style/Widget.Material3.Button.TonalButton.Icon"
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
                             android:layout_marginStart="8dp"
-                            android:text="Check connection" />
+                            android:text="Check connection"
+                            app:icon="@drawable/ic_check_circle" />
                     </LinearLayout>
                 </LinearLayout>
             </com.google.android.material.card.MaterialCardView>
@@ -160,6 +162,7 @@
                     android:layout_marginTop="0dp"
                     android:layout_marginBottom="0dp"
                     android:layout_weight="1"
+                    android:drawableStart="@drawable/ic_apps"
                     android:text="Bank apps" />
 
                 <com.google.android.material.button.MaterialButton
@@ -208,6 +211,7 @@
                     android:layout_marginTop="0dp"
                     android:layout_marginBottom="0dp"
                     android:layout_weight="1"
+                    android:drawableStart="@drawable/ic_label"
                     android:text="Categories" />
 
                 <com.google.android.material.button.MaterialButton
@@ -265,6 +269,7 @@
             <!-- Capture -->
             <TextView
                 style="@style/Widget.BankSync.SectionTitle"
+                android:drawableStart="@drawable/ic_notifications"
                 android:text="Capture" />
 
             <com.google.android.material.card.MaterialCardView
@@ -354,6 +359,7 @@
             <!-- Uploads -->
             <TextView
                 style="@style/Widget.BankSync.SectionTitle"
+                android:drawableStart="@drawable/ic_cloud_upload"
                 android:text="Uploads" />
 
             <com.google.android.material.card.MaterialCardView
@@ -415,6 +421,7 @@
             <!-- Records -->
             <TextView
                 style="@style/Widget.BankSync.SectionTitle"
+                android:drawableStart="@drawable/ic_receipt"
                 android:text="Records in Wallet" />
 
             <com.google.android.material.card.MaterialCardView
@@ -453,6 +460,7 @@
             <!-- Privacy -->
             <TextView
                 style="@style/Widget.BankSync.SectionTitle"
+                android:drawableStart="@drawable/ic_lock"
                 android:text="Alerts and privacy" />
 
             <com.google.android.material.card.MaterialCardView
@@ -521,6 +529,7 @@
             <!-- Phone -->
             <TextView
                 style="@style/Widget.BankSync.SectionTitle"
+                android:drawableStart="@drawable/ic_smartphone"
                 android:text="Phone settings" />
 
             <com.google.android.material.card.MaterialCardView
@@ -547,6 +556,7 @@
             <!-- About -->
             <TextView
                 style="@style/Widget.BankSync.SectionTitle"
+                android:drawableStart="@drawable/ic_info"
                 android:text="About" />
 
             <com.google.android.material.card.MaterialCardView

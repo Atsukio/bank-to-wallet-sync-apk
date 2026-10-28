@@ -1,6 +1,8 @@
 package app.banksync
 
+import android.content.DialogInterface
 import android.content.Intent
+import android.content.res.ColorStateList
 import android.graphics.Typeface
 import android.os.Build
 import android.os.Bundle
@@ -456,14 +458,22 @@ class MainActivity : LockedActivity() {
         val attention = c[Store.FAILED] + c[Store.REVIEW] + c[Store.UNPARSED]
         // Everything fixed: the "needs you" notification would only be stale now.
         if (!Demo.active && c[Store.UNPARSED] == 0) Notifier.cancelUnparsed(this)
+        // Blue while something waits, green once something is sent; a zero stays plain, its icon muted.
+        val waitColor = if (c[Store.PENDING] > 0) getColor(R.color.mark_wait) else null
         findViewById<TextView>(R.id.countWaiting).apply {
             countTo(c[Store.PENDING])
-            // Blue while something waits, green once something is sent; a zero stays plain.
-            setTextColor(if (c[Store.PENDING] > 0) getColor(R.color.mark_wait) else themeColor(M.attr.colorOnSurface))
+            setTextColor(waitColor ?: themeColor(M.attr.colorOnSurface))
         }
+        findViewById<ImageView>(R.id.iconWaiting).apply {
+            imageTintList = ColorStateList.valueOf(waitColor ?: themeColor(M.attr.colorOnSurfaceVariant))
+        }
+        val sentColor = if (c[Store.SYNCED] > 0) getColor(R.color.amount_in) else null
         findViewById<TextView>(R.id.countSynced).apply {
             countTo(c[Store.SYNCED])
-            setTextColor(if (c[Store.SYNCED] > 0) getColor(R.color.amount_in) else themeColor(M.attr.colorOnSurface))
+            setTextColor(sentColor ?: themeColor(M.attr.colorOnSurface))
+        }
+        findViewById<ImageView>(R.id.iconSynced).apply {
+            imageTintList = ColorStateList.valueOf(sentColor ?: themeColor(M.attr.colorOnSurfaceVariant))
         }
         findViewById<TextView>(R.id.countAttention).countTo(attention)
         // The tile only turns red when there's something to do, and fades there.
@@ -478,6 +488,7 @@ class MainActivity : LockedActivity() {
             tile.setCardBackgroundColor(c[0])
             findViewById<TextView>(R.id.countAttention).setTextColor(c[1])
             findViewById<TextView>(R.id.labelAttention).setTextColor(c[2])
+            findViewById<ImageView>(R.id.iconAttention).imageTintList = ColorStateList.valueOf(c[2])
         }
         val before = attentionColors
         attentionColors = colors
@@ -510,6 +521,7 @@ class MainActivity : LockedActivity() {
         val fmt = SimpleDateFormat("d MMM, HH:mm", Locale.getDefault())
         val iso = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'", Locale.US).apply { timeZone = TimeZone.getTimeZone("UTC") }
         val accounts = Demo.rules(settings).associate { it.accountId to it.accountName }
+        val currencies = Demo.rules(settings).associate { it.accountId to it.accountCurrency }
         val inflater = LayoutInflater.from(this)
         // A transfer is two records. When both are here, its outgoing half stands for the pair and the
         // incoming half is left out; one half alone (the other is older than the list) shows as itself.
@@ -573,6 +585,14 @@ class MainActivity : LockedActivity() {
                 !hide && !r.payee.isNullOrBlank() -> r.payee
                 income -> "Money in"
                 else -> "Payment"
+            }
+            // The note Wallet gets (or the one the user wrote), so the title reads as the payee/payer and this as the note.
+            row.findViewById<TextView>(R.id.recNote).apply {
+                val note = if (hide || isTransfer || r.status == Store.UNPARSED) null else {
+                    r.noteEdit ?: Parser.walletText(r.note.orEmpty(), r.payee, currencies[r.account].orEmpty(), settings.includeNote).note
+                }?.takeIf { it.isNotBlank() }
+                visibility = if (note == null) View.GONE else View.VISIBLE
+                text = note?.let { "Note: $it" }
             }
             row.findViewById<TextView>(R.id.recSub).text = if (status == Store.UNPARSED || status == Store.REVIEW) {
                 // Waiting on the user: the action part stands out in red and bold.
@@ -647,7 +667,8 @@ class MainActivity : LockedActivity() {
                     visibility = View.VISIBLE
                     rotation = if (r.id in openTransfers) 180f else 0f
                 }
-                row.setOnClickListener {
+                row.setOnClickListener { Dialogs.showDetails(this, r, partner, ::openRecord) }
+                chevron.setOnClickListener {
                     val opening = openTransfers.add(r.id)
                     if (!opening) openTransfers.remove(r.id)
                     animateLayout(list)
@@ -660,7 +681,7 @@ class MainActivity : LockedActivity() {
                     addView(halves)
                 })
             } else {
-                row.setOnClickListener { openRecord(r) }
+                row.setOnClickListener { Dialogs.showDetails(this, r, null, ::openRecord) }
                 list.addView(row)
             }
 
@@ -704,7 +725,7 @@ class MainActivity : LockedActivity() {
             }
             setTextColor(context.getColor(if (out) R.color.amount_out else R.color.amount_in))
         }
-        if (half.status == Store.SYNCED) row.background = null else row.setOnClickListener { openRecord(half) }
+        row.setOnClickListener { Dialogs.showDetails(this, half, null, ::openRecord) }
         return row
     }
 
@@ -738,6 +759,7 @@ class MainActivity : LockedActivity() {
             }
             .setNegativeButton("Cancel", null)
             .show()
+            .danger(DialogInterface.BUTTON_POSITIVE)
     }
 
     /**
@@ -768,6 +790,7 @@ class MainActivity : LockedActivity() {
             }
             .setNegativeButton("Cancel", null)
             .show()
+            .danger(DialogInterface.BUTTON_POSITIVE)
     }
 
     private var namesRequested = false

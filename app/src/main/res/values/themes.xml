@@ -55,13 +55,16 @@
         <item name="shapeAppearance">@style/ShapeAppearance.BankSync.Large</item>
     </style>
 
-    <!-- Small all-caps-free label above each group of rows. -->
+    <!-- Small all-caps-free label above each group of rows; an optional drawableStart icon takes its colour. -->
     <style name="Widget.BankSync.SectionTitle" parent="">
         <item name="android:layout_width">match_parent</item>
         <item name="android:layout_height">wrap_content</item>
         <item name="android:layout_marginTop">24dp</item>
         <item name="android:layout_marginBottom">8dp</item>
         <item name="android:paddingStart">4dp</item>
+        <item name="android:gravity">center_vertical</item>
+        <item name="android:drawablePadding">8dp</item>
+        <item name="android:drawableTint">?attr/colorPrimary</item>
         <item name="android:textAppearance">?attr/textAppearanceTitleSmall</item>
         <item name="android:textColor">?attr/colorPrimary</item>
     </style>
@@ -115,5 +118,32 @@
         <item name="android:layout_width">0dp</item>
         <item name="android:layout_height">wrap_content</item>
         <item name="android:layout_weight">1</item>
+    </style>
+
+    <!-- The icon in front of a tile's label; tinted in code to match the count. -->
+    <style name="Widget.BankSync.TileIcon" parent="">
+        <item name="android:layout_width">24dp</item>
+        <item name="android:layout_height">24dp</item>
+        <item name="android:importantForAccessibility">no</item>
+    </style>
+
+    <!-- A tile's label beside its icon, never taller than the icon: it shrinks to fit a narrow tile, then
+         wraps onto two smaller lines. No text appearance, whose fixed line height would stop it wrapping. -->
+    <style name="Widget.BankSync.TileLabel" parent="">
+        <item name="android:layout_width">0dp</item>
+        <item name="android:layout_height">24dp</item>
+        <item name="android:layout_weight">1</item>
+        <item name="android:layout_marginStart">6dp</item>
+        <item name="android:gravity">center_vertical</item>
+        <item name="android:maxLines">2</item>
+        <item name="android:includeFontPadding">false</item>
+        <item name="android:fontFamily">sans-serif-medium</item>
+        <item name="android:letterSpacing">0.00714</item>
+        <item name="android:textColor">?attr/colorOnSurfaceVariant</item>
+        <item name="android:textSize">14sp</item>
+        <item name="android:autoSizeTextType">uniform</item>
+        <item name="android:autoSizeMinTextSize">8sp</item>
+        <item name="android:autoSizeMaxTextSize">14sp</item>
+        <item name="android:autoSizeStepGranularity">0.5sp</item>
     </style>
 </resources>

@@ -1,6 +1,7 @@
 package app.banksync
 
 import android.app.Activity
+import android.content.res.ColorStateList
 import android.text.Editable
 import android.text.TextWatcher
 import android.view.LayoutInflater
@@ -10,6 +11,7 @@ import android.widget.AutoCompleteTextView
 import android.widget.CheckBox
 import android.view.WindowManager
 import android.widget.EditText
+import android.widget.ImageView
 import android.widget.ListView
 import android.widget.RadioButton
 import android.widget.TextView
@@ -184,7 +186,101 @@ object Dialogs {
             .create()
         dialog.setOnShowListener { refresh() }
         dialog.show()
+        dialog.danger(AlertDialog.BUTTON_NEUTRAL)
     }
+
+    /**
+     * Read-only details of any record in Recent activity: what Wallet has or will get (payee or payer,
+     * note, category, account) and where it stands. [partner] is the other half of a transfer. A record
+     * that hasn't been sent also gets a button that calls [onEdit] with the half to open.
+     */
+    fun showDetails(activity: Activity, rec: Rec, partner: Rec?, onEdit: (Rec) -> Unit) {
+        val settings = Settings(activity)
+        val rules = Demo.rules(settings)
+        val names = rules.associate { it.accountId to it.accountName }
+        val currencies = rules.associate { it.accountId to it.accountCurrency }
+        val inflater = LayoutInflater.from(activity)
+        val list = android.widget.LinearLayout(activity).apply {
+            orientation = android.widget.LinearLayout.VERTICAL
+            setPadding(0, 0, 0, 8.dp(activity))
+        }
+        /** One labelled line; [color], a colour resource, tints the value and its icon as on the row. */
+        fun add(icon: Int, label: String, value: String?, color: Int? = null) {
+            if (value.isNullOrBlank()) return
+            val item = inflater.inflate(R.layout.item_detail, list, false)
+            item.findViewById<ImageView>(R.id.detailIcon).apply {
+                setImageResource(icon)
+                if (color != null) imageTintList = ColorStateList.valueOf(activity.getColor(color))
+            }
+            item.findViewById<TextView>(R.id.detailLabel).text = label
+            item.findViewById<TextView>(R.id.detailValue).apply {
+                text = value
+                if (color != null) setTextColor(activity.getColor(color))
+            }
+            list.addView(item)
+        }
+        fun account(id: String?) = id?.let { names[it] ?: settings.accountName(it) }
+
+        val transfer = partner != null || rec.transferTo != null
+        // A transfer's outgoing half stands for both, as on the row.
+        val main = if (partner != null && (rec.amount ?: 0.0) > 0) partner else rec
+        val amount = main.amount ?: 0.0
+        val money = String.format(Locale.US, "%,.2f", kotlin.math.abs(amount))
+        when {
+            transfer -> add(R.drawable.ic_swap, "Amount", money, R.color.mark_transfer)
+            amount > 0 -> add(R.drawable.ic_arrow_in, "Amount", "+$money", R.color.amount_in)
+            else -> add(R.drawable.ic_arrow_out, "Amount", "−$money", R.color.amount_out)
+        }
+        if (transfer) {
+            val into = partner?.let { if ((rec.amount ?: 0.0) > 0) rec else it }
+            add(R.drawable.ic_wallet, "From", account(main.account) ?: "Account no longer linked")
+            add(R.drawable.ic_wallet, "To", account(into?.account ?: main.transferTo) ?: "Another Wallet account")
+        } else {
+            add(R.drawable.ic_person, if (amount > 0) "Payer" else "Payee", main.payee?.takeIf { it.isNotBlank() } ?: "None")
+            add(R.drawable.ic_wallet, "Wallet account", account(main.account) ?: "Account no longer linked")
+        }
+        if (!transfer && main.status != Store.UNPARSED) {
+            add(R.drawable.ic_label, "Category", main.categoryName ?: "None: Wallet files it as Unknown")
+            val note = main.noteEdit
+                ?: Parser.walletText(main.note.orEmpty(), main.payee, currencies[main.account].orEmpty(), settings.includeNote).note
+            add(R.drawable.ic_notes, "Note", note?.takeIf { it.isNotBlank() } ?: "None")
+        }
+        val iso = java.text.SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'", Locale.US).apply { timeZone = java.util.TimeZone.getTimeZone("UTC") }
+        add(R.drawable.ic_event, "When", iso.parse(main.date)?.let { java.text.SimpleDateFormat("d MMM yyyy, HH:mm", Locale.getDefault()).format(it) } ?: main.date)
+        val waiting = listOfNotNull(rec, partner).firstOrNull { it.status != Store.SYNCED }
+        val shown = waiting ?: rec
+        // Same icons and colours as the row's badge: blue waiting, amber needs you, red failed, green sent.
+        when (shown.status) {
+            Store.PENDING -> add(R.drawable.ic_schedule, "Status", "Waiting to send", R.color.mark_wait)
+            Store.REVIEW -> add(R.drawable.ic_schedule, "Status", "Waiting for your approval", R.color.status_warn)
+            Store.FAILED -> add(R.drawable.ic_error, "Status", "Couldn't be sent: ${shown.error ?: "unknown error"}", R.color.status_bad)
+            Store.UNPARSED -> add(R.drawable.ic_help, "Status", shown.error ?: "Not understood", R.color.status_warn)
+            else -> add(R.drawable.ic_check_circle, "Status", "Sent to Wallet", R.color.status_good)
+        }
+        // The alert itself is kept until it's sent; it helps with a record that wasn't understood.
+        if (main.status == Store.UNPARSED || main.status == Store.FAILED) add(R.drawable.ic_notifications, "Bank alert", main.note)
+
+        val builder = MaterialAlertDialogBuilder(activity)
+            .setTitle(if (transfer) "Transfer" else "Transaction")
+            .setView(android.widget.ScrollView(activity).apply {
+                setPadding(24.dp(activity), 0, 24.dp(activity), 0)
+                addView(list)
+            })
+            .setNegativeButton("Close", null)
+        if (waiting != null) {
+            builder.setPositiveButton(
+                when (waiting.status) {
+                    Store.UNPARSED -> "Fix"
+                    Store.REVIEW -> "Review"
+                    Store.FAILED -> "Retry or discard"
+                    else -> "Edit"
+                }
+            ) { _, _ -> onEdit(waiting) }
+        }
+        builder.show()
+    }
+
+    private fun Int.dp(activity: Activity) = (this * activity.resources.displayMetrics.density).toInt()
 
     /**
      * A captured transaction that hasn't gone yet: shows what will be sent and lets the user change the
@@ -197,8 +293,10 @@ object Dialogs {
         val amount = rec.amount ?: 0.0
         view.findViewById<TextView>(R.id.recordAmount).text =
             String.format(Locale.US, "%s%,.2f", if (amount > 0) "+" else "−", kotlin.math.abs(amount))
+        // Wallet files who it was with as the payee of an expense or the payer of income.
+        val role = if (amount > 0) "Payer" else "Payee"
         view.findViewById<TextView>(R.id.recordWhat).text =
-            rec.payee?.takeIf { it.isNotBlank() } ?: if (amount > 0) "Money in" else "Payment"
+            "$role: " + (rec.payee?.takeIf { it.isNotBlank() } ?: "none")
 
         val targets = Demo.rules(settings).distinctBy { it.accountId }.map { Target(it.accountId, it.accountName, it.accountCurrency) }
         var target = targets.firstOrNull { it.id == rec.account } ?: Target(rec.account, "Account no longer linked", "")
@@ -302,7 +400,8 @@ object Dialogs {
                 .setNegativeButton("Cancel", null)
             if (paired) builder.setNeutralButton("Not a transfer") { _, _ -> notTransfer() }
         }
-        builder.show()
+        val dialog = builder.show()
+        if (rec.status == Store.REVIEW) dialog.danger(AlertDialog.BUTTON_NEGATIVE)
     }
 
     /**
