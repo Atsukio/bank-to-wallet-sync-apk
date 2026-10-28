@@ -108,7 +108,7 @@ To retake them: ⋮ › **Try with demo data**, then screenshot each (power + vo
 ## Release
 1. Build the bundle: `.\gradlew.bat bundleRelease` (with `keystore.properties` in place), output `app/build/outputs/bundle/release/app-release.aab`.
 2. First upload: **Test and release › Testing › Closed testing**, create a track, add testers, upload the `.aab`, add release notes (the latest `Changelog` entry), roll out.
-3. Release notes for 1.5.1, which is what goes to Play (1.5 was never uploaded; Play's limit is 500 characters):
+3. Release notes for 1.5.2, which is what goes to Play (1.5 and 1.5.1 were never uploaded; Play's limit is 500 characters):
 
 ```
 • Touch 'n Go Cash ins to GO+ become a Wallet transfer
@@ -118,6 +118,7 @@ To retake them: ⋮ › **Try with demo data**, then screenshot each (power + vo
 • ShopeePay alerts are read and more ads skipped
 • Fixed transfers getting stuck waiting for approval
 • Fixed an unread alert's amount showing as −0.00
+• Transfer alerts are read whatever the method: DuitNow, Instant Transfer, IBG
 ```
 
 4. Personal developer accounts need 12 testers opted in for 14 days in a row before **Production** can be applied for.

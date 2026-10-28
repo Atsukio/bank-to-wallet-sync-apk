@@ -18,8 +18,8 @@ android {
         applicationId = "app.banksync"
         minSdk = 26
         targetSdk = 36
-        versionCode = 7
-        versionName = "1.5.1"
+        versionCode = 8
+        versionName = "1.5.2"
     }
 
     signingConfigs {

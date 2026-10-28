@@ -13,6 +13,12 @@ class Release(val code: Int, val name: String, val date: String, val changes: Li
 object Changelog {
     val releases = listOf(
         Release(
+            8, "1.5.2", "28 Oct 2026",
+            listOf(
+                "Checked that transfer alerts are read the same whether they say DuitNow, Instant Transfer, IBG or another transfer method.",
+            )
+        ),
+        Release(
             7, "1.5.1", "28 Oct 2026",
             listOf(
                 "Fixed the details of an alert the app couldn't read showing its amount as −0.00. It now says the amount wasn't read.",
