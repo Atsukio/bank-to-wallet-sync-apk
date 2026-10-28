@@ -232,6 +232,8 @@ object Dialogs {
         val amount = main.amount ?: 0.0
         val money = String.format(Locale.US, "%,.2f", kotlin.math.abs(amount))
         when {
+            // A "not understood" alert has no amount until it is fixed; don't show it as 0.00.
+            main.amount == null -> add(R.drawable.ic_help, "Amount", "Not read from the alert")
             transfer -> add(R.drawable.ic_swap, "Amount", money, R.color.mark_transfer)
             amount > 0 -> add(R.drawable.ic_arrow_in, "Amount", "+$money", R.color.amount_in)
             else -> add(R.drawable.ic_arrow_out, "Amount", "−$money", R.color.amount_out)
