@@ -13,6 +13,12 @@ class Release(val code: Int, val name: String, val date: String, val changes: Li
 object Changelog {
     val releases = listOf(
         Release(
+            7, "1.5.1", "28 Oct 2026",
+            listOf(
+                "Fixed the details of an alert the app couldn't read showing its amount as −0.00. It now says the amount wasn't read.",
+            )
+        ),
+        Release(
             6, "1.5", "28 Oct 2026",
             listOf(
                 "Touch 'n Go Cash ins to GO+ become a transfer from your Touch 'n Go account to your GO+ account in Wallet. No GO+ account in Wallet? The app offers to ignore Cash ins instead, and Settings has a switch for it.",
