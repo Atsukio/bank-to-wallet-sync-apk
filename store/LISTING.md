@@ -96,17 +96,19 @@ The app needs a BudgetBakers Wallet Premium API token and a bank app's notificat
 - The battery exemption isn't requested; the user sets "Unrestricted" on the app's settings page if they choose to.
 
 ## Screenshots
-Use demo mode only, never real transactions. On the phone: ⋮ › **Try with demo data**, then take screenshots (power + volume down) of, for example:
-1. The home screen (demo hero card, counts and recent activity)
-2. A waiting record opened (tap "City Ride" or "Sample Electric")
-3. The "not understood" alert opened (tap the "Sample Bank: RM30.00" row)
-4. Settings
-Play needs 2 to 8 phone screenshots, PNG or JPEG, sides between 320 and 3840 px, the long side no more than twice the short side. Phone screenshots are usually 1080×2400, which is over 2:1, so crop them to 1080×2160 (or a 9:16 crop) before uploading.
+Use demo mode only, never real transactions. The ones in `screenshots/` (1.5, taken on the emulator with a clean status bar) are, in upload order:
+1. `1-home.png`: the home screen (demo hero card, counts and recent activity)
+2. `2-details.png`: "Sample Electric" tapped, the record details
+3. `3-approve.png`: its Review button, the "Send to Wallet?" dialog
+4. `4-not-understood.png`: the "Sample Bank: RM30.00" row's Fix button, the "Enter this transaction" dialog
+5. `5-dark.png`: the home screen in dark mode
+
+To retake them: ⋮ › **Try with demo data**, then screenshot each (power + volume down). Play needs 2 to 8 phone screenshots, PNG or JPEG, sides between 320 and 3840 px, the long side no more than twice the short side. Phone screenshots are usually 1080×2400, which is over 2:1, so crop them to 1080×2160 (or a 9:16 crop) before uploading.
 
 ## Release
 1. Build the bundle: `.\gradlew.bat bundleRelease` (with `keystore.properties` in place), output `app/build/outputs/bundle/release/app-release.aab`.
 2. First upload: **Test and release › Testing › Closed testing**, create a track, add testers, upload the `.aab`, add release notes (the latest `Changelog` entry), roll out.
-3. Release notes for 1.5 (Play's limit is 500 characters):
+3. Release notes for 1.5.1, which is what goes to Play (1.5 was never uploaded; Play's limit is 500 characters):
 
 ```
 • Touch 'n Go Cash ins to GO+ become a Wallet transfer
@@ -115,6 +117,7 @@ Play needs 2 to 8 phone screenshots, PNG or JPEG, sides between 320 and 3840 px,
 • Payees go in Wallet's payee field
 • ShopeePay alerts are read and more ads skipped
 • Fixed transfers getting stuck waiting for approval
+• Fixed an unread alert's amount showing as −0.00
 ```
 
 4. Personal developer accounts need 12 testers opted in for 14 days in a row before **Production** can be applied for.
