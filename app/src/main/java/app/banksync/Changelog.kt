@@ -13,6 +13,20 @@ class Release(val code: Int, val name: String, val date: String, val changes: Li
 object Changelog {
     val releases = listOf(
         Release(
+            6, "1.5", "28 Oct 2026",
+            listOf(
+                "Touch 'n Go Cash ins to GO+ become a transfer from your Touch 'n Go account to your GO+ account in Wallet. No GO+ account in Wallet? The app offers to ignore Cash ins instead, and Settings has a switch for it.",
+                "A bank app with several accounts can have a default: tap one of its accounts in Bank apps (or tick the box when adding one) and alerts that name none of your accounts, such as some transfers, go there. Alerts naming an account ending you haven't linked are still held for you, and now say which ending it was.",
+                "Alerts held because no account matched are tried again as soon as you link an account or set a default, so you don't have to fix them by hand.",
+                "Fixed a transfer getting stuck waiting for you when its first side had no category.",
+                "Tap anything in Recent activity to see its details: payee, account, category, note and status, with Fix, Review, Edit and Retry for ones not sent yet. Rows show the note Wallet will get.",
+                "Edit the note Wallet gets while a record waits to send. Clear it to send no note.",
+                "Shops and people you pay now go in Wallet's payee field, like people who send you money. The note repeats the name only when the alert gives a fuller one.",
+                "ShopeePay alerts from the Shopee app are read, and more ads (promo codes, \"chip in\" offers) are skipped.",
+                "Delete and drop buttons are red, and the home screen and Settings have icons.",
+            )
+        ),
+        Release(
             5, "1.4", "25 Oct 2026",
             listOf(
                 "Transfers between your own accounts: money out of one bank and the same amount into another within 5 minutes becomes one Wallet transfer, instead of an expense and an income. Tap one that's still waiting and choose \"Not a transfer\" if it got it wrong.",
