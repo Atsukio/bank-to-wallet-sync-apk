@@ -19,8 +19,8 @@ import com.google.android.material.dialog.MaterialAlertDialogBuilder
 
 /** The add-a-bank-app and add-a-category flows plus the rule lists, shared by the main screen and setup guide. */
 object Pickers {
-    /** Banks with a parser: CIMB OCTO, Ryt Bank, Touch 'n Go eWallet, Maybank2u / MAE. */
-    private val SUPPORTED = Regex("""cimb|octo|\bryt\b|touch|\btng\b|maybank|\bmae\b|\bm2u""", RegexOption.IGNORE_CASE)
+    /** Banks with a parser: CIMB OCTO, Ryt Bank, Touch 'n Go eWallet, Maybank2u / MAE, ShopeePay (in the Shopee app). */
+    private val SUPPORTED = Regex("""cimb|octo|\bryt\b|touch|\btng\b|maybank|\bmae\b|\bm2u|shopee""", RegexOption.IGNORE_CASE)
 
     /**
      * True when a Wallet account's name mentions the bank behind [appLabel]. Apps that aren't one of
@@ -33,6 +33,7 @@ object Pickers {
             Regex("""\bryt\b""").containsMatchIn(label) -> listOf("ryt")
             "touch" in label || Regex("""\btng\b""").containsMatchIn(label) -> listOf("tng", "touch", "go+")
             Regex("""maybank|\bmae\b|\bm2u""").containsMatchIn(label) -> listOf("maybank", "mae", "m2u")
+            "shopee" in label -> listOf("shopee", "spay")
             else -> return false
         }
         return names.any { Regex("""\b${Regex.escape(it)}""", RegexOption.IGNORE_CASE).containsMatchIn(accountName) }

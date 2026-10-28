@@ -152,7 +152,9 @@ object Parser {
             """\bup to\b""", """\bmin(?:imum)?\.?\s+spend""", """\bt\s?&\s?cs?\b""", """\bterms\s+(?:and|&)\s+conditions\b""",
             """\bstand a chance\b""", """\bpromo(?:tion)?s?\b""", """\bcampaign\b""", """\blimited[- ]time\b""",
             """\b(?:sign up|apply now|register now|shop now|don'?t miss)\b""", """\bvalid (?:until|till)\b""",
-            """\bwhen you (?:spend|pay|shop|top up|transfer)\b""", """\benjoy\b""",
+            """\bwhen you (?:spend|pay|shop|top up|transfer|buy|purchase|book|subscribe)\b""", """\benjoy\b""",
+            // Not a bare "code:", which real alerts use for approval codes.
+            """\b(?:use|using|with) (?:promo |voucher )?code\b""", """\bchip in\b""",
             """\bminimum payment\b""", """\b(?:payment )?(?:is )?due (?:on|by|date)\b""", """\bstatement is (?:ready|available)\b""",
             """\breminder\b""",
         ).joinToString("|"),
@@ -185,11 +187,13 @@ object Parser {
             debit == null -> true
             else -> credit < debit
         }
-        // "to you" / "from you" names the user, not the other party, and a candidate that swallowed an
-        // amount ("to Mobile/ID RM 10") isn't a name either.
+        // "to you" / "from you" names the user, not the other party, a candidate that swallowed an
+        // amount ("to Mobile/ID RM 10") isn't a name either, and nor is a masked number ("to *****").
         val payee = (senderRe.find(text) ?: payeeRe.find(text))?.groupValues?.get(1)
             ?.replace(phoneTailRe, "")?.trim()?.take(100)
-            ?.takeIf { it.isNotEmpty() && !it.equals("you", ignoreCase = true) && amountRe.find(it) == null }
+            ?.takeIf {
+                it.isNotEmpty() && !it.equals("you", ignoreCase = true) && amountRe.find(it) == null && "**" !in it
+            }
         return Parsed(if (income) amount else -amount, payee, currencyOf(m.groupValues[1]))
     }
 

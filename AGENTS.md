@@ -1,6 +1,6 @@
 # AGENTS.md
 
-Android app "Bank to Wallet" (package `app.banksync`): reads bank-app notifications (e.g. CIMB OCTO MY, Ryt Bank, TNG eWallet, MAE/Maybank2u) and adds them as records in BudgetBakers Wallet through its REST API. Sibling of the Chrome extension in `../bank-to-wallet-sync` (same owner, same Wallet API, same category logic). Sideloaded for the owner's own use, and being prepared for Google Play (closed testing first); see `store/LISTING.md`.
+Android app "Bank to Wallet" (package `app.banksync`): reads bank-app notifications (e.g. CIMB OCTO MY, Ryt Bank, TNG eWallet, MAE/Maybank2u, ShopeePay in the Shopee app) and adds them as records in BudgetBakers Wallet through its REST API. Sibling of the Chrome extension in `../bank-to-wallet-sync` (same owner, same Wallet API, same category logic). Sideloaded for the owner's own use, and being prepared for Google Play (closed testing first); see `store/LISTING.md`.
 
 Priorities, in order: battery and data (nothing runs unless a notification arrives or an upload is due), never losing or duplicating a transaction (offline queue with retry), then a clean Material 3 UI.
 

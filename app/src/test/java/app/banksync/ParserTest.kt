@@ -178,6 +178,79 @@ class ParserTest {
     }
 
     @Test
+    fun tngDuitNowTransferOut() {
+        val p = Parser.parse(
+            "TNG eWallet DuitNow Transfer is successful! You have successfully transferred RM 12.00 to Sample Person."
+        )
+        assertNotNull(p)
+        assertEquals(-12.00, p!!.amount, 0.0)
+        assertEquals("Sample Person", p.payee)
+        assertEquals("MYR", p.currency)
+    }
+
+    @Test
+    fun shopeePayMoneyReceived() {
+        val p = Parser.parse(
+            "ShopeePay ShopeePay money received! Sample Person has transferred RM5.00 to your ShopeePay wallet via DuitNow."
+        )
+        assertNotNull(p)
+        assertEquals(5.00, p!!.amount, 0.0) // "to your ... wallet" is the user's side
+        assertEquals("Sample Person", p.payee)
+        assertEquals("MYR", p.currency)
+    }
+
+    @Test
+    fun shopeePayTransferOutToAMaskedNameHasNoPayee() {
+        val p = Parser.parse(
+            "Send Money via DuitNow Transfer Successful Your RM5.00 transfer to ***** via DuitNow is successful."
+        )
+        assertNotNull(p)
+        assertEquals(-5.00, p!!.amount, 0.0)
+        assertNull(p.payee)
+        assertEquals("MYR", p.currency)
+    }
+
+    @Test
+    fun otherWordingsOfTheSameAlerts() {
+        // MAE: "DuitNow of" with no "Transfer", and "just received".
+        val maeOut = Parser.parse(
+            "Maybank2u: Transfer DuitNow of RM 1,234.00 to Sample Person. Mobile Number: ****1234. REF: ABC123"
+        )!!
+        assertEquals(-1234.00, maeOut.amount, 0.0)
+        assertEquals("Sample Person", maeOut.payee)
+        assertEquals("Ref ABC123", Parser.note("Maybank2u: Transfer DuitNow of RM 1,234.00 to Sample Person. REF: ABC123", null, "MYR"))
+        assertEquals(3.00, Parser.parse("Maybank2u: Funds Received You've just received RM 3.00 in your account ending ***1234. REF: ABC123")!!.amount, 0.0)
+        // CIMB: "Successful DuitNow to Mobile/ID" with no "Transfer".
+        val cimbOut = Parser.parse(
+            "CIMB OCTO MY Successful DuitNow to Mobile/ID RM 3.00 to ****1234(Mobile Number) on 24-Oct-2026, 18:27:46. " +
+                "Call the no at the back of your card for queries."
+        )!!
+        assertEquals(-3.00, cimbOut.amount, 0.0)
+        assertNull(cimbOut.payee)
+    }
+
+    @Test
+    fun cimbEveningTimes() {
+        val zone = ZoneOffset.ofHours(8)
+        // CIMB writes a transfer out in 24-hour time and money in with a 12-hour clock and no PM.
+        val posted = Instant.parse("2026-10-24T10:08:30Z").toEpochMilli() // 6:08:30 PM local
+        assertEquals(
+            Instant.parse("2026-10-24T10:07:55Z").toEpochMilli(),
+            Parser.recordTime("CIMB OCTO MY You've received RM3.00 in your account ending 1234 on 24-OCT-2026, 06:07:55.", posted, zone),
+        )
+        val sent = Instant.parse("2026-10-24T10:28:00Z").toEpochMilli() // 6:28 PM local
+        assertEquals(
+            Instant.parse("2026-10-24T10:27:46Z").toEpochMilli(),
+            Parser.recordTime("Successful DuitNow to Mobile/ID RM 3.00 to ****1234(Mobile Number) on 24-Oct-2026, 18:27:46.", sent, zone),
+        )
+        // Ryt writes PM and its own offset.
+        assertEquals(
+            Instant.parse("2026-10-24T10:27:00Z").toEpochMilli(),
+            Parser.recordTime("You've received RM3.00 from Sample Person on 24/10/2026, 6:27 PM (GMT+8).", sent, zone),
+        )
+    }
+
+    @Test
     fun amountWithThousandsSeparator() {
         val p = Parser.parse("You've received RM1,234.50 from Sample Person on 1 Jan")
         assertEquals(1234.50, p!!.amount, 0.0)
@@ -225,6 +298,8 @@ class ParserTest {
             "Sample Bank Get up to 5% back on groceries this weekend!",
             "Sample Bank Your card statement is ready. Minimum payment RM 50.00 is due on 10/11/2026.",
             "Sample Wallet Reminder: your bill of RM 80.00 is due by 1 Nov.",
+            "Sample Wallet Fuel Money On Us Sample, we'll chip in RM20 when you buy your car insurance via SampleInsure using code: SAMPLE8",
+            "Sample Wallet Get RM5 off your next ride with code RIDE5",
         ).forEach { assertTrue(it, Parser.isNotice(it)) }
     }
 
@@ -237,6 +312,7 @@ class ParserTest {
             "Sample Bank You received RM5.00 cashback on your card ending 1234.",
             // A payment word with an amount it can't read is still kept for the user to enter.
             "Sample Bank You've paid 13.00 MYR at Sample Shop",
+            "Sample Bank You've spent RM 25.00 at Sample Shop. Approval code: 123456",
         ).forEach { assertFalse(it, Parser.isNotice(it)) }
     }
 

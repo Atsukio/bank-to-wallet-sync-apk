@@ -35,7 +35,7 @@ Everything happens on your phone. Records go straight from your phone to the off
 
 REQUIREMENTS
 • A BudgetBakers Wallet Premium account (Wallet's REST API is Premium only) and an API token, created in the Wallet web app.
-• A bank or e-wallet app that shows transaction notifications. Built and tested with Malaysian apps (amounts in RM, as well as foreign-currency payments), such as CIMB OCTO, MAE by Maybank, Ryt Bank and Touch 'n Go eWallet.
+• A bank or e-wallet app that shows transaction notifications. Built and tested with Malaysian apps (amounts in RM, as well as foreign-currency payments), such as CIMB OCTO, MAE by Maybank, Ryt Bank, Touch 'n Go eWallet and ShopeePay.
 • Android 8.0 or newer.
 
 A NOTE FROM THE DEVELOPER
