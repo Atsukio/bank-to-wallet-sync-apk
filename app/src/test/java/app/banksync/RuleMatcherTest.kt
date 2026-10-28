@@ -77,6 +77,7 @@ class RuleMatcherTest {
         assertEquals(listOf("9999"), RuleMatcher.endings("Paid RM 5.00 from your savings account no. XXXX9999."))
         // A payee's masked number isn't the user's.
         assertEquals(emptyList<String>(), RuleMatcher.endings("Transfer of RM 5.00 to ****9999 is successful."))
+        assertEquals(emptyList<String>(), RuleMatcher.endings("Successful IBG Transfer to Account RM 3.00 to ****9999(Account Number) on 24-Oct-2026"))
     }
 
     @Test

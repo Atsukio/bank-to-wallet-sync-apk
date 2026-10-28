@@ -230,6 +230,33 @@ class ParserTest {
     }
 
     @Test
+    fun transferAlertsReadTheSameWhateverTheMethod() {
+        // "DuitNow Transfer" is only the method; the same alerts say Instant Transfer, IBG and so on.
+        for (method in listOf("DuitNow Transfer", "DuitNow", "Instant Transfer", "IBG Transfer", "Interbank GIRO", "Bank Transfer")) {
+            for (target in listOf("Mobile/ID", "Account")) {
+                val cimb = Parser.parse(
+                    "CIMB OCTO MY Successful $method to $target RM 3.00 to ****1234($target Number) on 24-Oct-2026, 18:27:46. " +
+                        "Call the no at the back of your card for queries."
+                )!!
+                assertEquals("$method to $target", -3.00, cimb.amount, 0.0)
+                assertNull(method, cimb.payee)
+            }
+            val mae = Parser.parse("Maybank2u: Transfer $method of RM 10.00 to Sample Person. Mobile number: ****1234. REF: ABC123")!!
+            assertEquals(method, -10.00, mae.amount, 0.0)
+            assertEquals(method, "Sample Person", mae.payee)
+            val tng = Parser.parse("TNG eWallet $method is successful! You have successfully transferred RM 12.00 to Sample Person.")!!
+            assertEquals(method, -12.00, tng.amount, 0.0)
+            assertEquals(method, "Sample Person", tng.payee)
+            val shopeeIn = Parser.parse("ShopeePay ShopeePay money received! Sample Person has transferred RM5.00 to your ShopeePay wallet via $method.")!!
+            assertEquals(method, 5.00, shopeeIn.amount, 0.0)
+            assertEquals(method, "Sample Person", shopeeIn.payee)
+            val shopeeOut = Parser.parse("Send Money via $method Successful Your RM5.00 transfer to ***** via $method is successful.")!!
+            assertEquals(method, -5.00, shopeeOut.amount, 0.0)
+            assertNull(method, shopeeOut.payee)
+        }
+    }
+
+    @Test
     fun cimbEveningTimes() {
         val zone = ZoneOffset.ofHours(8)
         // CIMB writes a transfer out in 24-hour time and money in with a 12-hour clock and no PM.
