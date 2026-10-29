@@ -108,10 +108,11 @@ To retake them: ⋮ › **Try with demo data**, then screenshot each (power + vo
 ## Release
 1. Build the bundle: `.\gradlew.bat bundleRelease` (with `keystore.properties` in place), output `app/build/outputs/bundle/release/app-release.aab`.
 2. First upload: **Test and release › Testing › Closed testing**, create a track, add testers, upload the `.aab`, add release notes (the latest `Changelog` entry), roll out.
-3. Release notes for 1.5.2 (1.5.1 and earlier are already on Play; Play's limit is 500 characters):
+3. Release notes for 1.5.3 (1.5.2 and earlier are already on Play; Play's limit is 500 characters):
 
 ```
-• Transfer alerts are read the same whatever the method: DuitNow, Instant Transfer, IBG and others
+• More bank ads are skipped instead of showing as not understood
+• Delete an alert the app couldn't read straight from its details
 ```
 
 4. Personal developer accounts need 12 testers opted in for 14 days in a row before **Production** can be applied for.

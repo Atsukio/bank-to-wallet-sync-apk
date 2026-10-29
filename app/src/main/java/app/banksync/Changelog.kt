@@ -13,6 +13,13 @@ class Release(val code: Int, val name: String, val date: String, val changes: Li
 object Changelog {
     val releases = listOf(
         Release(
+            9, "1.5.3", "29 Oct 2026",
+            listOf(
+                "More bank ads are skipped, such as Ryt's \"keep earning interest\" reminders, instead of showing as not understood.",
+                "Delete an alert the app couldn't read straight from its details, without opening Fix first.",
+            )
+        ),
+        Release(
             8, "1.5.2", "28 Oct 2026",
             listOf(
                 "Checked that transfer alerts are read the same whether they say DuitNow, Instant Transfer, IBG or another transfer method.",
