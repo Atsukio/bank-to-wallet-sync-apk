@@ -668,7 +668,7 @@ class MainActivity : LockedActivity() {
                     visibility = View.VISIBLE
                     rotation = if (r.id in openTransfers) 180f else 0f
                 }
-                row.setOnClickListener { Dialogs.showDetails(this, r, partner, ::openRecord) }
+                row.setOnClickListener { Dialogs.showDetails(this, r, partner, ::openRecord, ::deleteUnread) }
                 chevron.setOnClickListener {
                     val opening = openTransfers.add(r.id)
                     if (!opening) openTransfers.remove(r.id)
@@ -682,7 +682,7 @@ class MainActivity : LockedActivity() {
                     addView(halves)
                 })
             } else {
-                row.setOnClickListener { Dialogs.showDetails(this, r, null, ::openRecord) }
+                row.setOnClickListener { Dialogs.showDetails(this, r, null, ::openRecord, ::deleteUnread) }
                 list.addView(row)
             }
 
@@ -726,7 +726,7 @@ class MainActivity : LockedActivity() {
             }
             setTextColor(context.getColor(if (out) R.color.amount_out else R.color.amount_in))
         }
-        row.setOnClickListener { Dialogs.showDetails(this, half, null, ::openRecord) }
+        row.setOnClickListener { Dialogs.showDetails(this, half, null, ::openRecord, ::deleteUnread) }
         return row
     }
 
@@ -792,6 +792,14 @@ class MainActivity : LockedActivity() {
             .setNegativeButton("Cancel", null)
             .show()
             .danger(DialogInterface.BUTTON_POSITIVE)
+    }
+
+    /** The details dialog's Delete: an alert that wasn't understood goes without asking, as from the Fix dialog. */
+    private fun deleteUnread(r: Rec) {
+        store.delete(r.id)
+        refresh()
+        if (Demo.active) return
+        Snackbar.make(findViewById(R.id.root), "Deleted", Snackbar.LENGTH_LONG).setAction("Scan now") { scan() }.show()
     }
 
     private var namesRequested = false

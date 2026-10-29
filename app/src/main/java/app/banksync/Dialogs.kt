@@ -197,9 +197,10 @@ object Dialogs {
     /**
      * Read-only details of any record in Recent activity: what Wallet has or will get (payee or payer,
      * note, category, account) and where it stands. [partner] is the other half of a transfer. A record
-     * that hasn't been sent also gets a button that calls [onEdit] with the half to open.
+     * that hasn't been sent also gets a button that calls [onEdit] with the half to open, and one that
+     * wasn't understood a Delete button that calls [onDelete].
      */
-    fun showDetails(activity: Activity, rec: Rec, partner: Rec?, onEdit: (Rec) -> Unit) {
+    fun showDetails(activity: Activity, rec: Rec, partner: Rec?, onEdit: (Rec) -> Unit, onDelete: (Rec) -> Unit) {
         val settings = Settings(activity)
         val rules = Demo.rules(settings)
         val names = rules.associate { it.accountId to it.accountName }
@@ -284,7 +285,10 @@ object Dialogs {
                 }
             ) { _, _ -> onEdit(waiting) }
         }
-        builder.show()
+        val unread = waiting?.takeIf { it.status == Store.UNPARSED }
+        if (unread != null) builder.setNeutralButton("Delete") { _, _ -> onDelete(unread) }
+        val dialog = builder.show()
+        if (unread != null) dialog.danger(AlertDialog.BUTTON_NEUTRAL)
     }
 
     private fun Int.dp(activity: Activity) = (this * activity.resources.displayMetrics.density).toInt()
