@@ -156,7 +156,7 @@ object Parser {
             // Not a bare "code:", which real alerts use for approval codes.
             """\b(?:use|using|with) (?:promo |voucher )?code\b""", """\bchip in\b""",
             """\bminimum payment\b""", """\b(?:payment )?(?:is )?due (?:on|by|date)\b""", """\bstatement is (?:ready|available)\b""",
-            """\breminder\b""",
+            """\breminder\b""", """\bkeep (?:earning|saving|growing)\b""", """\bthe more you\b""",
         ).joinToString("|"),
     )
 

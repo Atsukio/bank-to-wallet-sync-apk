@@ -327,6 +327,8 @@ class ParserTest {
             "Sample Wallet Reminder: your bill of RM 80.00 is due by 1 Nov.",
             "Sample Wallet Fuel Money On Us Sample, we'll chip in RM20 when you buy your car insurance via SampleInsure using code: SAMPLE8",
             "Sample Wallet Get RM5 off your next ride with code RIDE5",
+            // Title, then body, as the listener joins them. "paid" is a payment word, but the rest only an ad says.
+            "Balance looking a little empty 😁. Keep earning interest paid daily by adding money. The more you add, the more we make grow!",
         ).forEach { assertTrue(it, Parser.isNotice(it)) }
     }
 
