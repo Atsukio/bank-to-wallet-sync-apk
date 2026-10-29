@@ -13,6 +13,12 @@ class Release(val code: Int, val name: String, val date: String, val changes: Li
 object Changelog {
     val releases = listOf(
         Release(
+            10, "1.5.4", "29 Oct 2026",
+            listOf(
+                "Bank notifications with no amount in them are skipped instead of showing as not understood. Turn off \"Skip ads and notices\" in Settings to keep them.",
+            )
+        ),
+        Release(
             9, "1.5.3", "29 Oct 2026",
             listOf(
                 "More bank ads are skipped, such as Ryt's \"keep earning interest\" reminders, instead of showing as not understood.",
