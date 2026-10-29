@@ -329,6 +329,9 @@ class ParserTest {
             "Sample Wallet Get RM5 off your next ride with code RIDE5",
             // Title, then body, as the listener joins them. "paid" is a payment word, but the rest only an ad says.
             "Balance looking a little empty 😁. Keep earning interest paid daily by adding money. The more you add, the more we make grow!",
+            // A payment word with no amount at all isn't something to enter either.
+            "Sample Bank Your payment was successful. Tap to view the details.",
+            "Sample Wallet Interest is paid daily into your savings.",
         ).forEach { assertTrue(it, Parser.isNotice(it)) }
     }
 
@@ -339,7 +342,7 @@ class ParserTest {
             "Ryt Bank Your money is in! You've received RM42.00 from Sample Person on 1 Jan, 10:30 AM",
             "Maybank2u: Card Transaction You've just spent RM 110.25 at SAMPLE SHOP with your Maybank Shopee Visa Platinum ending 1234.",
             "Sample Bank You received RM5.00 cashback on your card ending 1234.",
-            // A payment word with an amount it can't read is still kept for the user to enter.
+            // An amount written in a way parse can't read is still kept for the user to enter.
             "Sample Bank You've paid 13.00 MYR at Sample Shop",
             "Sample Bank You've spent RM 25.00 at Sample Shop. Approval code: 123456",
         ).forEach { assertFalse(it, Parser.isNotice(it)) }

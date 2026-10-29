@@ -328,7 +328,7 @@
 
                     <TextView
                         style="@style/Widget.BankSync.SettingHint"
-                        android:text="Login and security notices, offers (&quot;up to&quot;, &quot;T&amp;C apply&quot;) and bill reminders aren't kept. An alert that mentions a payment is still kept even if it can't be read." />
+                        android:text="Login and security notices, offers (&quot;up to&quot;, &quot;T&amp;C apply&quot;) and bill reminders aren't kept, nor is anything without an amount. An alert with an amount is still kept even if it can't be read." />
 
                     <com.google.android.material.textfield.TextInputLayout
                         style="@style/Widget.BankSync.Field"

@@ -160,15 +160,18 @@ object Parser {
         ).joinToString("|"),
     )
 
+    /** Money written in a way [amountRe] doesn't read, such as "13.00 MYR": a number with cents. */
+    private val centsRe = Regex("""\d\.\d{2}\b""")
+
     /**
-     * True for a bank notification that isn't a transaction: no amount and no payment word (a login or
-     * security notice), or ad, offer and reminder wording. Those are dropped instead of being kept as
-     * "not understood". An alert with a payment word but an amount it can't read is still kept.
+     * True for a bank notification that isn't a transaction: no amount (a login or security notice, or an
+     * ad that only talks about money), or ad, offer and reminder wording. Those are dropped instead of
+     * being kept as "not understood". An amount [parse] can't read, such as "13.00 MYR", still counts,
+     * so that alert is kept for the user to enter.
      */
     fun isNotice(text: String): Boolean {
-        val lower = text.lowercase()
-        if (noticeRe.containsMatchIn(lower)) return true
-        return amountRe.find(text) == null && creditRe.find(lower) == null && debitRe.find(lower) == null
+        if (noticeRe.containsMatchIn(text.lowercase())) return true
+        return amountRe.find(text) == null && centsRe.find(text) == null
     }
 
     fun amountOf(text: String): Double? =
