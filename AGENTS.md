@@ -85,7 +85,8 @@ Read by the `android-play-release` skill (TeamPotatoes/claude-skills); "the usua
 | Play notes | `store/LISTING.md`, the block under "Release notes for X.Y" |
 | Privacy policy and listing | `PRIVACY.md` (with its "last updated" date), `store/LISTING.md` (description and Data safety answers) |
 | Screenshots | `.\tools\screenshots.ps1` (emulator only) |
-| Build | `.\gradlew.bat testDebugUnitTest lintDebug bundleRelease --no-daemon --console=plain` (JAVA_HOME as above); bundle in `app/build/outputs/bundle/release/` |
+| Check | `.\gradlew.bat testDebugUnitTest lintDebug assembleRelease --no-daemon --console=plain` (JAVA_HOME as above) |
+| Bundle | only when the owner asks: `.\gradlew.bat bundleRelease --no-daemon --console=plain`, output in `app/build/outputs/bundle/release/` |
 | Release commit | `feat: release X.Y <what's in it>`, after the feature commits; no tag |
 | Open release | see Status below: while a version is "not on Play yet", new work joins its entry |
 
