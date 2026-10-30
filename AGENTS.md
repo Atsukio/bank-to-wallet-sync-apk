@@ -100,7 +100,7 @@ $env:JAVA_HOME = "C:\Program Files\Eclipse Adoptium\jdk-17.0.20.101-hotspot"
 - New screen: extend `LockedActivity`, call `applyInsets`, declare it `exported="false"` in the manifest.
 - Keep components unexported unless protected by a system permission; `PendingIntent`s immutable.
 - Colours via theme attributes and `Tone`, never hard-coded hex in Kotlin. Check light and dark.
-- Files use CRLF on disk; the "LF will be replaced by CRLF" warning is harmless. Prefer the Edit tool; script patches go in the scratchpad and must keep line endings.
+- Files are LF in the repo and on disk (`.gitattributes`; only `.bat` is CRLF), whatever `core.autocrlf` says. Prefer the Edit tool; script patches go in the scratchpad.
 - Keep this file current in the same commit as a change that makes it wrong.
 
 ## Commit messages

@@ -1,0 +1,15 @@
+# LF in the working tree on every machine, whatever core.autocrlf says, so editors, patches and
+# scripts all see the same line endings.
+* text=auto eol=lf
+
+# Windows scripts keep CRLF.
+*.bat text eol=crlf
+*.cmd text eol=crlf
+
+*.png binary
+*.webp binary
+*.jar binary
+*.jks binary
+*.keystore binary
+*.aab binary
+*.apk binary
