@@ -63,6 +63,7 @@ $env:JAVA_HOME = "C:\Program Files\Eclipse Adoptium\jdk-17.0.20.101-hotspot"
 - Results: `app/build/test-results/testDebugUnitTest/*.xml`; APKs in `app/build/outputs/apk/`. Report failures with their output. Don't run `clean`.
 - `lintDebug` after UI or manifest changes. Checks for deliberate choices are off in `app/build.gradle.kts`, so what's left in `app/build/reports/lint-results-debug.xml` is worth reading. Decorative images get `android:contentDescription="@null"`.
 - **See a UI change:** `.\tools\screenshots.ps1` builds, starts the `Medium_Phone_API_37.0` emulator, opens the app in demo mode and saves the Play screenshots to `store/screenshots/` (light and dark, 1080x2160). Look at them with the image reader; add a step for a new screen. Discard the result (`git checkout -- store/screenshots`) unless the screenshots should change.
+- CI (`.github/workflows/ci.yml`) runs the unit tests, lint and a debug build on every push; the owner pushes.
 - Only Gradle output counts; VS Code doesn't understand the Android build. After build file changes the owner runs **File › Sync Project with Gradle Files** in Android Studio.
 
 ## Toolchain rules (AGP 9)
