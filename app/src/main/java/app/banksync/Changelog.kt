@@ -13,7 +13,7 @@ class Release(val code: Int, val name: String, val date: String, val changes: Li
 object Changelog {
     val releases = listOf(
         Release(
-            12, "1.6", "30 Oct 2026",
+            12, "1.6", "31 Oct 2026",
             listOf(
                 "A fresh look for the home screen: Recent activity is grouped by day, each transaction shows who, its category and time, with a small label only when it needs something (waiting, no category, approve, failed). Money out is no longer red; money in stays green.",
                 "Tap a transaction for one sheet with its details and everything you can do: send it now, change it, hold it back, retry or remove it.",
