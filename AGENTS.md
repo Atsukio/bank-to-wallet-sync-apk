@@ -74,6 +74,21 @@ $env:JAVA_HOME = "C:\Program Files\Eclipse Adoptium\jdk-17.0.20.101-hotspot"
 - Release: R8 with resource shrinking, no keep rules needed. Signed with the upload key described in `keystore.properties` (git-ignored, never opened); without it the debug key, which Play rejects. Play takes the `.aab` from `bundleRelease`.
 - **Versioning:** for a release, bump `versionCode`/`versionName` in `app/build.gradle.kts` and add the entry at the top of `Changelog.releases` in plain English for users. Play release notes (≤ 500 characters) live in `store/LISTING.md`.
 
+## Release
+
+Read by the `android-play-release` skill (TeamPotatoes/claude-skills); "the usual" means running it.
+
+| Setting | Here |
+| --- | --- |
+| Version file | `app/build.gradle.kts` (`versionCode`, `versionName`) |
+| Changelog | `app/src/main/java/app/banksync/Changelog.kt` (`Changelog.releases`, newest first; `ChangelogTest` checks it) |
+| Play notes | `store/LISTING.md`, the block under "Release notes for X.Y" |
+| Privacy policy and listing | `PRIVACY.md` (with its "last updated" date), `store/LISTING.md` (description and Data safety answers) |
+| Screenshots | `.	ools\screenshots.ps1` (emulator only) |
+| Build | `.\gradlew.bat testDebugUnitTest lintDebug bundleRelease --no-daemon --console=plain` (JAVA_HOME as above); bundle in `app/build/outputs/bundle/release/` |
+| Release commit | `feat: release X.Y <what's in it>`, after the feature commits; no tag |
+| Open release | see Status below: while a version is "not on Play yet", new work joins its entry |
+
 ## How things work
 
 **Capture:** linked app only → ignore words → `Parser.isNotice` (no amount, or ad/offer/reminder wording: dropped) → duplicate check (hash, 2 min) → `RuleMatcher.pick` (none → UNPARSED) → `Parser.parse` (null → UNPARSED) → transfer match (`pairId`, no category) → `WalletCache.pick` → PENDING with a "picked up" notification, or REVIEW (review mode, or `askNoCategory` with no category). A TNG Cash in skips parsing: ignored if `cashInIgnored`, a transfer to the linked GO+ account, or held asking to ignore them. → `Uploader.schedule` after the batch delay (2 min default; 0 sends at once).
