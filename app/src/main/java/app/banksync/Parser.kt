@@ -24,8 +24,9 @@ object Parser {
     private val debitRe = Regex(
         """\b(spent|purchase[d]?|paid|debited|debit|withdraw(?:n|al)?|sent|payment|charged|transferred to|transfer to|duitnow to)\b"""
     )
+    // A dot ends the name only at the end of a sentence, so "Sample.com" stays whole.
     private val payeeRe = Regex(
-        """\b(?:at|to|from)\s+([^.,\n]+?)(?=\s+(?:on|with|using|via|for|ending|card)\b|[.,\n]|$)""",
+        """\b(?:at|to|from)\s+((?:[^.,\n]|\.(?=\S))+?)(?=\s+(?:on|with|using|via|for|ending|card)\b|\.(?!\S)|[,\n]|$)""",
         RegexOption.IGNORE_CASE
     )
 
@@ -227,7 +228,7 @@ object Parser {
      */
     private fun fullName(text: String, payee: String): String =
         Regex(
-            """\b(?:at|to)\s+(""" + Regex.escape(payee) + """[^.,\n]*?)(?=\s+(?:on|with|using|via|for|ending|card)\b|[.,\n]|$)""",
+            """\b(?:at|to)\s+(""" + Regex.escape(payee) + """(?:[^.,\n]|\.(?=\S))*?)(?=\s+(?:on|with|using|via|for|ending|card)\b|\.(?!\S)|[,\n]|$)""",
             RegexOption.IGNORE_CASE
         ).find(text)?.groupValues?.get(1)?.trim() ?: payee
 

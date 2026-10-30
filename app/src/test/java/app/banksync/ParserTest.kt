@@ -370,6 +370,18 @@ class ParserTest {
     }
 
     @Test
+    fun aDotInsideAMerchantNameIsKept() {
+        val text = "Maybank2u: Card Transaction You've just spent RM 120.50 at Sample.com Internet HK with your " +
+            "Maybank Shopee Visa Platinum ending 1234. View your receipt now."
+        val p = Parser.parse(text)!!
+        assertEquals(-120.50, p.amount, 0.001)
+        assertEquals("Sample.com Internet HK", p.payee)
+        assertNull(Parser.walletText(text, p.payee, "MYR", true).note)
+        // A dot that ends a sentence still ends the name.
+        assertEquals("Sample Person", Parser.parse("Transfer of RM 10.00 to Sample Person. REF: ABC123")!!.payee)
+    }
+
+    @Test
     fun noteKeepsAReferenceCodeInAMerchantName() {
         val text = "Sample Bank: You've just spent RM 55.00 at Sample Music P486B2FF25 Stockholm SE with your card ending 1234."
         val p = Parser.parse(text)!!
