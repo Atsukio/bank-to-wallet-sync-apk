@@ -13,6 +13,12 @@ class Release(val code: Int, val name: String, val date: String, val changes: Li
 object Changelog {
     val releases = listOf(
         Release(
+            11, "1.5.5", "30 Oct 2026",
+            listOf(
+                "Fixed shops with a dot in their name, such as a website (\"Sample.com\"), being cut short at the dot.",
+            )
+        ),
+        Release(
             10, "1.5.4", "29 Oct 2026",
             listOf(
                 "Bank notifications with no amount in them are skipped instead of showing as not understood. Turn off \"Skip ads and notices\" in Settings to keep them.",
