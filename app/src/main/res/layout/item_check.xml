@@ -15,6 +15,7 @@
         android:paddingBottom="12dp">
 
         <ImageView
+            android:contentDescription="@null"
             android:id="@+id/checkIcon"
             style="@style/Widget.BankSync.RowIcon" />
 

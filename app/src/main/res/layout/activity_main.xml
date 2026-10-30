@@ -134,6 +134,7 @@
                                 android:orientation="horizontal">
 
                                 <ImageView
+                                    android:contentDescription="@null"
                                     android:id="@+id/iconWaiting"
                                     style="@style/Widget.BankSync.TileIcon"
                                     android:src="@drawable/ic_schedule" />
@@ -176,6 +177,7 @@
                                 android:orientation="horizontal">
 
                                 <ImageView
+                                    android:contentDescription="@null"
                                     android:id="@+id/iconSynced"
                                     style="@style/Widget.BankSync.TileIcon"
                                     android:src="@drawable/ic_check_circle" />
@@ -216,6 +218,7 @@
                                 android:orientation="horizontal">
 
                                 <ImageView
+                                    android:contentDescription="@null"
                                     android:id="@+id/iconAttention"
                                     style="@style/Widget.BankSync.TileIcon"
                                     android:src="@drawable/ic_error" />

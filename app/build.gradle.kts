@@ -44,6 +44,22 @@ android {
         }
     }
 
+    // Checks for choices this app makes on purpose, so `lintDebug` reports only what is worth a look.
+    lint {
+        disable += setOf(
+            // UI text is written inline: the app is English only.
+            "HardcodedText", "SetTextI18n",
+            // Plain framework calls are used rather than KTX extensions.
+            "UseKtx",
+            // minSdk 26 has android:drawableTint; rows paint their ripple over the card behind them.
+            "UseCompatTextViewDrawableXml", "Overdraw",
+            // Library and Gradle upgrades are chosen by hand, not by lint.
+            "GradleDependency", "NewerVersionAvailable", "AndroidGradlePluginVersion",
+            // The adaptive icon stays in mipmap-anydpi-v26: AAPT doesn't find it in mipmap-anydpi.
+            "ObsoleteSdkInt",
+        )
+    }
+
     // Kotlin's JVM target follows targetCompatibility under built-in Kotlin.
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
@@ -61,4 +77,6 @@ dependencies {
     implementation("androidx.swiperefreshlayout:swiperefreshlayout:1.1.0")
 
     testImplementation("junit:junit:4.13.2")
+    // The real org.json for JVM tests; android.jar only has stubs that throw.
+    testImplementation("org.json:json:20240303")
 }

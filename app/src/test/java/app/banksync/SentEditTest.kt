@@ -1,5 +1,6 @@
 package app.banksync
 
+import org.json.JSONObject
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -74,5 +75,29 @@ class SentEditTest {
         assertTrue(SentEdit.gone("HTTP 404"))
         assertFalse(SentEdit.gone("Account is bank-synced"))
         assertFalse(SentEdit.gone(null))
+    }
+
+    @Test
+    fun aPatchItemSetsValuesAndClearsNulls() {
+        val queued = JSONObject().put("amount", -13.0).put("counterParty", "Sample Mart").put("note", JSONObject.NULL)
+        val item = SentEdit.item("w-1", queued)
+        assertEquals("w-1", item.getString("id"))
+        assertEquals(-13.0, item.getJSONObject("amount").getDouble("value"), 0.0)
+        assertEquals("Sample Mart", item.getString("counterParty"))
+        assertEquals("note", item.getJSONArray("\$clear").getString(0))
+        assertFalse(item.has("note"))
+    }
+
+    @Test
+    fun aPatchWithNothingToClearHasNoClearList() {
+        assertFalse(SentEdit.item("w-1", JSONObject().put("categoryId", "cat-dining")).has("\$clear"))
+    }
+
+    @Test
+    fun aRemovalIsToldApartFromAChange() {
+        assertTrue(SentEdit.deleting(SentEdit.deletePatch()))
+        assertFalse(SentEdit.deleting(JSONObject().put("note", "Lunch").toString()))
+        assertFalse(SentEdit.deleting(null))
+        assertFalse(SentEdit.deleting("not json"))
     }
 }

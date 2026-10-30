@@ -68,6 +68,7 @@
                         android:orientation="horizontal">
 
                         <ImageView
+                            android:contentDescription="@null"
                             android:id="@+id/tokenIcon"
                             style="@style/Widget.BankSync.RowIcon"
                             android:src="@drawable/ic_wallet" />

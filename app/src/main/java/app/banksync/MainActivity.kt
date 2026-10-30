@@ -701,6 +701,7 @@ class MainActivity : LockedActivity() {
                 day = d
                 val heading = inflater.inflate(R.layout.item_day, list, false) as TextView
                 heading.text = Days.label(d, today)
+                ViewCompat.setAccessibilityHeading(heading, true)
                 // The first heading sits close under the section title.
                 if (list.childCount == 0) heading.setPadding(heading.paddingLeft, 0, heading.paddingRight, heading.paddingBottom)
                 list.addView(heading)

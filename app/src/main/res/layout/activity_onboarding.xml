@@ -113,6 +113,7 @@
                 android:visibility="gone">
 
                 <ImageView
+                    android:contentDescription="@null"
                     style="@style/Widget.BankSync.StepIcon"
                     android:src="@drawable/ic_wallet" />
 
@@ -171,6 +172,7 @@
                 android:visibility="gone">
 
                 <ImageView
+                    android:contentDescription="@null"
                     style="@style/Widget.BankSync.StepIcon"
                     android:src="@drawable/ic_notifications" />
 
@@ -212,6 +214,7 @@
                 android:visibility="gone">
 
                 <ImageView
+                    android:contentDescription="@null"
                     style="@style/Widget.BankSync.StepIcon"
                     android:src="@drawable/ic_battery" />
 
@@ -253,6 +256,7 @@
                 android:visibility="gone">
 
                 <ImageView
+                    android:contentDescription="@null"
                     style="@style/Widget.BankSync.StepIcon"
                     android:src="@drawable/ic_apps" />
 
@@ -295,6 +299,7 @@
                 android:visibility="gone">
 
                 <ImageView
+                    android:contentDescription="@null"
                     style="@style/Widget.BankSync.StepIcon"
                     android:src="@drawable/ic_settings" />
 
@@ -376,6 +381,7 @@
                 android:visibility="gone">
 
                 <ImageView
+                    android:contentDescription="@null"
                     style="@style/Widget.BankSync.StepIcon"
                     android:src="@drawable/ic_check_circle" />
 
