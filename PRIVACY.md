@@ -17,7 +17,7 @@ In the app's private storage only:
 - your token (encrypted), the bank apps and the Wallet account each one feeds, your category rules, the categories you chose by hand for particular merchants, and your settings;
 - a copy of the Wallet data listed above, so categories can be picked without going online.
 
-The app turns off Android backup, so none of this is copied to Google Drive. **Export settings** writes a file you choose; it never includes your token. Uninstalling the app deletes everything.
+The app turns off Android backup and phone-to-phone transfer, so none of this is copied to Google Drive or to a new phone. **Export settings** writes a file you choose; it never includes your token. Uninstalling the app deletes everything.
 
 ## Where data goes
 - Records are sent **directly from your phone to the official BudgetBakers Wallet REST API** (`https://rest.budgetbakers.com`) over HTTPS, using your own token. Each record contains the Wallet account, amount, date, category and labels, the payee (who you paid, or who sent you money), and a short note with the reference, the original amount for a payment in another currency and, when the alert gives one, the payee's fuller name (you can turn the note off, or change or clear it for a record before it is sent). **Edit in Wallet** sends your changes to a record already there (amount, payee, account, category or note), and they replace what Wallet has. **Remove from Wallet** asks Wallet to delete a record the app sent. When money moves between two of your own accounts, including a Touch 'n Go Cash in to GO+, the record is sent as a Wallet transfer, which also names the other account (or Wallet's id for the record already on it). The full notification text is not sent.
