@@ -4,17 +4,19 @@ import android.app.KeyguardManager
 import android.os.Bundle
 import android.text.method.LinkMovementMethod
 import android.view.View
+import android.view.inputmethod.EditorInfo
 import android.widget.Button
 import android.widget.EditText
 import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.TextView
+import android.widget.Toast
 import androidx.core.text.HtmlCompat
 import com.google.android.material.appbar.MaterialToolbar
 import com.google.android.material.materialswitch.MaterialSwitch
 import com.google.android.material.snackbar.Snackbar
 
-/** Wallet connection, category rules and every option. Changes save as they're made; there's no Save button. */
+/** Wallet connection, category rules and every option. Changes save as they're made, each with a "Saved"; there's no Save button. */
 class SettingsActivity : LockedActivity() {
     private lateinit var settings: Settings
     private lateinit var store: Store
@@ -40,6 +42,14 @@ class SettingsActivity : LockedActivity() {
         keepInput.setText(settings.keepDays.toString())
         catchUpInput.setText(settings.catchUpHours.toString())
         ignoreInput.setText(settings.ignoreWords)
+        // A typed value saves once the user is done with it: Done or Next on the keyboard, or another field.
+        for (input in listOf(ignoreInput, catchUpInput, delayInput, attemptsInput, keepInput)) {
+            input.setOnFocusChangeListener { _, focused -> if (!focused) saveTyped()?.let(::toast) }
+            input.setOnEditorActionListener { _, action, _ ->
+                if (action == EditorInfo.IME_ACTION_DONE || action == EditorInfo.IME_ACTION_NEXT) saveTyped()?.let(::toast)
+                false
+            }
+        }
 
         switch(R.id.pausedSwitch, settings.paused) { settings.paused = it }
         switch(R.id.reviewSwitch, settings.reviewMode) {
@@ -79,8 +89,10 @@ class SettingsActivity : LockedActivity() {
                 if (on && !getSystemService(KeyguardManager::class.java).isDeviceSecure) {
                     button.isChecked = false
                     toast("Set a screen lock on your phone first")
-                } else {
+                } else if (settings.appLock != on) {
+                    // Turning it back off above lands here too; that's no change, so no "Saved" over the warning.
                     settings.appLock = on
+                    toast(SAVED)
                 }
             }
         }
@@ -130,20 +142,54 @@ class SettingsActivity : LockedActivity() {
             if (Permissions.batteryExempt(this)) "Unrestricted" else "Optimised: some phones may stop the app"
     }
 
-    /** Typed values are saved when leaving the screen, so half-typed numbers never take effect. */
+    /** Anything still being typed is saved on leaving the screen; the snackbar would go with it, so a toast says so. */
     override fun onPause() {
         super.onPause()
-        settings.ignoreWords = ignoreInput.text.toString()
-        settings.maxAttempts = attemptsInput.text.toString().toIntOrNull() ?: settings.maxAttempts
-        settings.batchDelayMin = delayInput.text.toString().toIntOrNull() ?: settings.batchDelayMin
-        settings.keepDays = keepInput.text.toString().toIntOrNull() ?: settings.keepDays
-        settings.catchUpHours = catchUpInput.text.toString().toIntOrNull() ?: settings.catchUpHours
+        saveTyped()?.let { Toast.makeText(this, if (it == SAVED) "Settings saved" else it, Toast.LENGTH_SHORT).show() }
     }
 
+    /**
+     * Saves the typed values, so a half-typed number never takes effect before the user is done with it.
+     * Returns what to tell the user, or null when nothing changed. A field left empty or not a number
+     * goes back to the saved value, and one outside the allowed range shows the value that was kept.
+     */
+    private fun saveTyped(): String? {
+        var changed = false
+        var corrected = false
+        fun number(input: EditText, get: () -> Int, set: (Int) -> Unit) {
+            val typed = input.text.toString().trim().toIntOrNull()
+            if (typed != null && typed != get()) {
+                set(typed)
+                changed = true
+            }
+            if (input.text.toString() != get().toString()) {
+                input.setText(get().toString())
+                corrected = true
+            }
+        }
+        if (ignoreInput.text.toString() != settings.ignoreWords) {
+            settings.ignoreWords = ignoreInput.text.toString()
+            changed = true
+        }
+        number(catchUpInput, { settings.catchUpHours }) { settings.catchUpHours = it }
+        number(delayInput, { settings.batchDelayMin }) { settings.batchDelayMin = it }
+        number(attemptsInput, { settings.maxAttempts }) { settings.maxAttempts = it }
+        number(keepInput, { settings.keepDays }) { settings.keepDays = it }
+        return when {
+            corrected -> if (changed) "Saved, within the allowed range" else "Not saved: kept the earlier value"
+            changed -> SAVED
+            else -> null
+        }
+    }
+
+    /** A switch that saves as it's flipped and says so. */
     private fun switch(id: Int, value: Boolean, onChange: (Boolean) -> Unit) {
         findViewById<MaterialSwitch>(id).apply {
             isChecked = value
-            setOnCheckedChangeListener { _, on -> onChange(on) }
+            setOnCheckedChangeListener { _, on ->
+                onChange(on)
+                toast(SAVED)
+            }
         }
     }
 
@@ -266,4 +312,8 @@ class SettingsActivity : LockedActivity() {
     }
 
     private fun toast(msg: String) = Snackbar.make(findViewById(R.id.root), msg, Snackbar.LENGTH_SHORT).show()
+
+    private companion object {
+        const val SAVED = "Saved"
+    }
 }

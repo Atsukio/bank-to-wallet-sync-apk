@@ -115,6 +115,7 @@ To retake them: ⋮ › **Try with demo data**, then screenshot each (power + vo
 • Nothing is sent while that menu is open; sending carries on when you close it or after your batch delay
 • Edit in Wallet: change the amount, payee, category or note of a transaction already sent
 • New installs wait 2 minutes before sending, so a burst of alerts goes together
+• Settings say "Saved" as each change is saved
 ```
 
 4. Personal developer accounts need 12 testers opted in for 14 days in a row before **Production** can be applied for.

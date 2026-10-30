@@ -18,6 +18,7 @@ object Changelog {
                 "Hold a transaction in Recent activity for a menu: send it now, change it, hold it back, retry, see its details or remove it. A tip under Recent activity points it out until you've used it.",
                 "While that menu is open nothing is sent to Wallet, so a transaction can't go before you've decided. Sending carries on when you close it, or after your batch delay passes without a tap. With the batch delay at 0, nothing is paused.",
                 "Edit in Wallet: change the amount, payee, category or note of a transaction already sent. Your change replaces what Wallet has, and waits for a connection like everything else. Works for transactions sent from this version on, and for most sent since 1.4.",
+                "Settings say \"Saved\" as each change is saved. A typed value now saves when you press Done or move to another field, not only when you leave the screen.",
                 "New installs wait 2 minutes before sending, so a burst of alerts goes together and there's time to change one. Change it in Settings › Uploads (0 sends straight away).",
             )
         ),
