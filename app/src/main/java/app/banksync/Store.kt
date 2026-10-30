@@ -306,30 +306,34 @@ class Store private constructor(context: Context, name: String?) : SQLiteOpenHel
         return writableDatabase.update("rec", v, "status=$FAILED AND amount IS NOT NULL", null)
     }
 
-    /** Clears sent and not-understood rows, keeping sent ones whose changes haven't reached Wallet yet. */
+    /** Clears sent and not-understood rows, keeping sent ones whose changes are still on their way to Wallet. */
     fun clearHistory() {
-        writableDatabase.delete("rec", "status IN ($SYNCED,$UNPARSED) AND patch IS NULL", null)
+        writableDatabase.delete("rec", "status IN ($SYNCED,$UNPARSED) AND $NOTHING_TO_SEND", null)
     }
 
     fun purge(keepDays: Int) {
         val cutoff = System.currentTimeMillis() - keepDays * 86_400_000L
-        writableDatabase.delete("rec", "status IN ($SYNCED,$UNPARSED) AND patch IS NULL AND created<?", arrayOf(cutoff.toString()))
+        writableDatabase.delete("rec", "status IN ($SYNCED,$UNPARSED) AND $NOTHING_TO_SEND AND created<?", arrayOf(cutoff.toString()))
     }
 
     /**
      * "Edit in Wallet": applies the user's changes to a sent record here, and queues [changes]
      * ([SentEdit.changes]: a null value clears the field) over any not sent yet, newer values winning.
-     * Only a record Wallet gave an id for can be changed.
+     * Only a record Wallet gave an id for, and not being removed from Wallet, can be changed. A change
+     * Wallet refused is merged too, and the whole goes again.
      */
-    fun editSent(id: Long, amount: Double, payee: String?, category: CategoryPick?, note: String?, changes: Map<String, Any?>): Boolean {
+    fun editSent(
+        id: Long, amount: Double, payee: String?, category: CategoryPick?, note: String?, account: String,
+        changes: Map<String, Any?>,
+    ): Boolean {
         val db = writableDatabase
         db.beginTransaction()
         try {
-            val rec = get(id)?.takeIf { it.status == SYNCED && it.walletId != null } ?: return false
+            val rec = get(id)?.takeIf { it.status == SYNCED && it.walletId != null && !SentEdit.deleting(it.patch) } ?: return false
             val merged = rec.patch?.let { org.json.JSONObject(it) } ?: org.json.JSONObject()
             changes.forEach { (k, v) -> merged.put(k, v ?: org.json.JSONObject.NULL) }
             val v = ContentValues().apply {
-                put("amount", amount); put("payee", payee); putCategory(category); put("noteEdit", note)
+                put("amount", amount); put("payee", payee); putCategory(category); put("noteEdit", note); put("account", account)
                 put("patch", if (merged.length() == 0) null else merged.toString()); putNull("error")
             }
             db.update("rec", v, "id=?", arrayOf(id.toString()))
@@ -340,18 +344,38 @@ class Store private constructor(context: Context, name: String?) : SQLiteOpenHel
         }
     }
 
-    /** Sent records with changes still to reach Wallet. */
-    fun edits(limit: Int): List<Rec> = query("status=$SYNCED AND patch IS NOT NULL AND walletId IS NOT NULL", "id", limit)
+    /** Sent records with changes (or a removal) still to reach Wallet, leaving out ones Wallet refused. */
+    fun edits(limit: Int): List<Rec> = query("status=$SYNCED AND patch IS NOT NULL AND walletId IS NOT NULL AND error IS NULL", "id", limit)
+
+    /** "Remove from Wallet": queues the deletion of a sent record; the row goes once Wallet has done it. */
+    fun deleteSent(id: Long): Boolean {
+        val v = ContentValues().apply { put("patch", SentEdit.deletePatch()); putNull("error") }
+        return writableDatabase.update("rec", v, "id=? AND status=$SYNCED AND walletId IS NOT NULL", arrayOf(id.toString())) > 0
+    }
+
+    /** Sends a change (or removal) Wallet refused once more, as it is. */
+    fun retryEdit(id: Long): Boolean {
+        val v = ContentValues().apply { putNull("error") }
+        return writableDatabase.update("rec", v, "id=? AND patch IS NOT NULL", arrayOf(id.toString())) > 0
+    }
+
+    /** Forgets a change or removal not yet in Wallet. What this phone shows stays as the user left it. */
+    fun dropEdit(id: Long) {
+        val v = ContentValues().apply { putNull("patch"); putNull("error") }
+        writableDatabase.update("rec", v, "id=? AND status=$SYNCED", arrayOf(id.toString()))
+    }
 
     /** Wallet has the changes in [sent] (the patch as it was sent); a newer edit made meanwhile stays queued. */
     fun editDone(id: Long, sent: String) {
         writableDatabase.execSQL("UPDATE rec SET patch=NULL, error=NULL WHERE id=? AND patch=?", arrayOf<Any>(id, sent))
     }
 
-    /** Wallet refused the change; it is dropped and the row says why. */
-    fun editFailed(id: Long, error: String) {
-        val v = ContentValues().apply { putNull("patch"); put("error", error) }
-        writableDatabase.update("rec", v, "id=?", arrayOf(id.toString()))
+    /**
+     * Wallet refused [sent]: it stays here, no longer sent, and the row says why, so the user can try
+     * again, change it or forget it. A newer edit made meanwhile isn't touched; it goes as usual.
+     */
+    fun editFailed(id: Long, sent: String, error: String) {
+        writableDatabase.execSQL("UPDATE rec SET error=? WHERE id=? AND patch=?", arrayOf<Any>(error, id, sent))
     }
 
     private fun exec(set: String, ids: List<Long>) {
@@ -391,6 +415,9 @@ class Store private constructor(context: Context, name: String?) : SQLiteOpenHel
         const val FAILED = 2
         const val UNPARSED = 3
         const val REVIEW = 4
+
+        /** Rows that history clearing may drop: nothing queued for Wallet, or only a change Wallet refused. */
+        private const val NOTHING_TO_SEND = "(patch IS NULL OR error IS NOT NULL)"
 
         @Volatile
         private var instance: Store? = null

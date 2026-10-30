@@ -66,7 +66,7 @@ object Demo {
             val status = if (a.status == Store.SYNCED) Store.PENDING else a.status
             val id = store.insert(hash, a.pkg, rule.accountId, parsed.amount, parsed.payee, a.text, date, status,
                 category = category, posted = posted)
-            if (a.status == Store.SYNCED) store.markSynced(listOf(id))
+            if (a.status == Store.SYNCED) markSent(store, store.get(id) ?: continue)
         }
         active = true
     }
@@ -79,9 +79,19 @@ object Demo {
     /** "Sends" everything waiting in the demo queue; nothing leaves the phone. Returns how many. */
     fun sendAll(): Int {
         val store = Store.demoOrNull() ?: return 0
-        val ids = store.pending(50).map { it.id }
-        store.markSynced(ids)
-        return ids.size
+        val sent = store.pending(50)
+        sent.forEach { markSent(store, it) }
+        return sent.size
+    }
+
+    /**
+     * Marks a demo record sent as an upload would: with a made-up Wallet id and the note Wallet would
+     * have got, so Edit in Wallet and Remove from Wallet can be tried on it.
+     */
+    fun markSent(store: Store, r: Rec) {
+        val currency = rules.firstOrNull { it.accountId == r.account }?.accountCurrency.orEmpty()
+        val note = r.noteEdit ?: Parser.walletText(r.note.orEmpty(), r.payee, currency, true).note
+        store.markSynced(r.id, "demo-${r.id}", note.orEmpty())
     }
 
     /** The bank-app rules the screens should show: the demo's while it runs, otherwise the user's. */

@@ -286,7 +286,7 @@ object Uploader {
         val v = try { JSONTokener(body).nextValue() } catch (e: Exception) { return null }
         val arr = when (v) {
             is JSONArray -> v
-            is JSONObject -> v.keys().asSequence().map { v.opt(it) }.filterIsInstance<JSONArray>().firstOrNull()
+            is JSONObject -> v.optJSONArray("results") ?: v.keys().asSequence().map { v.opt(it) }.filterIsInstance<JSONArray>().firstOrNull()
             else -> null
         } ?: return null
         val out = arrayOfNulls<JSONObject>(n)
@@ -300,7 +300,7 @@ object Uploader {
 
     private fun refused(item: JSONObject): String? = item.opt("error")?.toString()?.let { Categorizer.refusedCategory(it) }
 
-    private fun isTransient(item: JSONObject): Boolean = when (val e = item.opt("error")) {
+    private fun isTransient(item: JSONObject): Boolean = item.optString("errorType") == "server_error" || when (val e = item.opt("error")) {
         is JSONObject -> e.optInt("status", e.optInt("code", 0)) >= 500
         is String -> e.contains("server", true) || e.contains("timeout", true)
         else -> false
@@ -312,44 +312,57 @@ object Uploader {
             ?.takeIf { it.isNotBlank() }
 
     /**
-     * Sends changes the user made to records already in Wallet ("Edit in Wallet"), up to 10 a request.
-     * Re-sending a change is harmless, so a request with no answer is simply tried again. What the user
-     * changed replaces what Wallet has.
+     * Sends changes the user made to records already in Wallet ("Edit in Wallet") and removals ("Remove
+     * from Wallet"), up to 10 a request. Sending either again is harmless, so a request with no answer is
+     * simply tried again. What the user changed replaces what Wallet has; a refused one stays queued but
+     * unsent, with the reason, until the user tries again, changes it or forgets it.
      */
     private fun sendEdits(store: Store, s: Settings, token: String): Result {
         while (true) {
             val batch = store.edits(PATCH_BATCH)
             if (batch.isEmpty()) return Result.Done
-            val body = JSONArray()
-            for (r in batch) body.put(SentEdit.item(r.walletId!!, JSONObject(r.patch!!)))
-            val resp = try {
-                WalletApi.patchRecords(token, body.toString())
-            } catch (e: IOException) {
-                return if (s.autoRetry) Result.Retry else Result.Done
-            }
-            when (resp.code) {
-                200, 207, 400 -> {
-                    s.authError = false
-                    val items = parseResults(resp.body, batch.size)
-                    batch.forEachIndexed { i, r ->
-                        val item = items?.get(i)
-                        when {
-                            item == null -> store.editFailed(r.id, "Wallet didn't confirm the change")
-                            item.optBoolean("success") -> store.editDone(r.id, r.patch!!)
-                            isTransient(item) -> {}
-                            else -> store.editFailed(r.id, "Wallet refused the change: " + (item.opt("error")?.toString()?.take(200) ?: "rejected"))
+            val (deletes, patches) = batch.partition { SentEdit.deleting(it.patch) }
+            for (group in listOf(deletes, patches)) {
+                if (group.isEmpty()) continue
+                val delete = group === deletes
+                val resp = try {
+                    if (delete) WalletApi.deleteRecords(token, JSONObject().put("ids", JSONArray(group.map { it.walletId })).toString())
+                    else WalletApi.patchRecords(token, JSONArray(group.map { SentEdit.item(it.walletId!!, JSONObject(it.patch!!)) }).toString())
+                } catch (e: java.net.ProtocolException) {
+                    // The phone itself won't make this request; trying again wouldn't help, so say so on the row.
+                    Log.w("Uploader", "Edit request refused by the phone", e)
+                    group.forEach { store.editFailed(it.id, it.patch!!, "This phone couldn't send that to Wallet") }
+                    continue
+                } catch (e: IOException) {
+                    return if (s.autoRetry) Result.Retry else Result.Done
+                }
+                val refused = if (delete) "Wallet wouldn't remove it" else "Wallet refused the change"
+                when (resp.code) {
+                    200, 207, 400 -> {
+                        s.authError = false
+                        val items = parseResults(resp.body, group.size)
+                        group.forEachIndexed { i, r ->
+                            val item = items?.get(i)
+                            val error = item?.opt("error")?.toString()
+                            when {
+                                // No answer we can read, or a server hiccup: it goes again after the backoff.
+                                item == null || isTransient(item) -> {}
+                                // Already gone from Wallet is what a removal wanted.
+                                item.optBoolean("success") || (delete && SentEdit.gone(error)) ->
+                                    if (delete) store.delete(r.id) else store.editDone(r.id, r.patch!!)
+                                else -> store.editFailed(r.id, r.patch!!, "$refused: " + (error?.take(200) ?: "rejected"))
+                            }
                         }
+                        if (group.any { r -> store.get(r.id)?.let { it.patch == r.patch && it.error == null } == true }) return Result.Retry
                     }
-                    // Something went wrong for the server only: leave those queued for the backoff.
-                    if (batch.any { store.get(it.id)?.patch != null }) return Result.Retry
+                    401, 403 -> {
+                        s.authError = true
+                        return Result.Done
+                    }
+                    429 -> return Result.RetryAfter(resp.retryAfterMs ?: 60_000)
+                    in 500..599 -> return Result.Retry
+                    else -> group.forEach { store.editFailed(it.id, it.patch!!, "$refused (HTTP ${resp.code})") }
                 }
-                401, 403 -> {
-                    s.authError = true
-                    return Result.Done
-                }
-                429 -> return Result.RetryAfter(resp.retryAfterMs ?: 60_000)
-                in 500..599 -> return Result.Retry
-                else -> batch.forEach { store.editFailed(it.id, "Wallet refused the change (HTTP ${resp.code})") }
             }
             changed()
         }

@@ -18,21 +18,20 @@ enum class Tone(val container: Int, val onContainer: Int) {
 
 fun View.themeColor(attr: Int) = MaterialColors.getColor(this, attr)
 
-/** A row's status as a solid, clearly different colour: money in, money out, waiting, needs you, failed, transfer. */
-enum class Mark(val fill: Int, val glyph: Int) {
-    IN(R.color.mark_in, R.color.mark_on_in),
-    OUT(R.color.mark_out, R.color.mark_on_out),
-    WAIT(R.color.mark_wait, R.color.mark_on_wait),
-    ATTENTION(R.color.mark_attention, R.color.mark_on_attention),
-    FAILED(R.color.mark_failed, R.color.mark_on_failed),
-    TRANSFER(R.color.mark_transfer, R.color.mark_on_transfer),
+/** A Recent activity row's status pill: on its way, waiting for the user, or broken. */
+enum class Chip(val bg: Int, val fg: Int, val themed: Boolean) {
+    WAIT(M.attr.colorSecondaryContainer, M.attr.colorOnSecondaryContainer, true),
+    YOU(R.color.chip_you, R.color.chip_on_you, false),
+    BAD(M.attr.colorErrorContainer, M.attr.colorOnErrorContainer, true),
 }
 
-/** Sets a round badge's icon and fills it for [mark]. */
-fun ImageView.mark(icon: Int, mark: Mark) {
-    setImageResource(icon)
-    backgroundTintList = ColorStateList.valueOf(context.getColor(mark.fill))
-    imageTintList = ColorStateList.valueOf(context.getColor(mark.glyph))
+/** Shows [text] as a pill coloured for [chip], or hides the view when [text] is null. */
+fun TextView.chip(text: CharSequence?, chip: Chip) {
+    visibility = if (text == null) View.GONE else View.VISIBLE
+    this.text = text
+    fun color(c: Int) = if (chip.themed) themeColor(c) else context.getColor(c)
+    backgroundTintList = ColorStateList.valueOf(color(chip.bg))
+    setTextColor(color(chip.fg))
 }
 
 /** How a line of status text should be coloured: fine, still to do, or broken. */

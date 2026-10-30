@@ -512,6 +512,17 @@
                         style="@style/Widget.BankSync.SettingHint"
                         android:text="Ask for your screen lock when opening the app." />
 
+                    <!-- Android 12 and later only; hidden on older phones, which always use the app's own colours. -->
+                    <com.google.android.material.materialswitch.MaterialSwitch
+                        android:id="@+id/wallpaperSwitch"
+                        style="@style/Widget.BankSync.SettingSwitch"
+                        android:text="Use your wallpaper's colours" />
+
+                    <TextView
+                        android:id="@+id/wallpaperHint"
+                        style="@style/Widget.BankSync.SettingHint"
+                        android:text="Off: the app keeps its own teal colours." />
+
                     <com.google.android.material.textfield.TextInputLayout
                         style="@style/Widget.BankSync.Field"
                         android:hint="Keep history (days)"

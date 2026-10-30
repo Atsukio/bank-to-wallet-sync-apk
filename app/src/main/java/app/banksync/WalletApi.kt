@@ -39,6 +39,10 @@ object WalletApi {
     fun patchRecords(token: String, json: String): Resp =
         call("PATCH", "/v1/api/records?returnData=false", token, json)
 
+    /** Deletes up to 10 records: `{"ids": [...]}`. A transfer's two sides would have to go together, so none is sent here. */
+    fun deleteRecords(token: String, json: String): Resp =
+        call("DELETE", "/v1/api/records", token, json)
+
     /** The user's active Wallet accounts, so rules are built from real accounts instead of typed IDs. */
     fun accounts(token: String): List<Account> {
         val r = call("GET", "/v1/api/accounts?limit=200&archived=false", token, null)

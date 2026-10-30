@@ -3,7 +3,9 @@ package app.banksync
 import android.app.Activity
 import android.content.Intent
 import android.text.InputType
-import android.util.TypedValue
+import android.text.SpannableString
+import android.text.Spanned
+import android.text.style.ForegroundColorSpan
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
@@ -16,6 +18,7 @@ import android.widget.FrameLayout
 import android.widget.ImageView
 import android.widget.TextView
 import androidx.appcompat.app.AlertDialog
+import androidx.appcompat.widget.PopupMenu
 import com.google.android.material.color.MaterialColors
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 
@@ -296,12 +299,14 @@ object Pickers {
     }
 
     /**
-     * Fills [container] with one row per rule: the app's own icon, where its alerts go, and a remove button.
-     * Tapping a row of an app with several accounts makes it (or stops it being) the app's default.
+     * Fills [container] with the bank apps, each under its own heading (icon, name, and which account is
+     * its default), followed by its linked accounts. Each account's ⋮ menu (or a tap on the row) makes
+     * it the app's default, stops it being one, or removes it.
      */
     fun renderRules(
         activity: Activity, container: ViewGroup, settings: Settings,
         onChanged: () -> Unit = {}, onMessage: (String) -> Unit = {},
+        onUndo: (String, () -> Unit) -> Unit = { _, _ -> },
     ) {
         container.removeAllViews()
         val rules = settings.rules()
@@ -309,27 +314,25 @@ object Pickers {
             return addEmpty(activity, container, "No bank apps yet. Tap Add to choose one.")
         }
         val rerender = {
-            renderRules(activity, container, settings, onChanged, onMessage)
+            renderRules(activity, container, settings, onChanged, onMessage, onUndo)
             onChanged()
         }
-        for (rule in rules) {
-            val sub = if (GoPlus.isGoPlus(rule)) "Cash ins go into ${rule.accountName}" else "To ${rule.accountName}" +
-                (if (rule.match.isEmpty()) "" else " · alerts containing \"${rule.match}\"") +
-                (if (rule.isDefault) " · default for alerts that name no account" else "")
-            val row = addRow(activity, container, rule.label, sub) {
-                settings.removeRule(rule)
-                rerender()
+        val inflater = LayoutInflater.from(activity)
+        // Grouped by app, in the order the apps were first added.
+        for ((pkg, appRules) in rules.groupBy { it.pkg }) {
+            val label = appRules.first().label
+            val ordinary = appRules.filterNot(GoPlus::isGoPlus)
+            val default = ordinary.firstOrNull { it.isDefault }
+            val header = inflater.inflate(R.layout.item_rule_app, container, false)
+            header.findViewById<TextView>(R.id.appTitle).text = label
+            header.findViewById<TextView>(R.id.appSub).text = when {
+                default != null -> "Default: ${default.accountName}"
+                // One account is used for everything anyway; saying "no default" would worry for nothing.
+                ordinary.size == 1 -> "All alerts go to ${ordinary[0].accountName}"
+                else -> "No default: alerts that name no account are held for you"
             }
-            val siblings = rules.filter { it.pkg == rule.pkg && !GoPlus.isGoPlus(it) }
-            if (!GoPlus.isGoPlus(rule) && siblings.size > 1) {
-                row.isClickable = true
-                row.isFocusable = true
-                val ripple = TypedValue().also { activity.theme.resolveAttribute(android.R.attr.selectableItemBackground, it, true) }
-                row.setBackgroundResource(ripple.resourceId)
-                row.setOnClickListener { askDefault(activity, rule) { rerender(); if (!rule.isDefault) recheckHeld(activity, rule.pkg, rule.label, onMessage) } }
-            }
-            val icon = runCatching { activity.packageManager.getApplicationIcon(rule.pkg) }.getOrNull()
-            row.findViewById<ImageView>(R.id.ruleIcon).apply {
+            val icon = runCatching { activity.packageManager.getApplicationIcon(pkg) }.getOrNull()
+            header.findViewById<ImageView>(R.id.appIcon).apply {
                 if (icon != null) {
                     // A real app icon is shown as is, without the tinted badge.
                     setImageDrawable(icon)
@@ -340,27 +343,75 @@ object Pickers {
                     setImageResource(R.drawable.ic_apps)
                 }
             }
+            container.addView(header)
+
+            for (rule in appRules) {
+                val goPlus = GoPlus.isGoPlus(rule)
+                val sub = when {
+                    goPlus -> "Cash ins to GO+ go here"
+                    rule.match.isNotEmpty() -> "Alerts containing \"${rule.match}\""
+                    else -> "Alerts from this app"
+                }
+                val actions = ArrayList<RowAction>()
+                if (!goPlus) {
+                    actions += RowAction(if (rule.isDefault) "Stop using as default" else "Make default") {
+                        askDefault(activity, rule, default) {
+                            rerender()
+                            if (!rule.isDefault) recheckHeld(activity, rule.pkg, rule.label, onMessage)
+                        }
+                    }
+                }
+                actions += RowAction("Remove", danger = true) {
+                    val index = settings.rules().indexOf(rule)
+                    settings.removeRule(rule)
+                    rerender()
+                    // No question first, so a slip of the finger can be taken back.
+                    onUndo("Removed ${rule.accountName}") {
+                        settings.restoreRule(rule, index)
+                        rerender()
+                    }
+                }
+                val row = addRow(activity, container, rule.accountName, sub, actions)
+                row.findViewById<View>(R.id.ruleBadge).visibility = if (rule.isDefault) View.VISIBLE else View.GONE
+                // Accounts sit under their app's heading, lined up with its name.
+                row.findViewById<ImageView>(R.id.ruleIcon).visibility = View.INVISIBLE
+            }
         }
     }
 
-    fun renderCategoryRules(activity: Activity, container: ViewGroup, settings: Settings, onChanged: () -> Unit = {}) {
+    fun renderCategoryRules(
+        activity: Activity, container: ViewGroup, settings: Settings,
+        onChanged: () -> Unit = {}, onUndo: (String, () -> Unit) -> Unit = { _, _ -> },
+    ) {
         container.removeAllViews()
         val rules = settings.categoryRules()
         if (rules.isEmpty()) {
             return addEmpty(activity, container, "No category rules yet.")
         }
         for (rule in rules) {
-            val row = addRow(activity, container, rule.categoryName, "When the alert contains \"${rule.contains}\"") {
-                settings.removeCategoryRule(rule)
-                renderCategoryRules(activity, container, settings, onChanged)
+            val rerender = {
+                renderCategoryRules(activity, container, settings, onChanged, onUndo)
                 onChanged()
             }
+            val remove = RowAction("Remove", danger = true) {
+                val index = settings.categoryRules().indexOf(rule)
+                settings.removeCategoryRule(rule)
+                rerender()
+                onUndo("Removed the rule for \"${rule.contains}\"") {
+                    settings.restoreCategoryRule(rule, index)
+                    rerender()
+                }
+            }
+            val row = addRow(activity, container, rule.categoryName, "When the alert contains \"${rule.contains}\"", listOf(remove))
             row.findViewById<ImageView>(R.id.ruleIcon).setImageResource(R.drawable.ic_label)
         }
     }
 
-    /** Makes [rule] its app's default for alerts that name no account, or stops it being one, after asking. */
-    private fun askDefault(activity: Activity, rule: Rule, onDone: () -> Unit) {
+    /**
+     * Makes [rule] its app's default for alerts that name no account, or stops it being one, after asking.
+     * An app has one default at most, so a new one replaces [current].
+     */
+    private fun askDefault(activity: Activity, rule: Rule, current: Rule?, onDone: () -> Unit) {
         val settings = Settings(activity)
         val builder = MaterialAlertDialogBuilder(activity)
         if (rule.isDefault) {
@@ -371,9 +422,13 @@ object Pickers {
             builder.setTitle("Make ${rule.accountName} the default?")
                 .setMessage(
                     "${rule.label} alerts that name none of your accounts, such as some transfers, will go to " +
-                        "${rule.accountName}. Alerts naming an account ending you haven't linked are still held for you."
+                        "${rule.accountName}. Alerts naming an account ending you haven't linked are still held for you." +
+                        (current?.let { "\n\nThis replaces ${it.accountName} as the default." } ?: "")
                 )
-                .setPositiveButton("Make default") { _, _ -> settings.setDefault(rule.pkg, rule.accountId); onDone() }
+                .setPositiveButton(if (current != null) "Replace default" else "Make default") { _, _ ->
+                    settings.setDefault(rule.pkg, rule.accountId)
+                    onDone()
+                }
         }
         builder.setNegativeButton("Cancel", null).show()
     }
@@ -394,14 +449,30 @@ object Pickers {
         }.start()
     }
 
-    private fun addRow(activity: Activity, container: ViewGroup, title: String, sub: String, onRemove: () -> Unit): View {
+    /** One choice in a list row's ⋮ menu; a [danger] one (removing something) is red. */
+    private class RowAction(val title: String, val danger: Boolean = false, val run: () -> Unit)
+
+    /** A list row whose ⋮ button, or a tap anywhere on it, opens a menu of [actions]. */
+    private fun addRow(activity: Activity, container: ViewGroup, title: String, sub: String, actions: List<RowAction>): View {
         val row = LayoutInflater.from(activity).inflate(R.layout.item_rule, container, false)
         row.findViewById<TextView>(R.id.ruleTitle).text = title
         row.findViewById<TextView>(R.id.ruleSub).text = sub
-        row.findViewById<Button>(R.id.ruleRemove).apply {
-            contentDescription = "Remove $title"
-            setOnClickListener { onRemove() }
+        val button = row.findViewById<Button>(R.id.ruleMenu)
+        button.contentDescription = "Options for $title"
+        val open = View.OnClickListener {
+            val menu = PopupMenu(activity, button)
+            val red = MaterialColors.getColor(button, com.google.android.material.R.attr.colorError)
+            actions.forEachIndexed { i, a ->
+                val text = if (!a.danger) a.title else SpannableString(a.title).apply {
+                    setSpan(ForegroundColorSpan(red), 0, length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+                }
+                menu.menu.add(0, i, i, text)
+            }
+            menu.setOnMenuItemClickListener { actions[it.itemId].run(); true }
+            menu.show()
         }
+        button.setOnClickListener(open)
+        row.setOnClickListener(open)
         container.addView(row)
         return row
     }

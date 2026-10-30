@@ -3,13 +3,10 @@ package app.banksync
 import android.content.DialogInterface
 import android.content.Intent
 import android.content.res.ColorStateList
-import android.graphics.Typeface
+import android.graphics.drawable.Drawable
 import android.os.Build
 import android.os.Bundle
-import android.text.SpannableString
-import android.text.Spanned
-import android.text.style.ForegroundColorSpan
-import android.text.style.StyleSpan
+import android.text.format.DateFormat
 import android.util.TypedValue
 import android.view.LayoutInflater
 import android.view.View
@@ -23,12 +20,16 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.core.view.ViewCompat
 import androidx.core.view.accessibility.AccessibilityNodeInfoCompat
 import androidx.core.widget.NestedScrollView
+import androidx.swiperefreshlayout.widget.SwipeRefreshLayout
 import com.google.android.material.appbar.MaterialToolbar
 import com.google.android.material.button.MaterialButton
 import com.google.android.material.card.MaterialCardView
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.google.android.material.snackbar.Snackbar
 import java.text.SimpleDateFormat
+import java.time.Instant
+import java.time.LocalDate
+import java.time.ZoneId
 import java.util.Locale
 import java.util.TimeZone
 import com.google.android.material.R as M
@@ -55,10 +56,14 @@ class MainActivity : LockedActivity() {
     private val openTransfers = HashSet<Long>()
     private var rowsDrawn = false
     private var rowsDemo = false
-    /** Each recent row as drawn last, by the id of the record it stands for; the actions sheet copies its header from it. */
-    private val rowViews = HashMap<Long, View>()
 
-    /** The actions sheet a held row opened, and the record it is for. */
+    /** The wallpaper-colours setting this screen was drawn with; a change in Settings redraws it on return. */
+    private var drawnWithWallpaper = true
+
+    /** What a count tile narrowed Recent activity to; null shows everything. */
+    private var filter: Filter? = null
+
+    /** The sheet a tapped or held row opened, and the record it is for. */
     private var sheet: ActionSheet? = null
     private var sheetId = -1L
 
@@ -103,6 +108,7 @@ class MainActivity : LockedActivity() {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
         settings = Settings(this)
+        drawnWithWallpaper = settings.wallpaperColors
         applyInsets(findViewById(R.id.root), findViewById(R.id.scroll))
 
         findViewById<MaterialToolbar>(R.id.toolbar).apply {
@@ -115,6 +121,12 @@ class MainActivity : LockedActivity() {
                     R.id.menuExport -> exportSettings.launch("bank-to-wallet-settings.json")
                     R.id.menuImport -> importSettings.launch(arrayOf("*/*"))
                     R.id.menuDemo -> if (Demo.active) stopDemo() else startDemo()
+                    R.id.menuScan -> scan()
+                    R.id.menuHide -> {
+                        settings.hideDetails = !settings.hideDetails
+                        refresh()
+                    }
+                    R.id.menuClear -> confirmClear()
                 }
                 true
             }
@@ -130,24 +142,22 @@ class MainActivity : LockedActivity() {
             Uploader.schedule(this, 0, replace = true)
             renderSync()
         }
-        findViewById<Button>(R.id.scanButton).apply {
-            setOnClickListener { scan() }
-            TooltipCompat.setTooltipText(this, "Reads bank alerts still in your notification shade that weren't picked up")
-        }
-        findViewById<Button>(R.id.clearButton).setOnClickListener { confirmClear() }
         findViewById<Button>(R.id.retryButton).setOnClickListener {
             val n = store.retryFailed()
             if (n > 0 && !Demo.active) Uploader.schedule(this, 0, replace = true)
             toast(if (n > 0) "Retrying $n record(s)" else "Nothing to retry")
             refresh()
         }
-        findViewById<Button>(R.id.hideButton).setOnClickListener {
-            settings.hideDetails = !settings.hideDetails
-            renderRecent()
+        // Each count tile narrows the list to what it counts; tapping it again, or Show all, undoes it.
+        for ((tile, f) in listOf(R.id.tileWaiting to Filter.WAITING, R.id.tileSynced to Filter.SENT, R.id.tileAttention to Filter.ATTENTION)) {
+            findViewById<View>(tile).setOnClickListener { showOnly(if (filter == f) null else f) }
         }
-        // "Need you" jumps to the list where those records can be opened.
-        findViewById<View>(R.id.tileAttention).setOnClickListener {
-            findViewById<NestedScrollView>(R.id.scroll).smoothScrollTo(0, (recentList.parent as View).top)
+        findViewById<View>(R.id.filterClear).setOnClickListener { showOnly(null) }
+        // Pulling down scans the shade for missed alerts, as "Scan for missed alerts" in the menu does.
+        findViewById<SwipeRefreshLayout>(R.id.pull).apply {
+            setColorSchemeColors(themeColor(M.attr.colorPrimary))
+            setProgressBackgroundColorSchemeColor(themeColor(M.attr.colorSurfaceContainerHigh))
+            setOnRefreshListener { scan { isRefreshing = false } }
         }
 
         if (!settings.onboardingDone) {
@@ -199,6 +209,7 @@ class MainActivity : LockedActivity() {
 
     override fun onResume() {
         super.onResume()
+        if (settings.wallpaperColors != drawnWithWallpaper) return recreate()
         Summary.schedule(this)
         if (!Demo.active) Uploader.releaseTransfers(this)
         openFromNotification()
@@ -287,9 +298,13 @@ class MainActivity : LockedActivity() {
     }
 
     private fun refresh() {
-        findViewById<MaterialToolbar>(R.id.toolbar).menu.findItem(R.id.menuDemo)?.title =
-            if (Demo.active) "Exit demo" else "Try with demo data"
         val c = store.counts()
+        findViewById<MaterialToolbar>(R.id.toolbar).menu.apply {
+            findItem(R.id.menuDemo)?.title = if (Demo.active) "Exit demo" else "Try with demo data"
+            findItem(R.id.menuHide)?.isChecked = settings.hideDetails
+            // Clearing only makes sense with something sent or not understood to clear.
+            findItem(R.id.menuClear)?.isVisible = c[Store.SYNCED] + c[Store.UNPARSED] > 0
+        }
         renderHero(c)
         renderChecks()
         renderCounts(c)
@@ -317,9 +332,12 @@ class MainActivity : LockedActivity() {
             )
         }
         val busy = Uploader.requested || Uploader.running
-        // Nothing to send means nothing to press; otherwise say how many it will send.
+        // Nothing to send means no button at all; otherwise it says how many it will send.
         val waiting = store.counts()[Store.PENDING]
         val held = !Demo.active && Uploader.held(this)
+        val show = busy || waiting > 0
+        if ((button.visibility == View.VISIBLE) != show) animateLayout(button.parent.parent as ViewGroup)
+        button.visibility = if (show) View.VISIBLE else View.GONE
         button.isEnabled = !busy && !held && waiting > 0
         button.text = when {
             Uploader.running -> "Sending…"
@@ -476,52 +494,173 @@ class MainActivity : LockedActivity() {
         val attention = c[Store.FAILED] + c[Store.REVIEW] + c[Store.UNPARSED]
         // Everything fixed: the "needs you" notification would only be stale now.
         if (!Demo.active && c[Store.UNPARSED] == 0) Notifier.cancelUnparsed(this)
-        // Blue while something waits, green once something is sent; a zero stays plain, its icon muted.
-        val waitColor = if (c[Store.PENDING] > 0) getColor(R.color.mark_wait) else null
-        findViewById<TextView>(R.id.countWaiting).apply {
-            countTo(c[Store.PENDING])
-            setTextColor(waitColor ?: themeColor(M.attr.colorOnSurface))
+        val muted = window.decorView.themeColor(M.attr.colorOnSurfaceVariant)
+        val plain = window.decorView.themeColor(M.attr.colorOnSurface)
+        /** One tile: its count in [color] while there is something to count; the one filtering the list is outlined. */
+        fun tile(id: Int, count: TextView, icon: ImageView, n: Int, color: Int, f: Filter, what: String) {
+            count.countTo(n)
+            count.setTextColor(if (n > 0) color else plain)
+            icon.imageTintList = ColorStateList.valueOf(if (n > 0) color else muted)
+            findViewById<MaterialCardView>(id).apply {
+                val on = filter == f
+                isSelected = on
+                strokeWidth = if (on) (2 * resources.displayMetrics.density).toInt() else 0
+                strokeColor = themeColor(M.attr.colorPrimary)
+                contentDescription = "$n $what. " + if (on) "Showing only these; tap to show everything" else "Tap to show only these"
+            }
         }
-        findViewById<ImageView>(R.id.iconWaiting).apply {
-            imageTintList = ColorStateList.valueOf(waitColor ?: themeColor(M.attr.colorOnSurfaceVariant))
-        }
-        val sentColor = if (c[Store.SYNCED] > 0) getColor(R.color.amount_in) else null
-        findViewById<TextView>(R.id.countSynced).apply {
-            countTo(c[Store.SYNCED])
-            setTextColor(sentColor ?: themeColor(M.attr.colorOnSurface))
-        }
-        findViewById<ImageView>(R.id.iconSynced).apply {
-            imageTintList = ColorStateList.valueOf(sentColor ?: themeColor(M.attr.colorOnSurfaceVariant))
-        }
-        findViewById<TextView>(R.id.countAttention).countTo(attention)
-        // The tile only turns red when there's something to do, and fades there.
-        val tile = findViewById<MaterialCardView>(R.id.tileAttention)
-        val tone = if (attention > 0) Tone.BAD else null
-        val fg = tile.themeColor(tone?.onContainer ?: M.attr.colorOnSurface)
-        val colors = intArrayOf(
-            tile.themeColor(tone?.container ?: M.attr.colorSurfaceContainerLow), fg,
-            if (tone == null) tile.themeColor(M.attr.colorOnSurfaceVariant) else fg,
-        )
-        fun paint(c: IntArray) {
-            tile.setCardBackgroundColor(c[0])
-            findViewById<TextView>(R.id.countAttention).setTextColor(c[1])
-            findViewById<TextView>(R.id.labelAttention).setTextColor(c[2])
-            findViewById<ImageView>(R.id.iconAttention).imageTintList = ColorStateList.valueOf(c[2])
-        }
+        tile(R.id.tileWaiting, findViewById(R.id.countWaiting), findViewById(R.id.iconWaiting), c[Store.PENDING], getColor(R.color.status_wait), Filter.WAITING, "waiting")
+        tile(R.id.tileSynced, findViewById(R.id.countSynced), findViewById(R.id.iconSynced), c[Store.SYNCED], getColor(R.color.amount_in), Filter.SENT, "sent")
+        // Needs you: the count, icon and label turn the error colour; the tile itself stays calm.
+        val error = window.decorView.themeColor(M.attr.colorError)
+        tile(R.id.tileAttention, findViewById(R.id.countAttention), findViewById(R.id.iconAttention), attention, error, Filter.ATTENTION, "need you")
+        val label = findViewById<TextView>(R.id.labelAttention)
+        val colors = intArrayOf(if (attention > 0) error else muted)
         val before = attentionColors
         attentionColors = colors
-        if (before != null && !before.contentEquals(colors)) fadeColors(before, colors, ::paint) else paint(colors)
-        findViewById<View>(R.id.retryButton).visibility = if (c[Store.FAILED] > 0) View.VISIBLE else View.GONE
-        // Clearing only makes sense with something sent or not understood to clear.
-        findViewById<View>(R.id.clearButton).visibility = if (c[Store.SYNCED] + c[Store.UNPARSED] > 0) View.VISIBLE else View.GONE
+        if (before != null && !before.contentEquals(colors)) fadeColors(before, colors) { label.setTextColor(it[0]) } else label.setTextColor(colors[0])
+
+        val retry = findViewById<View>(R.id.retryButton)
+        val failed = c[Store.FAILED] > 0
+        if ((retry.visibility == View.VISIBLE) != failed) animateLayout(retry.parent.parent as ViewGroup)
+        retry.visibility = if (failed) View.VISIBLE else View.GONE
+    }
+
+    /** Narrows Recent activity to what one count tile counts, or shows everything again ([f] null). */
+    private fun showOnly(f: Filter?) {
+        filter = f
+        animateLayout(recentList.parent as ViewGroup)
+        renderCounts(store.counts())
+        renderRecent()
+        if (f != null) findViewById<NestedScrollView>(R.id.scroll).smoothScrollTo(0, (recentList.parent as View).top + findViewById<View>(R.id.recentTitle).top)
+    }
+
+    /** What a count tile can narrow Recent activity to: the heading it shows and what is left out. */
+    private enum class Filter(val title: String, val empty: String) {
+        WAITING("Waiting to send", "Nothing is waiting to be sent."),
+        SENT("Sent to Wallet", "Nothing sent recently."),
+        ATTENTION("Needs you", "Nothing needs you right now.");
+
+        /** Whether a row whose deciding record is [r] belongs here, as the tiles count them. */
+        fun has(r: Rec) = when (this) {
+            WAITING -> r.status == Store.PENDING
+            SENT -> r.status == Store.SYNCED
+            ATTENTION -> r.status == Store.FAILED || r.status == Store.REVIEW || r.status == Store.UNPARSED
+        }
+    }
+
+    /** How one Recent activity row (or the sheet's header) shows a record; see [describe]. */
+    private class Look(
+        val title: String, val sub: String, val note: String?, val amount: String?, val amountColor: Int,
+        val chip: String?, val chipKind: Chip, val icon: Drawable?, val symbol: Int?, val monogram: String,
+    )
+
+    /** The record's time of day as the phone shows times (12 or 24 hour). */
+    private fun timeOf(r: Rec): String {
+        val iso = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'", Locale.US).apply { timeZone = TimeZone.getTimeZone("UTC") }
+        return iso.parse(r.date)?.let { DateFormat.getTimeFormat(this).format(it) } ?: r.date
+    }
+
+    /** The day a record happened on, in the phone's time zone, for the day headings. */
+    private fun dayOf(r: Rec): LocalDate =
+        runCatching { Instant.parse(r.date).atZone(ZoneId.systemDefault()).toLocalDate() }.getOrDefault(LocalDate.now())
+
+    /**
+     * What a row says about [r] (the outgoing half of a transfer, [partner] the other): who, then category
+     * (or where the money moved) and time, the amount (plain out, green in, no sign for a transfer), and a
+     * status pill only when it isn't simply sent. [hide] keeps only what kind of thing it is and when.
+     */
+    private fun describe(r: Rec, partner: Rec?, hide: Boolean): Look {
+        val rules = Demo.rules(settings)
+        val accounts = rules.associate { it.accountId to it.accountName }
+        val currencies = rules.associate { it.accountId to it.accountCurrency }
+        val income = (r.amount ?: 0.0) > 0
+        val isTransfer = r.pairId != null || r.transferTo != null
+        // The half that decides what the row says: the one with the most pressing status.
+        val src = if (partner != null && urgency(partner.status) > urgency(r.status)) partner else r
+        val unread = r.status == Store.UNPARSED
+
+        val title = when {
+            unread -> if (hide) "Bank alert" else r.note.orEmpty().ifEmpty { "Bank alert" }
+            isTransfer -> "Transfer"
+            !hide && !r.payee.isNullOrBlank() -> r.payee
+            income -> "Money in"
+            else -> "Payment"
+        }
+        val what = when {
+            unread -> rules.firstOrNull { it.pkg == r.pkg }?.label
+            hide -> null
+            r.transferTo != null -> {
+                // An account no bank app is linked to is named from what Wallet last told us, else looked up once.
+                val there = accounts[r.transferTo] ?: settings.accountName(r.transferTo)
+                if (there == null) resolveAccountNames()
+                "${accounts[r.account] ?: "This account"} → ${there ?: "another account"}"
+            }
+            r.pairId != null -> {
+                // Wallet files a transfer itself; say where the money moved instead.
+                val here = accounts[r.account] ?: "this account"
+                val there = (partner ?: store.get(r.pairId))?.account?.let { accounts[it] } ?: "another account"
+                if (income) "$there → $here" else "$here → $there"
+            }
+            else -> r.categoryName
+        }
+        val note = if (hide || isTransfer || unread) null else {
+            r.noteEdit ?: Parser.walletText(r.note.orEmpty(), r.payee, currencies[r.account].orEmpty(), settings.includeNote).note
+        }?.takeIf { it.isNotBlank() }
+
+        val held = !Demo.active && Uploader.held(this)
+        val (chip, kind) = when (src.status) {
+            Store.UNPARSED -> "Couldn't read" to Chip.YOU
+            Store.REVIEW -> "Approve?" to Chip.YOU
+            Store.FAILED -> "Failed" to Chip.BAD
+            // Landing in Wallet as "Unknown" is worth a look before it goes.
+            Store.PENDING -> when {
+                !isTransfer && src.categoryName == null && src.amount != null -> "No category" to Chip.YOU
+                held -> "Paused" to Chip.WAIT
+                else -> "Waiting" to Chip.WAIT
+            }
+            else -> when {
+                src.patch != null && src.error != null -> "Wallet refused" to Chip.BAD
+                SentEdit.deleting(src.patch) -> "Removing" to Chip.WAIT
+                src.patch != null -> "Updating" to Chip.WAIT
+                else -> null to Chip.WAIT
+            }
+        }
+        val amount = r.amount?.let {
+            when {
+                hide -> "••••"
+                isTransfer -> String.format(Locale.US, "%,.2f", kotlin.math.abs(it))
+                else -> String.format(Locale.US, "%s%,.2f", if (it > 0) "+" else "−", kotlin.math.abs(it))
+            }
+        }
+        val color = when {
+            isTransfer -> window.decorView.themeColor(M.attr.colorOnSurfaceVariant)
+            income -> getColor(R.color.amount_in)
+            else -> window.decorView.themeColor(M.attr.colorOnSurface)
+        }
+        val bankIcon = runCatching { packageManager.getApplicationIcon(r.pkg) }.getOrNull()
+        // Without the bank's icon: a symbol for what isn't a purchase, else the payee's initial.
+        val symbol = when {
+            unread -> R.drawable.ic_help
+            isTransfer -> R.drawable.ic_swap
+            hide || r.payee.isNullOrBlank() -> if (income) R.drawable.ic_arrow_in else R.drawable.ic_arrow_out
+            else -> null
+        }
+        val monogram = r.payee?.firstOrNull { it.isLetterOrDigit() }?.uppercase() ?: "?"
+        return Look(title, listOfNotNull(what, timeOf(r)).joinToString(" · "), note, amount, color, chip, kind, bankIcon, symbol, monogram)
+    }
+
+    /** How pressing a record's status is: the more pressing half of a transfer decides what its row says and offers. */
+    private fun urgency(status: Int) = when (status) {
+        Store.UNPARSED -> 4
+        Store.FAILED -> 3
+        Store.REVIEW -> 2
+        Store.PENDING -> 1
+        else -> 0
     }
 
     private fun renderRecent() {
         val hide = settings.hideDetails
-        findViewById<MaterialButton>(R.id.hideButton).apply {
-            setIconResource(if (hide) R.drawable.ic_visibility_off else R.drawable.ic_visibility)
-            contentDescription = if (hide) "Show details" else "Hide details"
-        }
         val list = recentList
         // Switching to or from the demo is a whole new list, not rows changing.
         if (rowsDemo != Demo.active) {
@@ -532,172 +671,92 @@ class MainActivity : LockedActivity() {
         val animateRows = rowsDrawn
         rowsDrawn = true
         list.removeAllViews()
-        rowViews.clear()
-        // While a row's actions are open nothing is sent, so waiting rows say so.
-        val waitingText = if (!Demo.active && Uploader.held(this)) "Sending paused while you choose" else "Waiting to send · tap to change"
-        val recs = store.recent(25)
+        val f = filter
+        findViewById<TextView>(R.id.recentTitle).text = f?.title ?: "Recent activity"
+        findViewById<View>(R.id.filterClear).visibility = if (f == null) View.GONE else View.VISIBLE
+        // A filtered list looks further back, so a tile's count and its list agree as far as they can.
+        val recs = store.recent(if (f == null) 25 else 200)
         val states = HashMap<Long, String>()
-        // Holding a row has no visible sign, so say so until the user has held one.
-        findViewById<View>(R.id.recentTip).visibility = if (settings.actionsTipSeen || recs.isEmpty()) View.GONE else View.VISIBLE
-        if (recs.isEmpty()) return Pickers.addEmpty(this, list, "Nothing captured yet. New bank alerts show up here.")
 
-        val fmt = SimpleDateFormat("d MMM, HH:mm", Locale.getDefault())
-        val iso = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'", Locale.US).apply { timeZone = TimeZone.getTimeZone("UTC") }
-        val accounts = Demo.rules(settings).associate { it.accountId to it.accountName }
-        val currencies = Demo.rules(settings).associate { it.accountId to it.accountCurrency }
         val inflater = LayoutInflater.from(this)
         // A transfer is two records. When both are here, its outgoing half stands for the pair and the
         // incoming half is left out; one half alone (the other is older than the list) shows as itself.
         val byId = recs.associateBy { it.id }
         fun otherHalf(r: Rec): Rec? = r.pairId?.let { byId[it] }?.takeIf { (it.amount ?: 0.0) * (r.amount ?: 0.0) < 0 }
-        val shown = recs.filterNot { r -> (r.amount ?: 0.0) > 0 && otherHalf(r) != null }
-        fun urgency(s: Int) = when (s) { Store.FAILED -> 3; Store.REVIEW -> 2; Store.PENDING -> 1; else -> 0 }
-        for ((index, r) in shown.withIndex()) {
-            val row = inflater.inflate(R.layout.item_record, list, false)
-            val whenText = iso.parse(r.date)?.let { fmt.format(it) } ?: r.date
-            val income = (r.amount ?: 0.0) > 0
+        val shown = recs.filterNot { r -> (r.amount ?: 0.0) > 0 && otherHalf(r) != null }.filter { r ->
             val partner = otherHalf(r)
-            // One sent to another account by itself is a transfer too, with no second record here.
-            val isTransfer = r.pairId != null || r.transferTo != null
-            // The half that decides what the row says: the one with the most pressing status.
-            val src = if (partner != null && urgency(partner.status) > urgency(r.status)) partner else r
-            val status = src.status
-            // Blue clock: waiting. Amber: needs you. Dark red: failed. Purple: transfer. Green arrow in, red arrow out.
-            val (icon, mark, state) = when (status) {
-                Store.UNPARSED -> Triple(R.drawable.ic_help, Mark.ATTENTION, (src.error ?: "Not understood") + " · tap to fix")
-                Store.REVIEW -> Triple(R.drawable.ic_schedule, Mark.ATTENTION, "Tap to approve")
-                Store.FAILED -> Triple(R.drawable.ic_error, Mark.FAILED, src.error ?: "Couldn't be sent")
-                Store.PENDING -> Triple(
-                    if (isTransfer) R.drawable.ic_swap else R.drawable.ic_schedule,
-                    if (isTransfer) Mark.TRANSFER else Mark.WAIT,
-                    waitingText
-                )
-                else -> Triple(
-                    when {
-                        isTransfer -> R.drawable.ic_swap
-                        income -> R.drawable.ic_arrow_in
-                        else -> R.drawable.ic_arrow_out
-                    },
-                    when {
-                        isTransfer -> Mark.TRANSFER
-                        income -> Mark.IN
-                        else -> Mark.OUT
-                    },
-                    when {
-                        partner != null -> "Sent"
-                        r.patch != null -> "Sent · your change is waiting to go"
-                        else -> r.error ?: accounts[r.account] ?: "Sent"
-                    }
-                )
+            f == null || f.has(if (partner != null && urgency(partner.status) > urgency(r.status)) partner else r)
+        }
+        if (shown.isEmpty()) {
+            return Pickers.addEmpty(this, list, f?.empty ?: "Nothing captured yet. New bank alerts show up here.")
+        }
+
+        val today = LocalDate.now()
+        var day: LocalDate? = null
+        var group: LinearLayout? = null
+        for ((index, r) in shown.withIndex()) {
+            // Each day gets its heading, and its rows a card of their own.
+            val d = dayOf(r)
+            if (d != day || group == null) {
+                day = d
+                val heading = inflater.inflate(R.layout.item_day, list, false) as TextView
+                heading.text = Days.label(d, today)
+                // The first heading sits close under the section title.
+                if (list.childCount == 0) heading.setPadding(heading.paddingLeft, 0, heading.paddingRight, heading.paddingBottom)
+                list.addView(heading)
+                group = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+                list.addView(MaterialCardView(this).apply {
+                    layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT)
+                    addView(group)
+                })
             }
-            // The bank's own icon when its app is installed, with the status as a small badge on its corner.
-            val bankIcon = runCatching { packageManager.getApplicationIcon(r.pkg) }.getOrNull()
+            val partner = otherHalf(r)
+            val look = describe(r, partner, hide)
+            val row = inflater.inflate(R.layout.item_record, group, false)
             val iconView = row.findViewById<ImageView>(R.id.recIcon)
-            if (bankIcon != null) {
-                iconView.setImageDrawable(bankIcon)
-                iconView.background = null
-                iconView.imageTintList = null
-                iconView.setPadding(0, 0, 0, 0)
-                row.findViewById<ImageView>(R.id.recStatus).apply {
-                    mark(icon, mark)
-                    visibility = View.VISIBLE
+            when {
+                look.icon != null -> {
+                    // The bank's own icon as it is, without the tinted circle.
+                    iconView.setImageDrawable(look.icon)
+                    iconView.background = null
+                    iconView.imageTintList = null
+                    iconView.setPadding(0, 0, 0, 0)
                 }
-            } else {
-                iconView.mark(icon, mark)
+                look.symbol != null -> iconView.setImageResource(look.symbol)
+                else -> {
+                    iconView.visibility = View.INVISIBLE
+                    row.findViewById<TextView>(R.id.recMonogram).apply {
+                        visibility = View.VISIBLE
+                        text = look.monogram
+                    }
+                }
             }
-            // Hidden, a row keeps only what kind of thing it is, when, and what it needs.
-            row.findViewById<TextView>(R.id.recTitle).text = when {
-                r.status == Store.UNPARSED -> if (hide) "Bank alert" else r.note.orEmpty().ifEmpty { "Bank alert" }
-                partner != null || r.transferTo != null -> "Transfer"
-                !hide && !r.payee.isNullOrBlank() -> r.payee
-                income -> "Money in"
-                else -> "Payment"
-            }
-            // The note Wallet gets (or the one the user wrote), so the title reads as the payee/payer and this as the note.
+            row.findViewById<TextView>(R.id.recTitle).text = look.title
+            row.findViewById<TextView>(R.id.recSub).text = look.sub
             row.findViewById<TextView>(R.id.recNote).apply {
-                val note = if (hide || isTransfer || r.status == Store.UNPARSED) null else {
-                    r.noteEdit ?: Parser.walletText(r.note.orEmpty(), r.payee, currencies[r.account].orEmpty(), settings.includeNote).note
-                }?.takeIf { it.isNotBlank() }
-                visibility = if (note == null) View.GONE else View.VISIBLE
-                text = note?.let { "Note: $it" }
-            }
-            row.findViewById<TextView>(R.id.recSub).text = if (status == Store.UNPARSED || status == Store.REVIEW) {
-                // Waiting on the user: the action part stands out in red and bold.
-                val red = row.themeColor(M.attr.colorError)
-                SpannableString("$whenText · $state").apply {
-                    val from = whenText.length + 3
-                    setSpan(ForegroundColorSpan(red), from, length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
-                    setSpan(StyleSpan(Typeface.BOLD), from, length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
-                }
-            } else {
-                "$whenText · $state"
+                visibility = if (look.note == null) View.GONE else View.VISIBLE
+                text = look.note?.let { "Note: $it" }
             }
             row.findViewById<TextView>(R.id.recAmount).apply {
-                // A transfer moves your own money, so it has no sign; otherwise green in, red out.
-                text = r.amount?.let {
-                    when {
-                        hide -> "••••"
-                        partner != null || r.transferTo != null -> String.format(Locale.US, "%,.2f", kotlin.math.abs(it))
-                        else -> String.format(Locale.US, "%s%,.2f", if (it > 0) "+" else "−", kotlin.math.abs(it))
-                    }
-                }
-                setTextColor(
-                    context.getColor(
-                        when {
-                            isTransfer -> R.color.mark_transfer
-                            income -> R.color.amount_in
-                            else -> R.color.amount_out
-                        }
-                    )
-                )
+                text = look.amount
+                setTextColor(look.amountColor)
             }
-            // What Wallet will file it under; a waiting record with none is flagged, as it lands as "Unknown".
-            row.findViewById<TextView>(R.id.recCategory).apply {
-                val waiting = r.status == Store.PENDING || r.status == Store.REVIEW
-                when {
-                    hide -> return@apply
-                    r.transferTo != null -> {
-                        // An account no bank app is linked to is named from what Wallet last told us, else looked up once.
-                        val there = accounts[r.transferTo] ?: settings.accountName(r.transferTo)
-                        if (there == null) resolveAccountNames()
-                        text = "⇄ ${accounts[r.account] ?: "this account"} → ${there ?: "another account"}"
-                        setTextColor(themeColor(M.attr.colorTertiary))
-                    }
-                    r.pairId != null -> {
-                        // Wallet files a transfer itself; show where the money moved instead.
-                        val here = accounts[r.account] ?: "this account"
-                        val there = (partner ?: store.get(r.pairId))?.account?.let { accounts[it] } ?: "another account"
-                        text = "⇄ " + if (income) "$there → $here" else "$here → $there"
-                        setTextColor(themeColor(M.attr.colorTertiary))
-                    }
-                    r.categoryName != null -> {
-                        text = "● ${r.categoryName}"
-                        setTextColor(themeColor(M.attr.colorTertiary))
-                    }
-                    waiting && r.amount != null -> {
-                        text = "● No category: tap to choose one"
-                        setTextColor(themeColor(M.attr.colorError))
-                    }
-                    else -> return@apply
-                }
-                visibility = View.VISIBLE
-            }
-            rowViews[r.id] = row
+            val chip = row.findViewById<TextView>(R.id.recChip)
+            chip.chip(look.chip, look.chipKind)
+            row.setOnClickListener { showActions(r.id) }
             row.setOnLongClickListener { showActions(r.id); true }
-            // TalkBack reads "double-tap and hold to show actions" instead of a bare "long press".
-            ViewCompat.replaceAccessibilityAction(row, AccessibilityNodeInfoCompat.AccessibilityActionCompat.ACTION_LONG_CLICK, "show actions", null)
+            ViewCompat.replaceAccessibilityAction(row, AccessibilityNodeInfoCompat.AccessibilityActionCompat.ACTION_CLICK, "show details and actions", null)
             if (partner != null) {
-                // Tapping a transfer shows its two sides underneath; tap a side that isn't sent to open it.
+                // The chevron shows a transfer's two sides underneath; tapping a side opens the transfer's sheet.
                 val halves = LinearLayout(this).apply {
                     orientation = LinearLayout.VERTICAL
                     visibility = if (r.id in openTransfers) View.VISIBLE else View.GONE
                 }
-                for (half in listOf(r, partner)) halves.addView(transferHalf(inflater, halves, half, accounts, fmt, iso, hide, waitingText))
+                for (half in listOf(r, partner)) halves.addView(transferHalf(inflater, halves, half, r.id, hide))
                 val chevron = row.findViewById<ImageView>(R.id.recChevron).apply {
                     visibility = View.VISIBLE
                     rotation = if (r.id in openTransfers) 180f else 0f
                 }
-                row.setOnClickListener { Dialogs.showDetails(this, r, partner, ::openRecord, ::deleteUnread) }
                 chevron.setOnClickListener {
                     val opening = openTransfers.add(r.id)
                     if (!opening) openTransfers.remove(r.id)
@@ -705,18 +764,17 @@ class MainActivity : LockedActivity() {
                     halves.visibility = if (opening) View.VISIBLE else View.GONE
                     chevron.animate().rotation(if (opening) 180f else 0f).setDuration(200).start()
                 }
-                list.addView(LinearLayout(this).apply {
+                group.addView(LinearLayout(this).apply {
                     orientation = LinearLayout.VERTICAL
                     addView(row)
                     addView(halves)
                 })
             } else {
-                row.setOnClickListener { Dialogs.showDetails(this, r, null, ::openRecord, ::deleteUnread) }
-                list.addView(row)
+                group.addView(row)
             }
 
-            // New rows drop in; a row whose status changed (waiting to sent, say) flashes and its badge pops.
-            val key = "${r.status}|${partner?.status}|${r.pairId}|${r.transferTo}"
+            // New rows drop in; a row whose status changed (waiting to sent, say) flashes and its pill pops.
+            val key = "${r.status}|${partner?.status}|${r.pairId}|${r.transferTo}|${look.chip}"
             states[r.id] = key
             if (animateRows) {
                 val before = rowStates[r.id]
@@ -724,50 +782,50 @@ class MainActivity : LockedActivity() {
                     row.dropIn(index)
                 } else if (before != key) {
                     row.flash()
-                    row.findViewById<View>(if (bankIcon != null) R.id.recStatus else R.id.recIcon).pop()
+                    if (look.chip != null) chip.pop()
                 }
             }
         }
         rowStates = states
     }
 
-    /** One side of a transfer, as a small row under the combined one; an unsent side opens like any record. */
-    private fun transferHalf(
-        inflater: LayoutInflater, parent: ViewGroup, half: Rec, accounts: Map<String, String>,
-        fmt: SimpleDateFormat, iso: SimpleDateFormat, hide: Boolean, waitingText: String
-    ): View {
+    /** One side of a transfer, as a small row under the combined one; tapping it opens the transfer's sheet ([rowId]). */
+    private fun transferHalf(inflater: LayoutInflater, parent: ViewGroup, half: Rec, rowId: Long, hide: Boolean): View {
         val row = inflater.inflate(R.layout.item_transfer_half, parent, false)
         val out = (half.amount ?: 0.0) < 0
-        val account = accounts[half.account] ?: "an account"
+        val account = Demo.rules(settings).firstOrNull { it.accountId == half.account }?.accountName ?: "an account"
         row.findViewById<TextView>(R.id.halfTitle).text = if (out) "Out of $account" else "Into $account"
-        val whenText = iso.parse(half.date)?.let { fmt.format(it) } ?: half.date
         val state = when (half.status) {
             Store.SYNCED -> "Sent"
-            Store.REVIEW -> "Tap to approve"
+            Store.REVIEW -> "Waiting for approval"
             Store.FAILED -> half.error ?: "Couldn't be sent"
             Store.UNPARSED -> "Not understood"
-            else -> waitingText
+            else -> if (!Demo.active && Uploader.held(this)) "Paused" else "Waiting to send"
         }
-        row.findViewById<TextView>(R.id.halfSub).text = "$whenText · $state"
+        row.findViewById<TextView>(R.id.halfSub).text = "${timeOf(half)} · $state"
         row.findViewById<TextView>(R.id.halfAmount).apply {
             text = half.amount?.let {
                 if (hide) "••••" else String.format(Locale.US, "%s%,.2f", if (it > 0) "+" else "−", kotlin.math.abs(it))
             }
-            setTextColor(context.getColor(if (out) R.color.amount_out else R.color.amount_in))
+            setTextColor(if (out) themeColor(M.attr.colorOnSurface) else context.getColor(R.color.amount_in))
         }
-        row.setOnClickListener { Dialogs.showDetails(this, half, null, ::openRecord, ::deleteUnread) }
+        row.setOnClickListener { showActions(rowId) }
         return row
     }
 
-    /** Asks the bound listener to read what's still in the shade; dismissed alerts can't be recovered. */
-    private fun scan() {
-        if (Demo.active) return toast("Not available in the demo")
+    /**
+     * Asks the bound listener to read what's still in the shade; dismissed alerts can't be recovered.
+     * [onDone] runs when it has finished or couldn't start (pulling down waits on it).
+     */
+    private fun scan(onDone: () -> Unit = {}) {
+        if (Demo.active) return toast("Not available in the demo").also { onDone() }
         val listener = BankNotificationListener.instance
-            ?: return toast("Notification access isn't active. Turn it on first.")
+            ?: return toast("Notification access isn't active. Turn it on first.").also { onDone() }
         Thread {
             val found = listener.catchUp()
             runOnUiThread {
-                toast(if (found > 0) "Found $found missed alert(s)" else "No missed alerts found")
+                onDone()
+                toast(if (found > 0) "Found $found missed alert${if (found == 1) "" else "s"}" else "No missed alerts found")
                 refresh()
             }
         }.start()
@@ -781,7 +839,7 @@ class MainActivity : LockedActivity() {
             .setMessage(
                 "Removes the $n sent or not-understood item${if (n == 1) "" else "s"} from this list. " +
                     "Nothing in Wallet changes, and anything waiting, failed or needing you stays.\n\n" +
-                    "If the bank's alert is still in your notification shade, \"Scan notifications\" would pick it up again and send it twice."
+                    "If the bank's alert is still in your notification shade, a scan would pick it up again and send it twice."
             )
             .setPositiveButton("Clear") { _, _ ->
                 store.clearHistory()
@@ -793,12 +851,10 @@ class MainActivity : LockedActivity() {
     }
 
     /**
-     * Holding a row: a sheet of what can be done with its record. While it's open, nothing is sent, so
-     * the record can't go before the user has decided; see [Uploader.hold].
+     * Tapping or holding a row: a sheet with its record's details and what can be done with it. While it's
+     * open, nothing is sent, so the record can't go before the user has decided; see [Uploader.hold].
      */
     private fun showActions(id: Long) {
-        // Found it: the tip under Recent activity has done its job.
-        settings.actionsTipSeen = true
         sheet?.dismiss()
         sheetId = id
         val s = ActionSheet(this) {
@@ -824,11 +880,8 @@ class MainActivity : LockedActivity() {
     /** Fills the open sheet for its record as it stands now; closes it once the record is gone. */
     private fun renderSheet() {
         val s = sheet ?: return
-        val r = store.get(sheetId)
-        val row = rowViews[sheetId]
-        if (r == null || row == null) return s.dismiss()
+        val r = store.get(sheetId) ?: return s.dismiss()
         val partner = r.pairId?.let { store.get(it) }
-        fun urgency(s: Int) = when (s) { Store.UNPARSED -> 4; Store.FAILED -> 3; Store.REVIEW -> 2; Store.PENDING -> 1; else -> 0 }
         // The half that needs something decides what can be done, as it decides what the row says.
         val src = if (partner != null && urgency(partner.status) > urgency(r.status)) partner else r
         val sent = r.status == Store.SYNCED && (partner == null || partner.status == Store.SYNCED)
@@ -864,13 +917,26 @@ class MainActivity : LockedActivity() {
                 add(R.drawable.ic_delete, "Delete", danger = true) { deleteUnread(src) }
             }
         }
-        // A sent record Wallet gave an id for can be changed there; a transfer is Wallet's to file.
-        if (SentEdit.editable(src)) {
-            add(R.drawable.ic_edit, "Edit in Wallet", "Amount, payee, category or note. Replaces what Wallet has", close = false) {
-                Dialogs.showEditSent(this, src) { refresh() }
+        // A sent record Wallet gave an id for can be changed or removed there; a transfer is Wallet's to file.
+        if (src.status == Store.SYNCED && src.patch != null) {
+            val deleting = SentEdit.deleting(src.patch)
+            if (src.error != null) {
+                add(R.drawable.ic_sync, "Try again", src.error) { retryEdit(src) }
+            }
+            if (deleting) {
+                add(R.drawable.ic_wallet, "Keep it in Wallet", "Cancels the removal if it hasn't gone yet") { dropEdit(src) }
+            } else if (src.error != null) {
+                add(R.drawable.ic_wallet, "Forget my change", "Wallet keeps what it has; this phone keeps showing your change") { dropEdit(src) }
             }
         }
-        add(R.drawable.ic_info, "Details", close = false) { Dialogs.showDetails(this, r, partner, ::openRecord, ::deleteUnread) }
+        if (SentEdit.editable(src) && !SentEdit.deleting(src.patch)) {
+            add(R.drawable.ic_edit, "Edit in Wallet", "Amount, payee, account, category or note. Replaces what Wallet has", close = false) {
+                Dialogs.showEditSent(this, src) { refresh() }
+            }
+            add(R.drawable.ic_delete, "Remove from Wallet…", "Deletes the record in Wallet too", danger = true, close = false) {
+                confirmDeleteSent(src)
+            }
+        }
         // A not-understood alert's Delete above is the same thing.
         if (src.status != Store.UNPARSED) {
             add(R.drawable.ic_smartphone, "Remove from this phone…", if (sent) "It stays in Wallet" else null, danger = true, close = false) {
@@ -883,13 +949,13 @@ class MainActivity : LockedActivity() {
             "Sending is paused while this is open. It carries on when you close it, or after " +
                 "$min minute${if (min == 1L) "" else "s"} without a tap."
         } else null
-        val bankIcon = runCatching { packageManager.getApplicationIcon(r.pkg) }.getOrNull()
-        val amount = row.findViewById<TextView>(R.id.recAmount)
-        val header = ActionSheet.Header(
-            bankIcon, row.findViewById<TextView>(R.id.recTitle).text, row.findViewById<TextView>(R.id.recSub).text,
-            amount.text, amount.currentTextColor,
-        )
-        s.fill(header, paused, actions)
+        // The header is the row in full: the user opened this one, so hidden details show here.
+        val look = describe(r, partner?.takeIf { (it.amount ?: 0.0) * (r.amount ?: 0.0) < 0 }, hide = false)
+        val header = ActionSheet.Header(look.icon, look.symbol, look.monogram, look.title, look.sub, look.amount, look.amountColor)
+        val facts = Dialogs.facts(this, r, partner)
+        // Paused matters more while it lasts; otherwise a sent record that can't be changed says why.
+        val cant = SentEdit.whyNot(src).takeIf { paused == null }
+        if (cant != null) s.fill(header, cant, facts, actions, R.drawable.ic_info) else s.fill(header, paused, facts, actions)
     }
 
     /** The sheet's Send now: approves a record waiting for approval (both sides of a transfer) and sends straight away. */
@@ -899,7 +965,7 @@ class MainActivity : LockedActivity() {
             Notifier.cancelReview(this, h.id)
         }
         if (Demo.active) {
-            store.markSynced(listOfNotNull(src.id, partner?.id))
+            listOfNotNull(src, partner).forEach { Demo.markSent(store, store.get(it.id) ?: it) }
             toast("Demo: marked as sent. Nothing went to Wallet.")
             return refresh()
         }
@@ -964,6 +1030,43 @@ class MainActivity : LockedActivity() {
             .setNegativeButton("Cancel", null)
             .show()
             .danger(DialogInterface.BUTTON_POSITIVE)
+    }
+
+    /** The sheet's "Remove from Wallet": after asking, queues the record's deletion in Wallet; the row goes once Wallet has done it. */
+    private fun confirmDeleteSent(r: Rec) {
+        MaterialAlertDialogBuilder(this)
+            .setTitle("Remove from Wallet?")
+            .setMessage(
+                "The record is deleted in Wallet with the next upload, then from this phone. " +
+                    "Until it goes, you can keep it from the same menu."
+            )
+            .setPositiveButton("Remove") { _, _ ->
+                sheet?.dismiss()
+                if (Demo.active) {
+                    // Nothing goes to Wallet in the demo; the record just goes.
+                    store.delete(r.id)
+                } else {
+                    if (!store.deleteSent(r.id)) return@setPositiveButton toast("This record can't be removed from here")
+                    Uploader.schedule(this)
+                }
+                refresh()
+            }
+            .setNegativeButton("Cancel", null)
+            .show()
+            .danger(DialogInterface.BUTTON_POSITIVE)
+    }
+
+    /** Sends a change or removal Wallet refused once more. */
+    private fun retryEdit(r: Rec) {
+        // It goes with the next upload, as an edit does; a job already waiting takes it along.
+        if (store.retryEdit(r.id) && !Demo.active) Uploader.schedule(this)
+        refresh()
+    }
+
+    /** Forgets a change or removal that hasn't reached Wallet. */
+    private fun dropEdit(r: Rec) {
+        store.dropEdit(r.id)
+        refresh()
     }
 
     /** The details dialog's Delete: an alert that wasn't understood goes without asking, as from the Fix dialog. */

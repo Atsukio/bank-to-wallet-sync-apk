@@ -15,10 +15,18 @@ object Changelog {
         Release(
             12, "1.6", "30 Oct 2026",
             listOf(
-                "Hold a transaction in Recent activity for a menu: send it now, change it, hold it back, retry, see its details or remove it. A tip under Recent activity points it out until you've used it.",
-                "While that menu is open nothing is sent to Wallet, so a transaction can't go before you've decided. Sending carries on when you close it, or after your batch delay passes without a tap. With the batch delay at 0, nothing is paused.",
-                "Edit in Wallet: change the amount, payee, category or note of a transaction already sent. Your change replaces what Wallet has, and waits for a connection like everything else. Works for transactions sent from this version on, and for most sent since 1.4.",
+                "A fresh look for the home screen: Recent activity is grouped by day, each transaction shows who, its category and time, with a small label only when it needs something (waiting, no category, approve, failed). Money out is no longer red; money in stays green.",
+                "Tap a transaction for one sheet with its details and everything you can do: send it now, change it, hold it back, retry or remove it.",
+                "Tap Waiting, Sent or Need you to see only those; tap again for everything. Send and Retry buttons appear only when there's something to send or retry.",
+                "Pull down on the home screen to scan for missed alerts. Scan, Hide amounts and Clear sent history are in the ⋮ menu now.",
+                "Settings › Alerts and privacy can turn off your wallpaper's colours (Android 12 and later) to keep the app's own teal.",
+                "While a transaction's sheet is open nothing is sent to Wallet, so a transaction can't go before you've decided. Sending carries on when you close it, or after your batch delay passes without a tap. With the batch delay at 0, nothing is paused.",
+                "Edit in Wallet: change the amount, payee, account, category or note of a transaction already sent. Your change replaces what Wallet has, and waits for a connection like everything else. Works for transactions sent from this version on, and for most sent since 1.4.",
+                "Remove from Wallet: delete a sent transaction in Wallet from the same menu. Until it goes, you can keep it after all.",
+                "If Wallet refuses a change, the transaction says why, and its menu lets you try again, change it or forget it.",
                 "Settings say \"Saved\" as each change is saved. A typed value now saves when you press Done or move to another field, not only when you leave the screen.",
+                "Bank apps are grouped, each with its accounts under it and the default one marked. Any bank app can now have a default account, and choosing a new one replaces the old.",
+                "Each bank app account and category rule has a ⋮ menu to make it the default or remove it, instead of a delete button. Removing one can be undone straight after.",
                 "New installs wait 2 minutes before sending, so a burst of alerts goes together and there's time to change one. Change it in Settings › Uploads (0 sends straight away).",
             )
         ),

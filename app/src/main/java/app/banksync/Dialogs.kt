@@ -1,7 +1,6 @@
 package app.banksync
 
 import android.app.Activity
-import android.content.res.ColorStateList
 import android.text.Editable
 import android.text.TextWatcher
 import android.view.LayoutInflater
@@ -11,7 +10,6 @@ import android.widget.AutoCompleteTextView
 import android.widget.CheckBox
 import android.view.WindowManager
 import android.widget.EditText
-import android.widget.ImageView
 import android.widget.ListView
 import android.widget.RadioButton
 import android.widget.TextView
@@ -194,37 +192,22 @@ object Dialogs {
         dialog.danger(AlertDialog.BUTTON_NEUTRAL)
     }
 
+    /** One line of a record's details in its sheet; [color], a colour resource, tints the value. */
+    class Fact(val label: String, val value: String, val color: Int? = null)
+
     /**
-     * Read-only details of any record in Recent activity: what Wallet has or will get (payee or payer,
-     * note, category, account) and where it stands. [partner] is the other half of a transfer. A record
-     * that hasn't been sent also gets a button that calls [onEdit] with the half to open, one that
-     * wasn't understood a Delete button that calls [onDelete], and a sent one that can be changed in
-     * Wallet ([SentEdit.editable]) an "Edit in Wallet" button that calls [onEdit] with it.
+     * What Wallet has or will get for a record in Recent activity (account, category, note, when) and
+     * where it stands, for its sheet; the sheet's header already shows who and how much. [partner] is
+     * the other half of a transfer. Hidden details don't apply: the user opened this one on purpose.
      */
-    fun showDetails(activity: Activity, rec: Rec, partner: Rec?, onEdit: (Rec) -> Unit, onDelete: (Rec) -> Unit) {
+    fun facts(activity: Activity, rec: Rec, partner: Rec?): List<Fact> {
         val settings = Settings(activity)
         val rules = Demo.rules(settings)
         val names = rules.associate { it.accountId to it.accountName }
         val currencies = rules.associate { it.accountId to it.accountCurrency }
-        val inflater = LayoutInflater.from(activity)
-        val list = android.widget.LinearLayout(activity).apply {
-            orientation = android.widget.LinearLayout.VERTICAL
-            setPadding(0, 0, 0, 8.dp(activity))
-        }
-        /** One labelled line; [color], a colour resource, tints the value and its icon as on the row. */
-        fun add(icon: Int, label: String, value: String?, color: Int? = null) {
-            if (value.isNullOrBlank()) return
-            val item = inflater.inflate(R.layout.item_detail, list, false)
-            item.findViewById<ImageView>(R.id.detailIcon).apply {
-                setImageResource(icon)
-                if (color != null) imageTintList = ColorStateList.valueOf(activity.getColor(color))
-            }
-            item.findViewById<TextView>(R.id.detailLabel).text = label
-            item.findViewById<TextView>(R.id.detailValue).apply {
-                text = value
-                if (color != null) setTextColor(activity.getColor(color))
-            }
-            list.addView(item)
+        val out = ArrayList<Fact>()
+        fun add(label: String, value: String?, color: Int? = null) {
+            if (!value.isNullOrBlank()) out += Fact(label, value, color)
         }
         fun account(id: String?) = id?.let { names[it] ?: settings.accountName(it) }
 
@@ -232,76 +215,48 @@ object Dialogs {
         // A transfer's outgoing half stands for both, as on the row.
         val main = if (partner != null && (rec.amount ?: 0.0) > 0) partner else rec
         val amount = main.amount ?: 0.0
-        val money = String.format(Locale.US, "%,.2f", kotlin.math.abs(amount))
-        when {
-            // A "not understood" alert has no amount until it is fixed; don't show it as 0.00.
-            main.amount == null -> add(R.drawable.ic_help, "Amount", "Not read from the alert")
-            transfer -> add(R.drawable.ic_swap, "Amount", money, R.color.mark_transfer)
-            amount > 0 -> add(R.drawable.ic_arrow_in, "Amount", "+$money", R.color.amount_in)
-            else -> add(R.drawable.ic_arrow_out, "Amount", "−$money", R.color.amount_out)
-        }
         if (transfer) {
             val into = partner?.let { if ((rec.amount ?: 0.0) > 0) rec else it }
-            add(R.drawable.ic_wallet, "From", account(main.account) ?: "Account no longer linked")
-            add(R.drawable.ic_wallet, "To", account(into?.account ?: main.transferTo) ?: "Another Wallet account")
+            add("From", account(main.account) ?: "Account no longer linked")
+            add("To", account(into?.account ?: main.transferTo) ?: "Another Wallet account")
         } else {
-            add(R.drawable.ic_person, if (amount > 0) "Payer" else "Payee", main.payee?.takeIf { it.isNotBlank() } ?: "None")
-            add(R.drawable.ic_wallet, "Wallet account", account(main.account) ?: "Account no longer linked")
+            add("Account", account(main.account) ?: "No longer linked")
         }
         if (!transfer && main.status != Store.UNPARSED) {
-            add(R.drawable.ic_label, "Category", main.categoryName ?: "None: Wallet files it as Unknown")
+            add("Category", main.categoryName ?: "None (Unknown in Wallet)")
             val note = main.noteEdit
                 ?: Parser.walletText(main.note.orEmpty(), main.payee, currencies[main.account].orEmpty(), settings.includeNote).note
-            add(R.drawable.ic_notes, "Note", note?.takeIf { it.isNotBlank() } ?: "None")
+            add("Note", note?.takeIf { it.isNotBlank() } ?: "None")
         }
         val iso = java.text.SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'", Locale.US).apply { timeZone = java.util.TimeZone.getTimeZone("UTC") }
-        add(R.drawable.ic_event, "When", iso.parse(main.date)?.let { java.text.SimpleDateFormat("d MMM yyyy, HH:mm", Locale.getDefault()).format(it) } ?: main.date)
-        val waiting = listOfNotNull(rec, partner).firstOrNull { it.status != Store.SYNCED }
-        val shown = waiting ?: rec
-        // Same icons and colours as the row's badge: blue waiting, amber needs you, red failed, green sent.
+        add("When", iso.parse(main.date)?.let { java.text.SimpleDateFormat("d MMM yyyy, HH:mm", Locale.getDefault()).format(it) } ?: main.date)
+        val shown = listOfNotNull(rec, partner).firstOrNull { it.status != Store.SYNCED } ?: rec
         when (shown.status) {
-            Store.PENDING -> add(R.drawable.ic_schedule, "Status", "Waiting to send", R.color.mark_wait)
-            Store.REVIEW -> add(R.drawable.ic_schedule, "Status", "Waiting for your approval", R.color.status_warn)
-            Store.FAILED -> add(R.drawable.ic_error, "Status", "Couldn't be sent: ${shown.error ?: "unknown error"}", R.color.status_bad)
-            Store.UNPARSED -> add(R.drawable.ic_help, "Status", shown.error ?: "Not understood", R.color.status_warn)
-            else -> add(R.drawable.ic_check_circle, "Status", "Sent to Wallet", R.color.status_good)
+            Store.PENDING -> add("Status", "Waiting to send", R.color.status_wait)
+            Store.REVIEW -> add("Status", "Waiting for your approval", R.color.status_warn)
+            Store.FAILED -> add("Status", "Couldn't be sent: ${shown.error ?: "unknown error"}", R.color.status_bad)
+            Store.UNPARSED -> add("Status", shown.error ?: "Not understood", R.color.status_warn)
+            // A sent record can still have a change or a removal on its way, or one Wallet refused.
+            else -> when {
+                shown.patch != null && shown.error != null ->
+                    add("Status", "Sent, but ${shown.error.replaceFirstChar { it.lowercase() }}", R.color.status_warn)
+                SentEdit.deleting(shown.patch) -> add("Status", "Being removed from Wallet", R.color.status_wait)
+                shown.patch != null -> add("Status", "Sent. Your change goes next", R.color.status_wait)
+                else -> add("Status", "Sent to Wallet", R.color.status_good)
+            }
         }
         // The alert itself is kept until it's sent; it helps with a record that wasn't understood.
-        if (main.status == Store.UNPARSED || main.status == Store.FAILED) add(R.drawable.ic_notifications, "Bank alert", main.note)
-
-        val builder = MaterialAlertDialogBuilder(activity)
-            .setTitle(if (transfer) "Transfer" else "Transaction")
-            .setView(android.widget.ScrollView(activity).apply {
-                setPadding(24.dp(activity), 0, 24.dp(activity), 0)
-                addView(list)
-            })
-            .setNegativeButton("Close", null)
-        if (waiting != null) {
-            builder.setPositiveButton(
-                when (waiting.status) {
-                    Store.UNPARSED -> "Fix"
-                    Store.REVIEW -> "Review"
-                    Store.FAILED -> "Retry or discard"
-                    else -> "Edit"
-                }
-            ) { _, _ -> onEdit(waiting) }
-        } else if (SentEdit.editable(main)) {
-            builder.setPositiveButton("Edit in Wallet") { _, _ -> onEdit(main) }
-        }
-        val unread = waiting?.takeIf { it.status == Store.UNPARSED }
-        if (unread != null) builder.setNeutralButton("Delete") { _, _ -> onDelete(unread) }
-        val dialog = builder.show()
-        if (unread != null) dialog.danger(AlertDialog.BUTTON_NEUTRAL)
+        if (main.status == Store.UNPARSED || main.status == Store.FAILED) add("Bank alert", main.note)
+        return out
     }
 
-    private fun Int.dp(activity: Activity) = (this * activity.resources.displayMetrics.density).toInt()
-
     /**
-     * "Edit in Wallet" for a record already sent: amount, payee or payer, category and note. The changes
-     * are saved here at once and sent with the next upload, replacing what Wallet has.
+     * "Edit in Wallet" for a record already sent: amount, payee or payer, account, category and note. The
+     * changes are saved here at once and sent with the next upload, replacing what Wallet has.
      */
     fun showEditSent(activity: Activity, rec: Rec, onDone: () -> Unit) {
         val store = Store.shown(activity)
+        val settings = Settings(activity)
         val view = LayoutInflater.from(activity).inflate(R.layout.dialog_edit_sent, null)
         val amount = rec.amount ?: return
         val income = amount > 0
@@ -314,6 +269,20 @@ object Dialogs {
         val payeeField = view.findViewById<EditText>(R.id.editPayee)
         payeeField.setText(rec.payee.orEmpty())
         fun payee() = payeeField.text.toString().trim().ifEmpty { null }
+        // Wallet moves a record only between accounts in the same currency, so only those are offered.
+        val linked = Demo.rules(settings).filterNot(GoPlus::isGoPlus).distinctBy { it.accountId }
+        val currency = linked.firstOrNull { it.accountId == rec.account }?.accountCurrency
+        val targets = if (currency == null) emptyList() else
+            linked.filter { it.accountCurrency == currency }.map { Target(it.accountId, it.accountName, it.accountCurrency) }
+        var account = rec.account
+        if (targets.size > 1) {
+            view.findViewById<View>(R.id.editAccountLayout).visibility = View.VISIBLE
+            view.findViewById<AutoCompleteTextView>(R.id.editAccount).apply {
+                setText(targets.first { it.id == rec.account }.label, false)
+                setAdapter(ArrayAdapter(activity, android.R.layout.simple_list_item_1, targets.map { it.label }))
+                setOnItemClickListener { _, _, i, _ -> account = targets[i].id }
+            }
+        }
         val initial = rec.categoryId?.let {
             CategoryPick(it, rec.categoryName ?: "Category", rec.labelIds, rec.categorySource ?: CategorySource.MANUAL)
         }
@@ -335,14 +304,14 @@ object Dialogs {
                 val category = chooser.result { initial }
                 val note = noteField.text.toString().trim()
                 val changes = SentEdit.changes(
-                    SentEdit.Fields(amount, rec.payee, rec.categoryId, rec.noteEdit),
-                    SentEdit.Fields(signed, payee(), category?.id, note),
+                    SentEdit.Fields(amount, rec.payee, rec.categoryId, rec.noteEdit, rec.account),
+                    SentEdit.Fields(signed, payee(), category?.id, note, account),
                 )
                 if (changes.isEmpty()) return@setPositiveButton
                 chooser.commit()
                 // Unknown and left empty, the note stays unknown rather than becoming "none".
                 val kept = if (rec.noteEdit == null && note.isEmpty()) null else note
-                if (!store.editSent(rec.id, signed, payee(), category, kept, changes)) {
+                if (!store.editSent(rec.id, signed, payee(), category, kept, account, changes)) {
                     Toast.makeText(activity, "This record can't be changed from here", Toast.LENGTH_LONG).show()
                     return@setPositiveButton
                 }

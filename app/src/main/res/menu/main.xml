@@ -7,6 +7,20 @@
         android:title="Settings"
         app:iconTint="?attr/colorOnSurfaceVariant"
         app:showAsAction="always" />
+    <!-- What used to be buttons on the home screen: rarely needed, so out of the way. -->
+    <item
+        android:id="@+id/menuScan"
+        android:title="Scan for missed alerts"
+        app:showAsAction="never" />
+    <item
+        android:id="@+id/menuHide"
+        android:checkable="true"
+        android:title="Hide amounts and payees"
+        app:showAsAction="never" />
+    <item
+        android:id="@+id/menuClear"
+        android:title="Clear sent history"
+        app:showAsAction="never" />
     <item
         android:id="@+id/menuDemo"
         android:title="Try with demo data"

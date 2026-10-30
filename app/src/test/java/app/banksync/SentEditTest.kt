@@ -22,6 +22,15 @@ class SentEditTest {
     }
 
     @Test
+    fun aSentRecordThatCantBeChangedSaysWhy() {
+        assertEquals(null, SentEdit.whyNot(rec()))
+        assertEquals(null, SentEdit.whyNot(rec(status = Store.PENDING, walletId = null)))
+        assertTrue(SentEdit.whyNot(rec(walletId = null))!!.contains("before version 1.4"))
+        assertTrue(SentEdit.whyNot(rec(pairId = 2))!!.contains("transfers"))
+        assertTrue(SentEdit.whyNot(rec(transferTo = "acc-2", walletId = null))!!.contains("transfers"))
+    }
+
+    @Test
     fun nothingChangedSendsNothing() {
         assertTrue(SentEdit.changes(before, SentEdit.Fields(-12.5, " Sample Mart ", "cat-groceries", "Ref 000123")).isEmpty())
     }
@@ -48,5 +57,22 @@ class SentEditTest {
     fun aNoteCanBeAddedWhereThereWasNone() {
         val none = SentEdit.Fields(25.0, "A. Sender", null, null)
         assertEquals(mapOf("note" to "Rent share"), SentEdit.changes(none, SentEdit.Fields(25.0, "A. Sender", null, "Rent share")))
+    }
+
+    @Test
+    fun aNewAccountMovesTheRecord() {
+        val from = SentEdit.Fields(-12.5, "Sample Mart", "cat-groceries", "Ref 000123", "acc-1")
+        assertEquals(mapOf("accountId" to "acc-2"), SentEdit.changes(from, SentEdit.Fields(-12.5, "Sample Mart", "cat-groceries", "Ref 000123", "acc-2")))
+        assertTrue(SentEdit.changes(from, SentEdit.Fields(-12.5, "Sample Mart", "cat-groceries", "Ref 000123", "acc-1")).isEmpty())
+        assertTrue(SentEdit.changes(from, SentEdit.Fields(-12.5, "Sample Mart", "cat-groceries", "Ref 000123")).isEmpty())
+    }
+
+    @Test
+    fun aRecordAlreadyDeletedInWalletCountsAsRemoved() {
+        assertTrue(SentEdit.gone("Record not found"))
+        assertTrue(SentEdit.gone("{\"code\":\"NOT_FOUND\"}"))
+        assertTrue(SentEdit.gone("HTTP 404"))
+        assertFalse(SentEdit.gone("Account is bank-synced"))
+        assertFalse(SentEdit.gone(null))
     }
 }

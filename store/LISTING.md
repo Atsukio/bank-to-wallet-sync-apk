@@ -25,7 +25,7 @@ FEATURES
 • No duplicates: repeated alerts are recognised, and an upload that got no answer is checked against Wallet before it is sent again.
 • Ask before sending: approve or discard each record from a notification, if you prefer. Or let records go and change or stop one from its "picked up" notification.
 • Ads and notices from your bank are skipped; real alerts it can't read are kept, so you can enter them by hand in a few taps.
-• Change the category, payee or note of any record before it is sent, or edit it in Wallet afterwards, and an optional daily summary at 9 pm.
+• Change the category, payee or note of any record before it is sent, or edit or remove it in Wallet afterwards, and an optional daily summary at 9 pm.
 • Scan for alerts you missed while the app was off, and a Quick Settings tile to pause it.
 • App lock with your fingerprint, face or screen lock, and a button that hides amounts on screen.
 • Uses almost no battery: nothing runs until a bank notification arrives or an upload is due.
@@ -111,10 +111,12 @@ To retake them: ⋮ › **Try with demo data**, then screenshot each (power + vo
 3. Release notes for 1.6 (Play's limit is 500 characters):
 
 ```
-• Hold a transaction in Recent activity for a menu: send now, change, hold back, retry, details or remove
-• Nothing is sent while that menu is open; sending carries on when you close it or after your batch delay
-• Edit in Wallet: change the amount, payee, category or note of a transaction already sent
-• New installs wait 2 minutes before sending, so a burst of alerts goes together
+• New home screen: activity grouped by day, calmer rows with status labels; tap Waiting, Sent or Need you to filter
+• Tap a transaction for its details and actions; nothing is sent while that's open
+• Edit or remove a transaction already sent to Wallet
+• Pull down to scan for missed alerts
+• Bank apps grouped by app; any of them can have a default account
+• New installs wait 2 minutes before sending
 • Settings say "Saved" as each change is saved
 ```
 

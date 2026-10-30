@@ -208,7 +208,7 @@ class OnboardingActivity : LockedActivity() {
     }
 
     private fun renderRules() =
-        Pickers.renderRules(this, findViewById<LinearLayout>(R.id.obRules), settings, onMessage = ::toast)
+        Pickers.renderRules(this, findViewById<LinearLayout>(R.id.obRules), settings, onMessage = ::toast, onUndo = ::undoable)
 
     private fun refreshStatus() {
         val access = Permissions.accessEnabled(this)
@@ -250,6 +250,9 @@ class OnboardingActivity : LockedActivity() {
     }
 
     private fun toast(msg: String) = Snackbar.make(findViewById(R.id.nextButton), msg, Snackbar.LENGTH_SHORT).show()
+
+    private fun undoable(msg: String, undo: () -> Unit) =
+        Snackbar.make(findViewById(R.id.nextButton), msg, Snackbar.LENGTH_LONG).setAction("Undo") { undo() }.show()
 }
 
 internal const val WEB_APP = "https://web.budgetbakers.com"

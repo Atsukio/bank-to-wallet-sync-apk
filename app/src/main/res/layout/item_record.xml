@@ -1,4 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!-- One Recent activity row: who, then category and time; the amount on the right with a status pill under
+     it when the record isn't simply sent. Tapping (or holding) it opens its sheet. -->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
@@ -8,34 +10,36 @@
     android:minHeight="64dp"
     android:orientation="horizontal"
     android:paddingStart="16dp"
-    android:paddingTop="8dp"
+    android:paddingTop="10dp"
     android:paddingEnd="16dp"
-    android:paddingBottom="8dp">
+    android:paddingBottom="10dp">
 
-    <!-- The bank's own icon, with a small status badge on its corner; a plain status badge when the app isn't installed. -->
+    <!-- The bank's own icon; when its app isn't installed, the payee's initial (or a symbol) in a tinted circle. -->
     <FrameLayout
-        android:layout_width="46dp"
-        android:layout_height="46dp">
+        android:layout_width="40dp"
+        android:layout_height="40dp">
 
         <ImageView
             android:id="@+id/recIcon"
             style="@style/Widget.BankSync.RowIcon" />
 
-        <ImageView
-            android:id="@+id/recStatus"
-            android:layout_width="24dp"
-            android:layout_height="24dp"
-            android:layout_gravity="bottom|end"
+        <TextView
+            android:id="@+id/recMonogram"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
             android:background="@drawable/bg_circle"
+            android:backgroundTint="?attr/colorSecondaryContainer"
+            android:gravity="center"
             android:importantForAccessibility="no"
-            android:padding="5dp"
+            android:textAppearance="?attr/textAppearanceTitleMedium"
+            android:textColor="?attr/colorOnSecondaryContainer"
             android:visibility="gone" />
     </FrameLayout>
 
     <LinearLayout
         android:layout_width="0dp"
         android:layout_height="wrap_content"
-        android:layout_marginStart="16dp"
+        android:layout_marginStart="14dp"
         android:layout_weight="1"
         android:orientation="vertical">
 
@@ -51,8 +55,9 @@
             android:id="@+id/recSub"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
+            android:layout_marginTop="2dp"
             android:ellipsize="end"
-            android:maxLines="2"
+            android:maxLines="1"
             android:textAppearance="?attr/textAppearanceBodyMedium"
             android:textColor="?attr/colorOnSurfaceVariant" />
 
@@ -62,30 +67,41 @@
             android:layout_height="wrap_content"
             android:ellipsize="end"
             android:maxLines="1"
-            android:textAppearance="?attr/textAppearanceBodyMedium"
+            android:textAppearance="?attr/textAppearanceBodySmall"
             android:textColor="?attr/colorOnSurfaceVariant"
-            android:visibility="gone" />
-
-        <TextView
-            android:id="@+id/recCategory"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="2dp"
-            android:ellipsize="end"
-            android:maxLines="1"
-            android:textAppearance="?attr/textAppearanceLabelMedium"
             android:visibility="gone" />
     </LinearLayout>
 
-    <TextView
-        android:id="@+id/recAmount"
+    <LinearLayout
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_marginStart="12dp"
-        android:fontFeatureSettings="tnum"
-        android:textAppearance="?attr/textAppearanceTitleMedium" />
+        android:gravity="end"
+        android:orientation="vertical">
 
-    <!-- Only on a transfer: tapping it shows the two sides; the rest of the row opens the details. -->
+        <TextView
+            android:id="@+id/recAmount"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:fontFeatureSettings="tnum"
+            android:textAppearance="?attr/textAppearanceTitleMedium" />
+
+        <TextView
+            android:id="@+id/recChip"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="4dp"
+            android:background="@drawable/bg_badge"
+            android:maxLines="1"
+            android:paddingStart="8dp"
+            android:paddingTop="2dp"
+            android:paddingEnd="8dp"
+            android:paddingBottom="2dp"
+            android:textAppearance="?attr/textAppearanceLabelSmall"
+            android:visibility="gone" />
+    </LinearLayout>
+
+    <!-- Only on a transfer: tapping it shows the two sides; the rest of the row opens the sheet. -->
     <ImageView
         android:id="@+id/recChevron"
         android:layout_width="40dp"

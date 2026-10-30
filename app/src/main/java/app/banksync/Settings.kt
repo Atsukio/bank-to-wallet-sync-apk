@@ -66,10 +66,10 @@ class Settings(context: Context) {
         get() = p.getBoolean("hideDetails", false)
         set(v) = p.edit().putBoolean("hideDetails", v).apply()
 
-    /** A row was held, so the "hold a row for more options" tip isn't needed any more. */
-    var actionsTipSeen: Boolean
-        get() = p.getBoolean("actionsTipSeen", false)
-        set(v) = p.edit().putBoolean("actionsTipSeen", v).apply()
+    /** Android 12+: take the app's colours from the wallpaper (Material You) instead of its own teal. */
+    var wallpaperColors: Boolean
+        get() = p.getBoolean("wallpaperColors", true)
+        set(v) = p.edit().putBoolean("wallpaperColors", v).apply()
 
     /** Mark new records "uncleared" in Wallet so they stand out for review. */
     var markUncleared: Boolean
@@ -192,6 +192,17 @@ class Settings(context: Context) {
 
     fun removeRule(rule: Rule) = saveRules(rules() - rule)
 
+    /**
+     * Undo for [removeRule]: puts [rule] back at [index]. It comes back as an ordinary account if its app
+     * has another default by now, and not at all if an account like it was linked again meanwhile.
+     */
+    fun restoreRule(rule: Rule, index: Int) {
+        val list = rules()
+        if (list.any { it.pkg == rule.pkg && it.accountId == rule.accountId && it.match.equals(rule.match, ignoreCase = true) }) return
+        val back = if (rule.isDefault && list.any { it.pkg == rule.pkg && it.isDefault }) rule.copy(isDefault = false) else rule
+        saveRules(list.toMutableList().apply { add(index.coerceIn(0, size), back) })
+    }
+
     /** Wallet account names by id, for transfers to accounts no bank app is linked to. A cache, so not exported. */
     fun accountName(id: String): String? =
         runCatching { JSONObject(p.getString("accountNames", "{}")!!).optString(id) }.getOrNull()?.takeIf { it.isNotEmpty() }
@@ -228,6 +239,13 @@ class Settings(context: Context) {
         saveCategoryRules(categoryRules().filterNot { it.contains.equals(rule.contains, ignoreCase = true) } + rule)
 
     fun removeCategoryRule(rule: CategoryRule) = saveCategoryRules(categoryRules() - rule)
+
+    /** Undo for [removeCategoryRule]: puts [rule] back at [index], unless a rule for the same words was added meanwhile. */
+    fun restoreCategoryRule(rule: CategoryRule, index: Int) {
+        val list = categoryRules()
+        if (list.any { it.contains.equals(rule.contains, ignoreCase = true) }) return
+        saveCategoryRules(list.toMutableList().apply { add(index.coerceIn(0, size), rule) })
+    }
 
     private fun saveCategoryRules(list: List<CategoryRule>) {
         p.edit().putString("categoryRules", categoryRulesToJson(list).toString()).apply()
@@ -290,7 +308,7 @@ class Settings(context: Context) {
                 .put("catchUpHours", catchUpHours)
                 .put("alertsOn", alertsOn).put("capturedOn", capturedOn).put("askNoCategory", askNoCategory)
                 .put("dailySummary", dailySummary).put("appLock", appLock)
-                .put("hideDetails", hideDetails).put("cashInIgnored", cashInIgnored)
+                .put("hideDetails", hideDetails).put("wallpaperColors", wallpaperColors).put("cashInIgnored", cashInIgnored)
         )
         .toString(2)
 
@@ -322,6 +340,7 @@ class Settings(context: Context) {
         dailySummary = s.optBoolean("dailySummary", dailySummary)
         appLock = s.optBoolean("appLock", appLock)
         hideDetails = s.optBoolean("hideDetails", hideDetails)
+        wallpaperColors = s.optBoolean("wallpaperColors", wallpaperColors)
         cashInIgnored = s.optBoolean("cashInIgnored", cashInIgnored)
     }
 

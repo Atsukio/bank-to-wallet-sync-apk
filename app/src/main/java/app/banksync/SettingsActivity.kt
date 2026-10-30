@@ -14,6 +14,7 @@ import android.widget.Toast
 import androidx.core.text.HtmlCompat
 import com.google.android.material.appbar.MaterialToolbar
 import com.google.android.material.materialswitch.MaterialSwitch
+import com.google.android.material.color.DynamicColors
 import com.google.android.material.snackbar.Snackbar
 
 /** Wallet connection, category rules and every option. Changes save as they're made, each with a "Saved"; there's no Save button. */
@@ -83,6 +84,16 @@ class SettingsActivity : LockedActivity() {
             if (it) askForNotificationPermission()
         }
         switch(R.id.cashInSwitch, settings.cashInIgnored) { settings.cashInIgnored = it }
+        if (DynamicColors.isDynamicColorAvailable()) {
+            // Colours are set as a screen opens, so this one is redrawn now and the home screen on return.
+            switch(R.id.wallpaperSwitch, settings.wallpaperColors) {
+                settings.wallpaperColors = it
+                window.decorView.postDelayed({ if (!isFinishing) recreate() }, 250)
+            }
+        } else {
+            findViewById<View>(R.id.wallpaperSwitch).visibility = View.GONE
+            findViewById<View>(R.id.wallpaperHint).visibility = View.GONE
+        }
         findViewById<MaterialSwitch>(R.id.lockSwitch).apply {
             isChecked = settings.appLock
             setOnCheckedChangeListener { button, on ->
@@ -201,10 +212,11 @@ class SettingsActivity : LockedActivity() {
         }
     }
 
-    private fun renderRules() = Pickers.renderRules(this, findViewById<LinearLayout>(R.id.rulesList), settings, onMessage = ::toast)
+    private fun renderRules() =
+        Pickers.renderRules(this, findViewById<LinearLayout>(R.id.rulesList), settings, onMessage = ::toast, onUndo = ::undoable)
 
     private fun renderCategories() {
-        Pickers.renderCategoryRules(this, findViewById<LinearLayout>(R.id.categoriesList), settings)
+        Pickers.renderCategoryRules(this, findViewById<LinearLayout>(R.id.categoriesList), settings, onUndo = ::undoable)
         val d = WalletCache.get(this)
         linkText(R.id.walletDataRow).text = if (d.rulesAt == 0L) {
             "Nothing yet. Tap to load your Wallet rules and past records."
@@ -312,6 +324,9 @@ class SettingsActivity : LockedActivity() {
     }
 
     private fun toast(msg: String) = Snackbar.make(findViewById(R.id.root), msg, Snackbar.LENGTH_SHORT).show()
+
+    private fun undoable(msg: String, undo: () -> Unit) =
+        Snackbar.make(findViewById(R.id.root), msg, Snackbar.LENGTH_LONG).setAction("Undo") { undo() }.show()
 
     private companion object {
         const val SAVED = "Saved"
