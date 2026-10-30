@@ -84,7 +84,7 @@ Read by the `android-play-release` skill (TeamPotatoes/claude-skills); "the usua
 | Changelog | `app/src/main/java/app/banksync/Changelog.kt` (`Changelog.releases`, newest first; `ChangelogTest` checks it) |
 | Play notes | `store/LISTING.md`, the block under "Release notes for X.Y" |
 | Privacy policy and listing | `PRIVACY.md` (with its "last updated" date), `store/LISTING.md` (description and Data safety answers) |
-| Screenshots | `.	ools\screenshots.ps1` (emulator only) |
+| Screenshots | `.\tools\screenshots.ps1` (emulator only) |
 | Build | `.\gradlew.bat testDebugUnitTest lintDebug bundleRelease --no-daemon --console=plain` (JAVA_HOME as above); bundle in `app/build/outputs/bundle/release/` |
 | Release commit | `feat: release X.Y <what's in it>`, after the feature commits; no tag |
 | Open release | see Status below: while a version is "not on Play yet", new work joins its entry |
