@@ -96,14 +96,15 @@ The app needs a BudgetBakers Wallet Premium API token and a bank app's notificat
 - The battery exemption isn't requested; the user sets "Unrestricted" on the app's settings page if they choose to.
 
 ## Screenshots
-Use demo mode only, never real transactions. The ones in `screenshots/` (1.5, taken on the emulator with a clean status bar) are, in upload order:
-1. `1-home.png`: the home screen (demo hero card, counts and recent activity)
-2. `2-details.png`: "Sample Electric" tapped, the record details
-3. `3-approve.png`: its Review button, the "Send to Wallet?" dialog
-4. `4-not-understood.png`: the "Sample Bank: RM30.00" row's Fix button, the "Enter this transaction" dialog
+Use demo mode only, never real transactions. The ones in `screenshots/` (1.6, 1080×2160, the app's own teal colours) are, in upload order:
+1. `1-home.png`: the home screen (demo hero card, counts and recent activity by day)
+2. `2-details.png`: "Sample Electric" tapped, its sheet with details and actions
+3. `3-approve.png`: its "Review and change", the "Send to Wallet?" dialog
+4. `4-not-understood.png`: the "Sample Bank: RM30.00" row's Fix, the "Enter this transaction" dialog
 5. `5-dark.png`: the home screen in dark mode
+6. `6-sent.png`: "Sample Grocer" tapped, a sent record's sheet with Edit in Wallet
 
-To retake them: ⋮ › **Try with demo data**, then screenshot each (power + volume down). Play needs 2 to 8 phone screenshots, PNG or JPEG, sides between 320 and 3840 px, the long side no more than twice the short side. Phone screenshots are usually 1080×2400, which is over 2:1, so crop them to 1080×2160 (or a 9:16 crop) before uploading.
+To retake them, run `.	ools\screenshots.ps1` from the repo root (about a minute): it builds the debug APK, starts the emulator, opens the app straight into demo mode and saves all six with a clean status bar. Play needs 2 to 8 phone screenshots, PNG or JPEG, sides between 320 and 3840 px, the long side no more than twice the short side.
 
 ## Release
 1. Build the bundle: `.\gradlew.bat bundleRelease` (with `keystore.properties` in place), output `app/build/outputs/bundle/release/app-release.aab`.

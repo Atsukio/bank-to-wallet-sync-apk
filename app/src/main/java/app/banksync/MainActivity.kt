@@ -2,6 +2,7 @@ package app.banksync
 
 import android.content.DialogInterface
 import android.content.Intent
+import android.content.pm.ApplicationInfo
 import android.content.res.ColorStateList
 import android.graphics.drawable.Drawable
 import android.os.Build
@@ -160,7 +161,10 @@ class MainActivity : LockedActivity() {
             setOnRefreshListener { scan { isRefreshing = false } }
         }
 
-        if (!settings.onboardingDone) {
+        if (intent.getBooleanExtra(EXTRA_DEMO, false) && applicationInfo.flags and ApplicationInfo.FLAG_DEBUGGABLE != 0) {
+            // Debug builds only, for tools/screenshots.ps1: straight into the demo, with no guide or prompts.
+            Demo.start(this)
+        } else if (!settings.onboardingDone) {
             // A new install starts on the setup guide, not on a list of changes.
             settings.seenVersion = Changelog.installed(this).first
             openGuide()
@@ -1120,5 +1124,8 @@ class MainActivity : LockedActivity() {
     companion object {
         /** The record a "picked up" notification's Change button opens. */
         const val EXTRA_RECORD = "app.banksync.RECORD"
+
+        /** Debug builds open straight into the demo with this set (`am start ... --ez demo true`); release builds ignore it. */
+        const val EXTRA_DEMO = "demo"
     }
 }
