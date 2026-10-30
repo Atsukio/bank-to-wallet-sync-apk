@@ -32,13 +32,15 @@ class Rec(
     val noteEdit: String? = null,
     /** The Wallet account this goes to as a transfer, when it was made one by hand or is a Cash in; null otherwise. */
     val transferTo: String? = null,
+    /** Changes to a sent record still to reach Wallet: the body of a record PATCH, without the id. Null when none. */
+    val patch: String? = null,
 )
 
 /**
  * Local queue. A row survives offline periods and process death until Wallet confirms it. A null
  * [name] is the in-memory queue that [Demo] fills.
  */
-class Store private constructor(context: Context, name: String?) : SQLiteOpenHelper(context, name, null, 6) {
+class Store private constructor(context: Context, name: String?) : SQLiteOpenHelper(context, name, null, 7) {
 
     override fun onCreate(db: SQLiteDatabase) {
         db.execSQL(
@@ -51,7 +53,7 @@ class Store private constructor(context: Context, name: String?) : SQLiteOpenHel
                 uncertain INTEGER NOT NULL DEFAULT 0, categoryId TEXT, transferTo TEXT,
                 posted INTEGER NOT NULL DEFAULT 0,
                 categoryName TEXT, labelIds TEXT, categorySource TEXT,
-                walletId TEXT, pairId INTEGER, noteEdit TEXT)"""
+                walletId TEXT, pairId INTEGER, noteEdit TEXT, patch TEXT)"""
         )
         db.execSQL("CREATE INDEX rec_status ON rec(status)")
         db.execSQL("CREATE INDEX rec_hash ON rec(hash, created)")
@@ -80,6 +82,10 @@ class Store private constructor(context: Context, name: String?) : SQLiteOpenHel
         if (old < 6) {
             // A note the user wrote while the record was waiting to send.
             db.execSQL("ALTER TABLE rec ADD COLUMN noteEdit TEXT")
+        }
+        if (old < 7) {
+            // Changes to a sent record, waiting to be sent to Wallet.
+            db.execSQL("ALTER TABLE rec ADD COLUMN patch TEXT")
         }
     }
 
@@ -179,10 +185,13 @@ class Store private constructor(context: Context, name: String?) : SQLiteOpenHel
     /** Drops the raw notification text once Wallet has the record. */
     fun markSynced(ids: List<Long>) = exec("status=$SYNCED, note=NULL, noteEdit=NULL, error=NULL, uncertain=0", ids)
 
-    /** Like [markSynced] for one record, keeping Wallet's id for it when the answer had one. */
-    fun markSynced(id: Long, walletId: String?) {
+    /**
+     * Like [markSynced] for one record, keeping Wallet's id for it when the answer had one, and the note
+     * Wallet got ([sentNote], blank for none) so "Edit in Wallet" starts from it.
+     */
+    fun markSynced(id: Long, walletId: String?, sentNote: String? = null) {
         val v = ContentValues().apply {
-            put("status", SYNCED); putNull("note"); putNull("noteEdit"); putNull("error"); put("uncertain", 0)
+            put("status", SYNCED); putNull("note"); put("noteEdit", sentNote); putNull("error"); put("uncertain", 0)
             walletId?.let { put("walletId", it) }
         }
         writableDatabase.update("rec", v, "id=?", arrayOf(id.toString()))
@@ -242,6 +251,12 @@ class Store private constructor(context: Context, name: String?) : SQLiteOpenHel
         return writableDatabase.update("rec", v, "id=? AND status=$REVIEW", arrayOf(id.toString())) > 0
     }
 
+    /** "Don't send yet": a waiting record waits for approval instead. Returns false when it went meanwhile. */
+    fun holdBack(id: Long): Boolean {
+        val v = ContentValues().apply { put("status", REVIEW) }
+        return writableDatabase.update("rec", v, "id=? AND status=$PENDING", arrayOf(id.toString())) > 0
+    }
+
     /**
      * Transfer sides held for review although a transfer needs no category: the earlier side of a pair
      * captured by older versions kept its "no category" hold. Only called with review mode off.
@@ -291,13 +306,52 @@ class Store private constructor(context: Context, name: String?) : SQLiteOpenHel
         return writableDatabase.update("rec", v, "status=$FAILED AND amount IS NOT NULL", null)
     }
 
+    /** Clears sent and not-understood rows, keeping sent ones whose changes haven't reached Wallet yet. */
     fun clearHistory() {
-        writableDatabase.delete("rec", "status IN ($SYNCED,$UNPARSED)", null)
+        writableDatabase.delete("rec", "status IN ($SYNCED,$UNPARSED) AND patch IS NULL", null)
     }
 
     fun purge(keepDays: Int) {
         val cutoff = System.currentTimeMillis() - keepDays * 86_400_000L
-        writableDatabase.delete("rec", "status IN ($SYNCED,$UNPARSED) AND created<?", arrayOf(cutoff.toString()))
+        writableDatabase.delete("rec", "status IN ($SYNCED,$UNPARSED) AND patch IS NULL AND created<?", arrayOf(cutoff.toString()))
+    }
+
+    /**
+     * "Edit in Wallet": applies the user's changes to a sent record here, and queues [changes]
+     * ([SentEdit.changes]: a null value clears the field) over any not sent yet, newer values winning.
+     * Only a record Wallet gave an id for can be changed.
+     */
+    fun editSent(id: Long, amount: Double, payee: String?, category: CategoryPick?, note: String?, changes: Map<String, Any?>): Boolean {
+        val db = writableDatabase
+        db.beginTransaction()
+        try {
+            val rec = get(id)?.takeIf { it.status == SYNCED && it.walletId != null } ?: return false
+            val merged = rec.patch?.let { org.json.JSONObject(it) } ?: org.json.JSONObject()
+            changes.forEach { (k, v) -> merged.put(k, v ?: org.json.JSONObject.NULL) }
+            val v = ContentValues().apply {
+                put("amount", amount); put("payee", payee); putCategory(category); put("noteEdit", note)
+                put("patch", if (merged.length() == 0) null else merged.toString()); putNull("error")
+            }
+            db.update("rec", v, "id=?", arrayOf(id.toString()))
+            db.setTransactionSuccessful()
+            return true
+        } finally {
+            db.endTransaction()
+        }
+    }
+
+    /** Sent records with changes still to reach Wallet. */
+    fun edits(limit: Int): List<Rec> = query("status=$SYNCED AND patch IS NOT NULL AND walletId IS NOT NULL", "id", limit)
+
+    /** Wallet has the changes in [sent] (the patch as it was sent); a newer edit made meanwhile stays queued. */
+    fun editDone(id: Long, sent: String) {
+        writableDatabase.execSQL("UPDATE rec SET patch=NULL, error=NULL WHERE id=? AND patch=?", arrayOf<Any>(id, sent))
+    }
+
+    /** Wallet refused the change; it is dropped and the row says why. */
+    fun editFailed(id: Long, error: String) {
+        val v = ContentValues().apply { putNull("patch"); put("error", error) }
+        writableDatabase.update("rec", v, "id=?", arrayOf(id.toString()))
     }
 
     private fun exec(set: String, ids: List<Long>) {
@@ -311,7 +365,7 @@ class Store private constructor(context: Context, name: String?) : SQLiteOpenHel
             "rec",
             arrayOf(
                 "id", "pkg", "account", "amount", "payee", "note", "date", "status", "attempts", "error",
-                "categoryId", "uncertain", "categoryName", "labelIds", "categorySource", "walletId", "pairId", "noteEdit", "transferTo"
+                "categoryId", "uncertain", "categoryName", "labelIds", "categorySource", "walletId", "pairId", "noteEdit", "transferTo", "patch"
             ),
             where, null, null, null, order, limit.toString()
         ).use {
@@ -324,7 +378,7 @@ class Store private constructor(context: Context, name: String?) : SQLiteOpenHel
                     it.getString(10), it.getInt(11) == 1,
                     it.getString(12), it.getString(13)?.split(',')?.filter { s -> s.isNotEmpty() }.orEmpty(),
                     it.getString(14), it.getString(15), if (it.isNull(16)) null else it.getLong(16),
-                    it.getString(17), it.getString(18),
+                    it.getString(17), it.getString(18), it.getString(19),
                 )
             }
         }

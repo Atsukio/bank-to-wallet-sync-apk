@@ -54,7 +54,7 @@ class Settings(context: Context) {
 
     /** Wait this long before uploading so bursts of notifications go out as one request; 0 sends straight away. */
     var batchDelayMin: Int
-        get() = p.getInt("batchDelayMin", 0)
+        get() = p.getInt("batchDelayMin", 2)
         set(v) = p.edit().putInt("batchDelayMin", v.coerceIn(0, 120)).apply()
 
     var includeNote: Boolean
@@ -65,6 +65,11 @@ class Settings(context: Context) {
     var hideDetails: Boolean
         get() = p.getBoolean("hideDetails", false)
         set(v) = p.edit().putBoolean("hideDetails", v).apply()
+
+    /** A row was held, so the "hold a row for more options" tip isn't needed any more. */
+    var actionsTipSeen: Boolean
+        get() = p.getBoolean("actionsTipSeen", false)
+        set(v) = p.edit().putBoolean("actionsTipSeen", v).apply()
 
     /** Mark new records "uncleared" in Wallet so they stand out for review. */
     var markUncleared: Boolean
@@ -124,6 +129,21 @@ class Settings(context: Context) {
     var authError: Boolean
         get() = p.getBoolean("authError", false)
         set(v) = p.edit().putBoolean("authError", v).apply()
+
+    /** When the queued upload job is due, so a hold knows how much of the delay was left. Not exported. */
+    var uploadDueAt: Long
+        get() = p.getLong("uploadDueAt", 0)
+        set(v) = p.edit().putLong("uploadDueAt", v).apply()
+
+    /** Uploads wait until this time while a record's actions are open ([Uploader.hold]); 0 when not held. Not exported. */
+    var holdUntil: Long
+        get() = p.getLong("holdUntil", 0)
+        set(v) = p.edit().putLong("holdUntil", v).apply()
+
+    /** What was left of the upload delay when the hold began, so the countdown carries on from there. */
+    var holdLeftMs: Long
+        get() = p.getLong("holdLeftMs", 0)
+        set(v) = p.edit().putLong("holdLeftMs", v).apply()
 
     /** The unrestricted-battery prompt is shown once; the status card and button stay available. */
     var batteryAsked: Boolean

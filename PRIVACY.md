@@ -1,6 +1,6 @@
 # Privacy Policy
 
-_Bank to Wallet (Android app, package `app.banksync`) · last updated 28 October 2026_
+_Bank to Wallet (Android app, package `app.banksync`) · last updated 30 October 2026_
 
 Bank to Wallet reads the transaction notifications from the bank apps you choose and adds them as records in your BudgetBakers Wallet account. This policy explains what the app does with your data. In short: everything stays on your phone, except the transactions it sends to your own Wallet account.
 
@@ -12,7 +12,7 @@ Bank to Wallet reads the transaction notifications from the bank apps you choose
 
 ## What the app stores on your phone
 In the app's private storage only:
-- the transactions it captured, with any note you typed for one, until Wallet confirms them. The alert's full text is deleted as soon as the record is in Wallet; the remaining history (date, amount, payee, category, status) is deleted after the number of days you choose (7 by default), or when you tap **Clear sent history**;
+- the transactions it captured, with any note you typed for one, until Wallet confirms them. The alert's full text is deleted as soon as the record is in Wallet; the remaining history (date, amount, payee, category, the note Wallet got, status, and any change you made with **Edit in Wallet** until Wallet has it) is deleted after the number of days you choose (7 by default), or when you tap **Clear sent history**;
 - alerts it couldn't understand, until you fix or delete them, or the history period ends;
 - your token (encrypted), the bank apps and the Wallet account each one feeds, your category rules, the categories you chose by hand for particular merchants, and your settings;
 - a copy of the Wallet data listed above, so categories can be picked without going online.
@@ -20,7 +20,7 @@ In the app's private storage only:
 The app turns off Android backup, so none of this is copied to Google Drive. **Export settings** writes a file you choose; it never includes your token. Uninstalling the app deletes everything.
 
 ## Where data goes
-- Records are sent **directly from your phone to the official BudgetBakers Wallet REST API** (`https://rest.budgetbakers.com`) over HTTPS, using your own token. Each record contains the Wallet account, amount, date, category and labels, the payee (who you paid, or who sent you money), and a short note with the reference, the original amount for a payment in another currency and, when the alert gives one, the payee's fuller name (you can turn the note off, or change or clear it for a record before it is sent). When money moves between two of your own accounts, including a Touch 'n Go Cash in to GO+, the record is sent as a Wallet transfer, which also names the other account (or Wallet's id for the record already on it). The full notification text is not sent.
+- Records are sent **directly from your phone to the official BudgetBakers Wallet REST API** (`https://rest.budgetbakers.com`) over HTTPS, using your own token. Each record contains the Wallet account, amount, date, category and labels, the payee (who you paid, or who sent you money), and a short note with the reference, the original amount for a payment in another currency and, when the alert gives one, the payee's fuller name (you can turn the note off, or change or clear it for a record before it is sent). **Edit in Wallet** sends your changes to a record already there (amount, payee, category or note), and they replace what Wallet has. When money moves between two of your own accounts, including a Touch 'n Go Cash in to GO+, the record is sent as a Wallet transfer, which also names the other account (or Wallet's id for the record already on it). The full notification text is not sent.
 - **Nothing is sent to the developer or to anyone else.** There is no developer server, no analytics, no crash reporting, no advertising and no tracking. The app makes no network requests except to the Wallet API.
 - BudgetBakers handles your Wallet data under its own privacy policy. This app is not made by, affiliated with or endorsed by BudgetBakers or any bank.
 

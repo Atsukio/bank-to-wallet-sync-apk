@@ -35,6 +35,10 @@ object WalletApi {
     fun postRecords(token: String, json: String): Resp =
         call("POST", "/v1/api/records?returnData=false", token, json)
 
+    /** Changes up to 10 existing records; Android's HttpURLConnection accepts PATCH. */
+    fun patchRecords(token: String, json: String): Resp =
+        call("PATCH", "/v1/api/records?returnData=false", token, json)
+
     /** The user's active Wallet accounts, so rules are built from real accounts instead of typed IDs. */
     fun accounts(token: String): List<Account> {
         val r = call("GET", "/v1/api/accounts?limit=200&archived=false", token, null)

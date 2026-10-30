@@ -20,6 +20,8 @@ import android.widget.LinearLayout
 import android.widget.TextView
 import androidx.appcompat.widget.TooltipCompat
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.core.view.ViewCompat
+import androidx.core.view.accessibility.AccessibilityNodeInfoCompat
 import androidx.core.widget.NestedScrollView
 import com.google.android.material.appbar.MaterialToolbar
 import com.google.android.material.button.MaterialButton
@@ -53,6 +55,12 @@ class MainActivity : LockedActivity() {
     private val openTransfers = HashSet<Long>()
     private var rowsDrawn = false
     private var rowsDemo = false
+    /** Each recent row as drawn last, by the id of the record it stands for; the actions sheet copies its header from it. */
+    private val rowViews = HashMap<Long, View>()
+
+    /** The actions sheet a held row opened, and the record it is for. */
+    private var sheet: ActionSheet? = null
+    private var sheetId = -1L
 
     /** The set of checks showing last, so they fade in and out only when it changes. */
     private var checksKey: String? = null
@@ -183,6 +191,12 @@ class MainActivity : LockedActivity() {
         super.onStop()
     }
 
+    override fun onDestroy() {
+        // A sheet lost with the screen (rotation, say) shouldn't keep uploads held for its full length.
+        sheet?.dismiss()
+        super.onDestroy()
+    }
+
     override fun onResume() {
         super.onResume()
         Summary.schedule(this)
@@ -281,6 +295,7 @@ class MainActivity : LockedActivity() {
         renderCounts(c)
         renderRecent()
         renderSync()
+        renderSheet()
     }
 
     /** Sync now: shows waiting for a connection, then sending, and says what happened when the job ends. */
@@ -304,9 +319,11 @@ class MainActivity : LockedActivity() {
         val busy = Uploader.requested || Uploader.running
         // Nothing to send means nothing to press; otherwise say how many it will send.
         val waiting = store.counts()[Store.PENDING]
-        button.isEnabled = !busy && waiting > 0
+        val held = !Demo.active && Uploader.held(this)
+        button.isEnabled = !busy && !held && waiting > 0
         button.text = when {
             Uploader.running -> "Sending…"
+            held && waiting > 0 -> "Sending paused"
             Uploader.requested -> "Waiting for network…"
             waiting > 0 -> "Send $waiting waiting"
             else -> "Nothing to send"
@@ -515,8 +532,13 @@ class MainActivity : LockedActivity() {
         val animateRows = rowsDrawn
         rowsDrawn = true
         list.removeAllViews()
+        rowViews.clear()
+        // While a row's actions are open nothing is sent, so waiting rows say so.
+        val waitingText = if (!Demo.active && Uploader.held(this)) "Sending paused while you choose" else "Waiting to send · tap to change"
         val recs = store.recent(25)
         val states = HashMap<Long, String>()
+        // Holding a row has no visible sign, so say so until the user has held one.
+        findViewById<View>(R.id.recentTip).visibility = if (settings.actionsTipSeen || recs.isEmpty()) View.GONE else View.VISIBLE
         if (recs.isEmpty()) return Pickers.addEmpty(this, list, "Nothing captured yet. New bank alerts show up here.")
 
         val fmt = SimpleDateFormat("d MMM, HH:mm", Locale.getDefault())
@@ -548,7 +570,7 @@ class MainActivity : LockedActivity() {
                 Store.PENDING -> Triple(
                     if (isTransfer) R.drawable.ic_swap else R.drawable.ic_schedule,
                     if (isTransfer) Mark.TRANSFER else Mark.WAIT,
-                    "Waiting to send · tap to change"
+                    waitingText
                 )
                 else -> Triple(
                     when {
@@ -561,7 +583,11 @@ class MainActivity : LockedActivity() {
                         income -> Mark.IN
                         else -> Mark.OUT
                     },
-                    if (partner != null) "Sent" else r.error ?: accounts[r.account] ?: "Sent"
+                    when {
+                        partner != null -> "Sent"
+                        r.patch != null -> "Sent · your change is waiting to go"
+                        else -> r.error ?: accounts[r.account] ?: "Sent"
+                    }
                 )
             }
             // The bank's own icon when its app is installed, with the status as a small badge on its corner.
@@ -656,14 +682,17 @@ class MainActivity : LockedActivity() {
                 }
                 visibility = View.VISIBLE
             }
-            row.setOnLongClickListener { confirmRemove(r, partner); true }
+            rowViews[r.id] = row
+            row.setOnLongClickListener { showActions(r.id); true }
+            // TalkBack reads "double-tap and hold to show actions" instead of a bare "long press".
+            ViewCompat.replaceAccessibilityAction(row, AccessibilityNodeInfoCompat.AccessibilityActionCompat.ACTION_LONG_CLICK, "show actions", null)
             if (partner != null) {
                 // Tapping a transfer shows its two sides underneath; tap a side that isn't sent to open it.
                 val halves = LinearLayout(this).apply {
                     orientation = LinearLayout.VERTICAL
                     visibility = if (r.id in openTransfers) View.VISIBLE else View.GONE
                 }
-                for (half in listOf(r, partner)) halves.addView(transferHalf(inflater, halves, half, accounts, fmt, iso, hide))
+                for (half in listOf(r, partner)) halves.addView(transferHalf(inflater, halves, half, accounts, fmt, iso, hide, waitingText))
                 val chevron = row.findViewById<ImageView>(R.id.recChevron).apply {
                     visibility = View.VISIBLE
                     rotation = if (r.id in openTransfers) 180f else 0f
@@ -705,7 +734,7 @@ class MainActivity : LockedActivity() {
     /** One side of a transfer, as a small row under the combined one; an unsent side opens like any record. */
     private fun transferHalf(
         inflater: LayoutInflater, parent: ViewGroup, half: Rec, accounts: Map<String, String>,
-        fmt: SimpleDateFormat, iso: SimpleDateFormat, hide: Boolean
+        fmt: SimpleDateFormat, iso: SimpleDateFormat, hide: Boolean, waitingText: String
     ): View {
         val row = inflater.inflate(R.layout.item_transfer_half, parent, false)
         val out = (half.amount ?: 0.0) < 0
@@ -717,7 +746,7 @@ class MainActivity : LockedActivity() {
             Store.REVIEW -> "Tap to approve"
             Store.FAILED -> half.error ?: "Couldn't be sent"
             Store.UNPARSED -> "Not understood"
-            else -> "Waiting to send · tap to change"
+            else -> waitingText
         }
         row.findViewById<TextView>(R.id.halfSub).text = "$whenText · $state"
         row.findViewById<TextView>(R.id.halfAmount).apply {
@@ -764,7 +793,150 @@ class MainActivity : LockedActivity() {
     }
 
     /**
-     * Long press: forget one record on this phone only. With it gone, a scan can capture the bank's
+     * Holding a row: a sheet of what can be done with its record. While it's open, nothing is sent, so
+     * the record can't go before the user has decided; see [Uploader.hold].
+     */
+    private fun showActions(id: Long) {
+        // Found it: the tip under Recent activity has done its job.
+        settings.actionsTipSeen = true
+        sheet?.dismiss()
+        sheetId = id
+        val s = ActionSheet(this) {
+            sheet = null
+            if (!Demo.active) Uploader.release(this)
+            if (!isFinishing && !isDestroyed) refresh()
+        }
+        s.onTap = ::holdIfWaiting
+        sheet = s
+        holdIfWaiting()
+        renderSheet()
+        s.show()
+    }
+
+    /** Holds uploads while the open sheet's record could still change; each tap in the sheet counts as activity. */
+    private fun holdIfWaiting() {
+        if (Demo.active) return
+        val r = store.get(sheetId) ?: return
+        val halves = listOfNotNull(r, r.pairId?.let { store.get(it) })
+        if (halves.any { it.status == Store.PENDING || it.status == Store.REVIEW }) Uploader.hold(this)
+    }
+
+    /** Fills the open sheet for its record as it stands now; closes it once the record is gone. */
+    private fun renderSheet() {
+        val s = sheet ?: return
+        val r = store.get(sheetId)
+        val row = rowViews[sheetId]
+        if (r == null || row == null) return s.dismiss()
+        val partner = r.pairId?.let { store.get(it) }
+        fun urgency(s: Int) = when (s) { Store.UNPARSED -> 4; Store.FAILED -> 3; Store.REVIEW -> 2; Store.PENDING -> 1; else -> 0 }
+        // The half that needs something decides what can be done, as it decides what the row says.
+        val src = if (partner != null && urgency(partner.status) > urgency(r.status)) partner else r
+        val sent = r.status == Store.SYNCED && (partner == null || partner.status == Store.SYNCED)
+
+        val actions = ArrayList<ActionSheet.Action>()
+        fun add(icon: Int, text: String, hint: String? = null, danger: Boolean = false, close: Boolean = true, run: () -> Unit) {
+            actions += ActionSheet.Action(icon, text, hint, danger, close, run)
+        }
+        val notTransfer = { add(R.drawable.ic_swap, "Not a transfer", "Both sides go to Wallet as separate records", close = false) { notTransfer(r) } }
+        when (src.status) {
+            Store.PENDING -> {
+                add(R.drawable.ic_send, "Send now") { sendNow(src, partner) }
+                add(R.drawable.ic_edit, "Change account, category or note", close = false) { Dialogs.showRecord(this, src) { holdIfWaiting(); refresh() } }
+                // A transfer side waiting for approval would hold its pair back, so only a lone record waits.
+                if (r.pairId != null) notTransfer()
+                else add(R.drawable.ic_pause_circle, "Don't send yet", "It waits for you to approve it", close = false) { holdBack(src) }
+            }
+            Store.REVIEW -> {
+                add(R.drawable.ic_send, "Send now") { sendNow(src, partner) }
+                add(R.drawable.ic_edit, "Review and change", close = false) { Dialogs.showRecord(this, src) { holdIfWaiting(); refresh() } }
+                if (r.pairId != null) notTransfer()
+                add(R.drawable.ic_delete, "Discard", "It won't be sent to Wallet", danger = true) { discard(src) }
+            }
+            Store.FAILED -> {
+                add(R.drawable.ic_sync, "Retry now", src.error) { retry(src) }
+                add(R.drawable.ic_delete, "Discard", "It won't be sent to Wallet", danger = true) {
+                    store.delete(src.id)
+                    refresh()
+                }
+            }
+            Store.UNPARSED -> {
+                add(R.drawable.ic_edit, "Fix", "Enter the amount and account yourself", close = false) { openRecord(src) }
+                add(R.drawable.ic_delete, "Delete", danger = true) { deleteUnread(src) }
+            }
+        }
+        // A sent record Wallet gave an id for can be changed there; a transfer is Wallet's to file.
+        if (SentEdit.editable(src)) {
+            add(R.drawable.ic_edit, "Edit in Wallet", "Amount, payee, category or note. Replaces what Wallet has", close = false) {
+                Dialogs.showEditSent(this, src) { refresh() }
+            }
+        }
+        add(R.drawable.ic_info, "Details", close = false) { Dialogs.showDetails(this, r, partner, ::openRecord, ::deleteUnread) }
+        // A not-understood alert's Delete above is the same thing.
+        if (src.status != Store.UNPARSED) {
+            add(R.drawable.ic_smartphone, "Remove from this phone…", if (sent) "It stays in Wallet" else null, danger = true, close = false) {
+                confirmRemove(r, partner)
+            }
+        }
+
+        val paused = if (!Demo.active && Uploader.held(this)) {
+            val min = Uploader.holdMs(settings) / 60_000
+            "Sending is paused while this is open. It carries on when you close it, or after " +
+                "$min minute${if (min == 1L) "" else "s"} without a tap."
+        } else null
+        val bankIcon = runCatching { packageManager.getApplicationIcon(r.pkg) }.getOrNull()
+        val amount = row.findViewById<TextView>(R.id.recAmount)
+        val header = ActionSheet.Header(
+            bankIcon, row.findViewById<TextView>(R.id.recTitle).text, row.findViewById<TextView>(R.id.recSub).text,
+            amount.text, amount.currentTextColor,
+        )
+        s.fill(header, paused, actions)
+    }
+
+    /** The sheet's Send now: approves a record waiting for approval (both sides of a transfer) and sends straight away. */
+    private fun sendNow(src: Rec, partner: Rec?) {
+        for (h in listOfNotNull(src, partner).filter { it.status == Store.REVIEW }) {
+            if (!store.approve(h.id)) return toast("Too late: it was already sent or removed")
+            Notifier.cancelReview(this, h.id)
+        }
+        if (Demo.active) {
+            store.markSynced(listOfNotNull(src.id, partner?.id))
+            toast("Demo: marked as sent. Nothing went to Wallet.")
+            return refresh()
+        }
+        syncBase = store.counts()[Store.SYNCED]
+        Uploader.requested = true
+        Uploader.release(this, now = true)
+        refresh()
+    }
+
+    /** "Don't send yet": the record waits for approval, as in "ask before sending" mode. */
+    private fun holdBack(r: Rec) {
+        if (!store.holdBack(r.id)) toast("Too late: it was already sent")
+        refresh()
+    }
+
+    private fun discard(r: Rec) {
+        if (!store.discardWaiting(r.id)) toast("Too late: it was already sent")
+        Notifier.cancelReview(this, r.id)
+        refresh()
+    }
+
+    private fun retry(r: Rec) {
+        store.setStatus(r.id, Store.PENDING)
+        if (!Demo.active) Uploader.release(this, now = true)
+        refresh()
+    }
+
+    /** Splits a transfer back into two normal records; the hold keeps them until the sheet closes. */
+    private fun notTransfer(r: Rec) {
+        store.unpair(r.id)
+        if (!Demo.active) Uploader.schedule(this, 0, replace = true)
+        toast("Both sides will go to Wallet as separate records")
+        refresh()
+    }
+
+    /**
+     * From a row's actions: forget one record on this phone only. With it gone, a scan can capture the bank's
      * alert again if it's still in the notification shade, which is how to redo one by hand.
      */
     private fun confirmRemove(r: Rec, other: Rec? = null) {
@@ -821,6 +993,7 @@ class MainActivity : LockedActivity() {
                 if (!Demo.active && Parser.isCashIn(r.note.orEmpty())) Dialogs.showCashIn(this, r) { refresh() }
                 else Dialogs.showFix(this, r) { refresh() }
             Store.REVIEW, Store.PENDING -> Dialogs.showRecord(this, r) { refresh() }
+            Store.SYNCED -> if (SentEdit.editable(r)) Dialogs.showEditSent(this, r) { refresh() }
             Store.FAILED -> MaterialAlertDialogBuilder(this)
                 .setTitle("Couldn't be sent")
                 .setMessage(r.error ?: "Unknown error")

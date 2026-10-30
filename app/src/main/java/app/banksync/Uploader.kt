@@ -15,6 +15,8 @@ import java.io.IOException
 object Uploader {
     private const val JOB_ID = 1
     private const val BATCH = 50
+    /** Wallet takes at most 10 record changes a request. */
+    private const val PATCH_BATCH = 10
 
     /** True while the upload job is running, so the home screen can show it. */
     @Volatile
@@ -46,6 +48,48 @@ object Uploader {
         changed()
     }
 
+    /** How long a hold lasts with no taps before uploads carry on by themselves: the user's batch delay. 0 means no holds. */
+    fun holdMs(s: Settings): Long = s.batchDelayMin * 60_000L
+
+    /** Whether uploads are held because the user has a record's actions open. */
+    fun held(context: Context): Boolean = Settings(context).holdUntil > System.currentTimeMillis()
+
+    /** Time until the held job should run: the rest of the hold, then what was left of the delay. Null when not held. */
+    private fun holdLeft(s: Settings): Long? {
+        val left = s.holdUntil - System.currentTimeMillis()
+        return if (left > 0) left + s.holdLeftMs else null
+    }
+
+    /**
+     * Holds uploads while the user has a record's actions open, so nothing goes before they've decided.
+     * Each call counts as activity and moves the end to [holdMs] from now; with no more taps, uploads
+     * carry on by themselves then. The delay's countdown stops where it was and resumes from there.
+     * Does nothing when the batch delay is 0.
+     */
+    fun hold(context: Context) {
+        val s = Settings(context)
+        val length = holdMs(s)
+        // With no batch delay the user wants records sent at once, open sheet or not.
+        if (length == 0L) return
+        val now = System.currentTimeMillis()
+        if (s.holdUntil <= now) s.holdLeftMs = (s.uploadDueAt - now).coerceAtLeast(0)
+        s.holdUntil = now + length
+        // A job already sending finishes its batch; the next one sees the hold. Otherwise move the job to the hold's end.
+        if (!running && Store.get(context).counts()[Store.PENDING] > 0) schedule(context, length + s.holdLeftMs, replace = true)
+        changed()
+    }
+
+    /** Ends a hold: the countdown carries on from where it stopped, or [now] sends straight away. */
+    fun release(context: Context, now: Boolean = false) {
+        val s = Settings(context)
+        val left = s.holdLeftMs
+        // A hold that ran out already let its job go at the time; there's nothing to move.
+        val wasHeld = held(context)
+        s.holdUntil = 0
+        if ((wasHeld || now) && !running && Store.get(context).counts()[Store.PENDING] > 0) schedule(context, if (now) 0 else left, replace = true)
+        changed()
+    }
+
     /** Whether a job is waiting for its turn (no network yet, say) rather than running. */
     fun waiting(context: Context): Boolean = context.getSystemService(JobScheduler::class.java).getPendingJob(JOB_ID) != null
 
@@ -64,14 +108,16 @@ object Uploader {
         val js = context.getSystemService(JobScheduler::class.java)
         if (!replace && js.getPendingJob(JOB_ID) != null) return
         val s = Settings(context)
+        val latency = delayMs ?: (s.batchDelayMin * 60_000L)
         val job = JobInfo.Builder(JOB_ID, ComponentName(context, UploadJobService::class.java))
             .setRequiredNetworkType(if (s.wifiOnly) JobInfo.NETWORK_TYPE_UNMETERED else JobInfo.NETWORK_TYPE_ANY)
-            .setMinimumLatency(delayMs ?: (s.batchDelayMin * 60_000L))
+            .setMinimumLatency(latency)
             .setBackoffCriteria(30_000, JobInfo.BACKOFF_POLICY_EXPONENTIAL)
             .build()
         // A scheduling failure must never take down the notification listener.
         try {
             js.schedule(job)
+            s.uploadDueAt = System.currentTimeMillis() + latency
         } catch (e: SecurityException) {
             Log.e("Uploader", "Could not schedule upload job", e)
         }
@@ -82,14 +128,18 @@ object Uploader {
         val store = Store.get(context)
         val token = s.token
         if (token.isEmpty()) return Result.Done
+        // The user has a record's actions open (a job queued before the hold, say): come back when it ends.
+        holdLeft(s)?.let { return Result.RetryAfter(it) }
 
         // The network is up anyway, so this is the cheap moment to bring Wallet's rules and history up to date.
         WalletCache.refresh(context, token)
 
         while (true) {
             if (cancelled()) return Result.Retry
+            holdLeft(s)?.let { return Result.RetryAfter(it) }
             val batch = store.pending(BATCH)
-            if (batch.isEmpty()) return Result.Done
+            // New records first; then changes the user made to sent ones.
+            if (batch.isEmpty()) return sendEdits(store, s, token)
 
             // An earlier attempt may have reached Wallet without an answer coming back. Wallet has no
             // duplicate protection, so look for the record first and only re-send if it isn't there.
@@ -132,7 +182,7 @@ object Uploader {
                 if (plan === Transfers.Send.Alone) store.unpair(rec.id) else plans[rec.id] = plan
             }
             val sending = batch.filter { plans[it.id] !== Transfers.Send.Wait }
-            if (sending.isEmpty()) return Result.Done
+            if (sending.isEmpty()) return sendEdits(store, s, token)
 
             // A record captured before the cache had anything to go on gets another try now. Transfers have no category.
             val ready = sending.map { rec ->
@@ -157,7 +207,7 @@ object Uploader {
                     s.authError = false
                     s.tokenVerified = true
                     val items = parseResults(resp.body, ready.size)
-                    ready.forEachIndexed { i, rec -> synced(store, rec, items?.get(i), plans[rec.id]) }
+                    ready.forEachIndexed { i, rec -> synced(store, s, rec, items?.get(i), plans[rec.id]) }
                 }
                 207, 400 -> {
                     s.authError = false
@@ -182,8 +232,10 @@ object Uploader {
      * Marks [rec] sent, keeping Wallet's id so a later transfer side can bind to it. A record sent as a
      * whole transfer also made the other side in Wallet, so that one is done too.
      */
-    private fun synced(store: Store, rec: Rec, item: JSONObject?, plan: Transfers.Send?) {
-        store.markSynced(rec.id, item?.optString("id")?.takeIf { it.isNotEmpty() })
+    private fun synced(store: Store, s: Settings, rec: Rec, item: JSONObject?, plan: Transfers.Send?) {
+        // A transfer has no note of its own to edit later.
+        val note = if (plan != null) null else noteFor(rec, s, s.rules().associate { it.accountId to it.accountCurrency }).orEmpty()
+        store.markSynced(rec.id, item?.optString("id")?.takeIf { it.isNotEmpty() }, note)
         if (plan is Transfers.Send.New && plan.partnerId != null) {
             store.markSynced(plan.partnerId, item?.optString("createdMirrorRecordId")?.takeIf { it.isNotEmpty() })
         }
@@ -213,7 +265,7 @@ object Uploader {
             val item = items[i]
             when {
                 item == null -> failed.getOrPut("No result returned for this record") { ArrayList() }.add(rec.id)
-                item.optBoolean("success") -> synced(store, rec, item, plans[rec.id])
+                item.optBoolean("success") -> synced(store, s, rec, item, plans[rec.id])
                 isTransient(item) -> retry += rec.id
                 // Wallet wouldn't pair it (the other side changed in Wallet, say): send it as a normal record next pass.
                 rec.id in plans -> store.unpair(rec.id)
@@ -254,6 +306,55 @@ object Uploader {
         else -> false
     }
 
+    /** The note Wallet gets: one the user wrote replaces the built one, and blank means they cleared it. */
+    private fun noteFor(r: Rec, s: Settings, currencies: Map<String, String>): String? =
+        (r.noteEdit ?: Parser.walletText(r.note.orEmpty(), r.payee, currencies[r.account].orEmpty(), s.includeNote).note)
+            ?.takeIf { it.isNotBlank() }
+
+    /**
+     * Sends changes the user made to records already in Wallet ("Edit in Wallet"), up to 10 a request.
+     * Re-sending a change is harmless, so a request with no answer is simply tried again. What the user
+     * changed replaces what Wallet has.
+     */
+    private fun sendEdits(store: Store, s: Settings, token: String): Result {
+        while (true) {
+            val batch = store.edits(PATCH_BATCH)
+            if (batch.isEmpty()) return Result.Done
+            val body = JSONArray()
+            for (r in batch) body.put(SentEdit.item(r.walletId!!, JSONObject(r.patch!!)))
+            val resp = try {
+                WalletApi.patchRecords(token, body.toString())
+            } catch (e: IOException) {
+                return if (s.autoRetry) Result.Retry else Result.Done
+            }
+            when (resp.code) {
+                200, 207, 400 -> {
+                    s.authError = false
+                    val items = parseResults(resp.body, batch.size)
+                    batch.forEachIndexed { i, r ->
+                        val item = items?.get(i)
+                        when {
+                            item == null -> store.editFailed(r.id, "Wallet didn't confirm the change")
+                            item.optBoolean("success") -> store.editDone(r.id, r.patch!!)
+                            isTransient(item) -> {}
+                            else -> store.editFailed(r.id, "Wallet refused the change: " + (item.opt("error")?.toString()?.take(200) ?: "rejected"))
+                        }
+                    }
+                    // Something went wrong for the server only: leave those queued for the backoff.
+                    if (batch.any { store.get(it.id)?.patch != null }) return Result.Retry
+                }
+                401, 403 -> {
+                    s.authError = true
+                    return Result.Done
+                }
+                429 -> return Result.RetryAfter(resp.retryAfterMs ?: 60_000)
+                in 500..599 -> return Result.Retry
+                else -> batch.forEach { store.editFailed(it.id, "Wallet refused the change (HTTP ${resp.code})") }
+            }
+            changed()
+        }
+    }
+
     private fun toJson(batch: List<Rec>, s: Settings, plans: Map<Long, Transfers.Send>): String {
         val arr = JSONArray()
         val currencies = s.rules().associate { it.accountId to it.accountCurrency }
@@ -266,8 +367,7 @@ object Uploader {
             // The stored text is the whole alert; Wallet only gets the payment details from it.
             val w = Parser.walletText(r.note.orEmpty(), r.payee, currencies[r.account].orEmpty(), s.includeNote)
             w.payee?.let { o.put("counterParty", it) }
-            // A note the user wrote replaces the built one; blank means they cleared it.
-            (r.noteEdit ?: w.note)?.takeIf { it.isNotBlank() }?.let { o.put("note", it) }
+            noteFor(r, s, currencies)?.let { o.put("note", it) }
             when (val plan = plans[r.id]) {
                 is Transfers.Send.Existing -> o.put("transfer", JSONObject().put("pairingMode", "existing").put("recordId", plan.walletId))
                 is Transfers.Send.New -> o.put("transfer", JSONObject().put("pairingMode", "new").put("accountId", plan.toAccount))

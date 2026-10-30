@@ -197,8 +197,9 @@ object Dialogs {
     /**
      * Read-only details of any record in Recent activity: what Wallet has or will get (payee or payer,
      * note, category, account) and where it stands. [partner] is the other half of a transfer. A record
-     * that hasn't been sent also gets a button that calls [onEdit] with the half to open, and one that
-     * wasn't understood a Delete button that calls [onDelete].
+     * that hasn't been sent also gets a button that calls [onEdit] with the half to open, one that
+     * wasn't understood a Delete button that calls [onDelete], and a sent one that can be changed in
+     * Wallet ([SentEdit.editable]) an "Edit in Wallet" button that calls [onEdit] with it.
      */
     fun showDetails(activity: Activity, rec: Rec, partner: Rec?, onEdit: (Rec) -> Unit, onDelete: (Rec) -> Unit) {
         val settings = Settings(activity)
@@ -284,6 +285,8 @@ object Dialogs {
                     else -> "Edit"
                 }
             ) { _, _ -> onEdit(waiting) }
+        } else if (SentEdit.editable(main)) {
+            builder.setPositiveButton("Edit in Wallet") { _, _ -> onEdit(main) }
         }
         val unread = waiting?.takeIf { it.status == Store.UNPARSED }
         if (unread != null) builder.setNeutralButton("Delete") { _, _ -> onDelete(unread) }
@@ -292,6 +295,71 @@ object Dialogs {
     }
 
     private fun Int.dp(activity: Activity) = (this * activity.resources.displayMetrics.density).toInt()
+
+    /**
+     * "Edit in Wallet" for a record already sent: amount, payee or payer, category and note. The changes
+     * are saved here at once and sent with the next upload, replacing what Wallet has.
+     */
+    fun showEditSent(activity: Activity, rec: Rec, onDone: () -> Unit) {
+        val store = Store.shown(activity)
+        val view = LayoutInflater.from(activity).inflate(R.layout.dialog_edit_sent, null)
+        val amount = rec.amount ?: return
+        val income = amount > 0
+        view.findViewById<TextView>(R.id.editIntro).text =
+            "Changes go to Wallet with the next upload and replace what it has there, including anything changed in Wallet since."
+        view.findViewById<TextInputLayout>(R.id.editAmountLayout).hint = if (income) "Amount received" else "Amount spent"
+        val amountField = view.findViewById<EditText>(R.id.editAmount)
+        amountField.setText(String.format(Locale.US, "%.2f", kotlin.math.abs(amount)))
+        view.findViewById<TextInputLayout>(R.id.editPayeeLayout).hint = if (income) "Payer" else "Payee"
+        val payeeField = view.findViewById<EditText>(R.id.editPayee)
+        payeeField.setText(rec.payee.orEmpty())
+        fun payee() = payeeField.text.toString().trim().ifEmpty { null }
+        val initial = rec.categoryId?.let {
+            CategoryPick(it, rec.categoryName ?: "Category", rec.labelIds, rec.categorySource ?: CategorySource.MANUAL)
+        }
+        val chooser = CategoryChooser(activity, view, initial, ::payee)
+        // Records sent before 1.6 didn't keep the note Wallet got: then a typed note replaces it, and blank leaves it.
+        val noteField = view.findViewById<EditText>(R.id.editNote)
+        noteField.setText(rec.noteEdit.orEmpty())
+        if (rec.noteEdit == null) {
+            view.findViewById<TextInputLayout>(R.id.editNoteLayout).helperText = "This phone doesn't know Wallet's note for it. Leave empty to keep it."
+        }
+
+        lateinit var dialog: AlertDialog
+        fun typedAmount() = amountField.text.toString().replace(",", "").toDoubleOrNull()?.takeIf { it > 0 }
+        dialog = MaterialAlertDialogBuilder(activity)
+            .setTitle("Edit in Wallet")
+            .setView(android.widget.ScrollView(activity).apply { addView(view) })
+            .setPositiveButton("Save") { _, _ ->
+                val signed = (typedAmount() ?: return@setPositiveButton).let { if (income) it else -it }
+                val category = chooser.result { initial }
+                val note = noteField.text.toString().trim()
+                val changes = SentEdit.changes(
+                    SentEdit.Fields(amount, rec.payee, rec.categoryId, rec.noteEdit),
+                    SentEdit.Fields(signed, payee(), category?.id, note),
+                )
+                if (changes.isEmpty()) return@setPositiveButton
+                chooser.commit()
+                // Unknown and left empty, the note stays unknown rather than becoming "none".
+                val kept = if (rec.noteEdit == null && note.isEmpty()) null else note
+                if (!store.editSent(rec.id, signed, payee(), category, kept, changes)) {
+                    Toast.makeText(activity, "This record can't be changed from here", Toast.LENGTH_LONG).show()
+                    return@setPositiveButton
+                }
+                if (Demo.active) {
+                    // Nothing goes to Wallet in the demo; the change just lands.
+                    store.get(rec.id)?.patch?.let { store.editDone(rec.id, it) }
+                } else {
+                    Uploader.schedule(activity)
+                }
+                onDone()
+            }
+            .setNegativeButton("Cancel", null)
+            .create()
+        dialog.setOnShowListener { dialog.getButton(AlertDialog.BUTTON_POSITIVE)?.isEnabled = typedAmount() != null }
+        amountField.doAfterTextChanged { dialog.getButton(AlertDialog.BUTTON_POSITIVE)?.isEnabled = typedAmount() != null }
+        dialog.show()
+    }
 
     /**
      * A captured transaction that hasn't gone yet: shows what will be sent and lets the user change the
