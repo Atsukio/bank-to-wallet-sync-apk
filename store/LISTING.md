@@ -104,7 +104,7 @@ Use demo mode only, never real transactions. The ones in `screenshots/` (1.6, 10
 5. `5-dark.png`: the home screen in dark mode
 6. `6-sent.png`: "Sample Grocer" tapped, a sent record's sheet with Edit in Wallet
 
-To retake them, run `.	ools\screenshots.ps1` from the repo root (about a minute): it builds the debug APK, starts the emulator, opens the app straight into demo mode and saves all six with a clean status bar. Play needs 2 to 8 phone screenshots, PNG or JPEG, sides between 320 and 3840 px, the long side no more than twice the short side.
+To retake them, run `.\tools\screenshots.ps1` from the repo root (about a minute): it builds the debug APK, starts the emulator, opens the app straight into demo mode and saves all six with a clean status bar. Play needs 2 to 8 phone screenshots, PNG or JPEG, sides between 320 and 3840 px, the long side no more than twice the short side.
 
 ## Release
 1. Build the bundle: `.\gradlew.bat bundleRelease` (with `keystore.properties` in place), output `app/build/outputs/bundle/release/app-release.aab`.
