@@ -129,9 +129,9 @@ Read by the `android-play-release` skill (TeamPotatoes/claude-skills); "the usua
 
 ## Status as of 2026-10-30
 
-- Released history is in `Changelog.kt`. 1.6 (versionCode 12) is not on Play yet; new changes join its entry until the owner says it's ready.
+- Released history is in `Changelog.kt`. 1.6 (versionCode 12) is done. 1.7 (versionCode 13) is not on Play yet; new changes join its entry until the owner says it's ready.
 - Checked on the emulator only (demo mode): the 1.6 home screen and sheet, light and dark.
-- Planned payments (in 1.6): checked on the emulator in demo mode. The owner's Settings › Planned payments check (2026-11-01): amounts stored positive with `type`; no occurrences listed at all, even just after marking one paid; marking paid leaves `dueDate` as it was but raises `paymentCount`, which counts payments from `generateFromDate` (`recurrenceRule` like `FREQ=MONTHLY`). Unverified: the date of the record marking paid makes (`paidBy` looks from 3 days before the due day).
+- Planned payments (in 1.7): checked on the emulator in demo mode. The owner's Settings › Planned payments check (2026-11-01): amounts stored positive with `type`; no occurrences listed at all, even just after marking one paid; marking paid leaves `dueDate` as it was but raises `paymentCount`, which counts payments from `generateFromDate` (`recurrenceRule` like `FREQ=MONTHLY`). Unverified: the date of the record marking paid makes (`paidBy` looks from 3 days before the due day).
 - Edit in Wallet: works on the owner's phone (2026-11-01).
 - Unverified on a real phone: Remove from Wallet (`DELETE` with a body, through HttpURLConnection; Wallet's answers), the sheet's upload pause, whether `pairingMode: existing` turns the sent side into a transfer, notification buttons and Change after the app lock, the 9 pm alarm, the disclosure dialog and battery page, app lock rotation, labels on created records.
 - Waiting on the owner: dummy samples of non-DuitNow transfer alerts; the Play Console forms and 12-tester closed test; decisions on the USD estimate, the note default and a wider duplicate check.

@@ -13,7 +13,16 @@ class Release(val code: Int, val name: String, val date: String, val changes: Li
 object Changelog {
     val releases = listOf(
         Release(
-            12, "1.6", "1 Nov 2026",
+            13, "1.7", "1 Nov 2026",
+            listOf(
+                "Planned payments: a transaction with the same account and amount as a planned payment in Wallet, within 3 days of its due date, isn't sent, so it's never in Wallet twice. The payee's name doesn't have to match; when two planned payments could be it, the one sharing a name with the alert wins. Mark the planned payment paid in Wallet and it shows here as done, with the payee, note and category Wallet has for it, or send it anyway. Turn it off in Settings › Capture.",
+                "Pull down on the home screen, or use Check planned payments in the ⋮ menu, to check Wallet for planned payments marked paid.",
+                "A week past its due date, a planned payment still not marked paid in Wallet asks whether to send it as a normal transaction.",
+                "What needs you stands out: a faint amber behind transactions waiting on you, red behind ones that failed, and Need you turns red only when something failed.",
+            )
+        ),
+        Release(
+            12, "1.6", "31 Oct 2026",
             listOf(
                 "A fresh look for the home screen: Recent activity is grouped by day, each transaction shows who, its category and time, with a small label only when it needs something (waiting, no category, approve, failed). Money out is no longer red; money in stays green.",
                 "Tap a transaction for one sheet with its details and everything you can do: send it now, change it, hold it back, retry or remove it.",
@@ -23,8 +32,6 @@ object Changelog {
                 "While a transaction's sheet is open nothing is sent to Wallet, so a transaction can't go before you've decided. Sending carries on when you close it, or after your batch delay passes without a tap. With the batch delay at 0, nothing is paused.",
                 "Edit in Wallet: change the amount, payee, account, category or note of a transaction already sent. Your change replaces what Wallet has, and waits for a connection like everything else. Works for transactions sent from this version on, and for most sent since 1.4.",
                 "Remove from Wallet: delete a sent transaction in Wallet from the same menu. Until it goes, you can keep it after all.",
-                "Planned payments: a transaction with the same account and amount as a planned payment in Wallet, within 3 days of its due date, isn't sent, so it's never in Wallet twice. The payee's name doesn't have to match; when two planned payments could be it, the one sharing a name with the alert wins. Mark the planned payment paid in Wallet and it shows here as done, with the payee, note and category Wallet has for it, or send it anyway. Pulling down checks Wallet for them too, as does Check planned payments in the ⋮ menu. A week past its due date, one still not marked paid asks whether to send it as a normal transaction. Turn it off in Settings › Capture.",
-                "What needs you stands out: a faint amber behind transactions waiting on you, red behind ones that failed, and Need you turns red only when something failed.",
                 "If Wallet refuses a change, the transaction says why, and its menu lets you try again, change it or forget it.",
                 "Settings say \"Saved\" as each change is saved. A typed value now saves when you press Done or move to another field, not only when you leave the screen.",
                 "Bank apps are grouped, each with its accounts under it and the default one marked. Any bank app can now have a default account, and choosing a new one replaces the old.",

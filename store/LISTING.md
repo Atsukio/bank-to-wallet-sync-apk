@@ -109,17 +109,13 @@ To retake them, run `.\tools\screenshots.ps1` from the repo root (about a minute
 ## Release
 1. Build the bundle: `.\gradlew.bat bundleRelease` (with `keystore.properties` in place), output `app/build/outputs/bundle/release/app-release.aab`.
 2. First upload: **Test and release › Testing › Closed testing**, create a track, add testers, upload the `.aab`, add release notes (the latest `Changelog` entry), roll out.
-3. Release notes for 1.6 (Play's limit is 500 characters):
+3. Release notes for 1.7 (Play's limit is 500 characters):
 
 ```
-• New home screen: activity grouped by day, calmer rows with status labels; tap Waiting, Sent or Need you to filter
-• Tap a transaction for its details and actions; nothing is sent while that's open
-• Edit or remove a transaction already sent to Wallet
-• Planned payments in Wallet aren't added twice
-• Pull down to scan for missed alerts
-• Bank apps grouped, any of them with a default account
-• New installs wait 2 minutes before sending
-• Settings say "Saved" as each change is saved
+• Planned payments: a transaction matching a planned payment in Wallet waits for you to mark it paid there, so it's never added twice. Once paid, it shows Wallet's payee, note and category
+• Pull down, or use Check planned payments in the ⋮ menu, to check Wallet for them
+• A week past its due date, one still not marked paid asks whether to send it as a normal transaction
+• What needs you stands out: amber behind transactions waiting on you, red behind failed ones
 ```
 
 4. Personal developer accounts need 12 testers opted in for 14 days in a row before **Production** can be applied for.
