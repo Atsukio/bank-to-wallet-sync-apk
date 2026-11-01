@@ -22,7 +22,7 @@ FEATURES
 • Categories from your own Wallet rules, your past records and the choices you've made before.
 • Transfers between your own accounts become one Wallet transfer, not an expense and an income. Touch 'n Go Cash ins to GO+ too.
 • Nothing is lost offline: records wait on your phone and send themselves when you're back online, optionally on Wi-Fi only.
-• No duplicates: repeated alerts are recognised, and an upload that got no answer is checked against Wallet before it is sent again.
+• No duplicates: repeated alerts are recognised, and an upload that got no answer is checked against Wallet before it is sent again. A transaction that matches a planned payment in Wallet waits until you mark that paid there, instead of going in twice.
 • Ask before sending: approve or discard each record from a notification, if you prefer. Or let records go and change or stop one from its "picked up" notification.
 • Ads and notices from your bank are skipped; real alerts it can't read are kept, so you can enter them by hand in a few taps.
 • Change the category, payee or note of any record before it is sent, or edit or remove it in Wallet afterwards, and an optional daily summary at 9 pm.
@@ -115,8 +115,9 @@ To retake them, run `.\tools\screenshots.ps1` from the repo root (about a minute
 • New home screen: activity grouped by day, calmer rows with status labels; tap Waiting, Sent or Need you to filter
 • Tap a transaction for its details and actions; nothing is sent while that's open
 • Edit or remove a transaction already sent to Wallet
+• Planned payments in Wallet aren't added twice
 • Pull down to scan for missed alerts
-• Bank apps grouped by app; any of them can have a default account
+• Bank apps grouped, any of them with a default account
 • New installs wait 2 minutes before sending
 • Settings say "Saved" as each change is saved
 ```
