@@ -10,6 +10,7 @@ import android.widget.LinearLayout
 import android.widget.TextView
 import com.google.android.material.bottomsheet.BottomSheetBehavior
 import com.google.android.material.bottomsheet.BottomSheetDialog
+import com.google.android.material.snackbar.Snackbar
 import com.google.android.material.R as M
 
 /**
@@ -18,10 +19,13 @@ import com.google.android.material.R as M
  * It stays open under any dialog an action opens, and [fill] redraws it as the record changes.
  */
 class ActionSheet(activity: Activity, onClose: () -> Unit) {
-    /** One line. A [danger] one is red. [close]: the sheet closes on tap; otherwise it stays under the dialog the action opens. */
+    /**
+     * One line. A [danger] one is red. [close]: the sheet closes on tap; otherwise it stays under the dialog the
+     * action opens. A [busy] one is running: its icon spins and it can't be tapped again.
+     */
     class Action(
         val icon: Int, val text: String, val hint: String? = null,
-        val danger: Boolean = false, val close: Boolean = true, val run: () -> Unit,
+        val danger: Boolean = false, val close: Boolean = true, val busy: Boolean = false, val run: () -> Unit,
     )
 
     /** The top of the sheet, as the row shows it: the bank's [icon], else a [symbol], else the payee's [monogram]. */
@@ -103,7 +107,9 @@ class ActionSheet(activity: Activity, onClose: () -> Unit) {
             item.findViewById<ImageView>(R.id.actionIcon).apply {
                 setImageResource(a.icon)
                 if (a.danger) imageTintList = ColorStateList.valueOf(red)
+                if (a.busy) spin()
             }
+            item.isEnabled = !a.busy
             item.findViewById<TextView>(R.id.actionText).apply {
                 text = a.text
                 if (a.danger) setTextColor(red)
@@ -122,6 +128,9 @@ class ActionSheet(activity: Activity, onClose: () -> Unit) {
     }
 
     val isShowing get() = dialog.isShowing
+
+    /** A snackbar on the sheet itself; one on the screen behind would open under it. */
+    fun snack(msg: String) = Snackbar.make(view, msg, Snackbar.LENGTH_SHORT).show()
 
     fun show() = dialog.show()
 

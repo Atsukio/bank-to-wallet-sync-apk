@@ -21,6 +21,8 @@ import com.google.android.material.appbar.MaterialToolbar
 import com.google.android.material.button.MaterialButton
 import com.google.android.material.card.MaterialCardView
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
+import com.google.android.material.progressindicator.CircularProgressIndicatorSpec
+import com.google.android.material.progressindicator.IndeterminateDrawable
 import com.google.android.material.snackbar.Snackbar
 import com.google.android.material.R as M
 
@@ -56,6 +58,9 @@ class MainActivity : LockedActivity() {
     /** The sheet a tapped or held row opened, and the record it is for. */
     internal var sheet: ActionSheet? = null
     internal var sheetId = -1L
+
+    /** The sheet's "Check Wallet now" is waiting for Wallet's answer. */
+    internal var checkingPlanned = false
 
     /** The set of checks showing last, so they fade in and out only when it changes. */
     private var checksKey: String? = null
@@ -112,6 +117,7 @@ class MainActivity : LockedActivity() {
                     R.id.menuImport -> importSettings.launch(arrayOf("*/*"))
                     R.id.menuDemo -> if (Demo.active) stopDemo() else startDemo()
                     R.id.menuScan -> scan()
+                    R.id.menuPlanned -> checkAllPlanned()
                     R.id.menuHide -> {
                         settings.hideDetails = !settings.hideDetails
                         refresh()
@@ -143,11 +149,12 @@ class MainActivity : LockedActivity() {
             findViewById<View>(tile).setOnClickListener { showOnly(if (filter == f) null else f) }
         }
         findViewById<View>(R.id.filterClear).setOnClickListener { showOnly(null) }
-        // Pulling down scans the shade for missed alerts, as "Scan for missed alerts" in the menu does.
+        // Pulling down scans the shade for missed alerts, as "Scan for missed alerts" in the menu does,
+        // and checks Wallet for held planned payments while there are any.
         findViewById<SwipeRefreshLayout>(R.id.pull).apply {
             setColorSchemeColors(themeColor(M.attr.colorPrimary))
             setProgressBackgroundColorSchemeColor(themeColor(M.attr.colorSurfaceContainerHigh))
-            setOnRefreshListener { scan { isRefreshing = false } }
+            setOnRefreshListener { scan(planned = true) { isRefreshing = false } }
         }
 
         if (intent.getBooleanExtra(EXTRA_DEMO, false) && applicationInfo.flags and ApplicationInfo.FLAG_DEBUGGABLE != 0) {
@@ -191,6 +198,9 @@ class MainActivity : LockedActivity() {
 
     override fun onStop() {
         Uploader.onChange = null
+        // Nothing turns unseen; the next refresh starts it again.
+        heroSpin?.cancel()
+        heroSpin = null
         super.onStop()
     }
 
@@ -205,6 +215,8 @@ class MainActivity : LockedActivity() {
         if (settings.wallpaperColors != drawnWithWallpaper) return recreate()
         Summary.schedule(this)
         if (!Demo.active) Uploader.releaseTransfers(this)
+        // Opening the app is the likely moment after marking a planned payment paid in Wallet.
+        if (!Demo.active && store.counts()[Store.PLANNED] > 0) checkPlanned()
         openFromNotification()
         // Binding takes a moment, so look again shortly after asking for a rebind.
         if (Permissions.reconnectIfStopped(this)) window.decorView.postDelayed({ if (!isFinishing) refresh() }, 2_000)
@@ -297,6 +309,8 @@ class MainActivity : LockedActivity() {
             findItem(R.id.menuHide)?.isChecked = settings.hideDetails
             // Clearing only makes sense with something sent or not understood to clear.
             findItem(R.id.menuClear)?.isVisible = c[Store.SYNCED] + c[Store.UNPARSED] > 0
+            // Only something held for a planned payment can be closed by checking.
+            findItem(R.id.menuPlanned)?.isVisible = c[Store.PLANNED] > 0
         }
         renderHero(c)
         renderChecks()
@@ -332,6 +346,11 @@ class MainActivity : LockedActivity() {
         if ((button.visibility == View.VISIBLE) != show) animateLayout(button.parent.parent as ViewGroup)
         button.visibility = if (show) View.VISIBLE else View.GONE
         button.isEnabled = !busy && !held && waiting > 0
+        // A spinner in place of the plane while it works; swapped only on a change, so it doesn't restart.
+        if (busy != sendSpinning) {
+            sendSpinning = busy
+            button.icon = if (busy) spinner(button) else getDrawable(R.drawable.ic_send)
+        }
         button.text = when {
             Uploader.running -> "Sending…"
             held && waiting > 0 -> "Sending paused"
@@ -340,6 +359,19 @@ class MainActivity : LockedActivity() {
             else -> "Nothing to send"
         }
         bar.visibility = if (busy) View.VISIBLE else View.GONE
+    }
+
+    private var sendSpinning = false
+    private var heroSpin: android.animation.Animator? = null
+
+    /** A small turning circle the size of [button]'s icon, in the colour its icon has now. */
+    private fun spinner(button: MaterialButton): IndeterminateDrawable<CircularProgressIndicatorSpec> {
+        val spec = CircularProgressIndicatorSpec(this, null, 0, M.style.Widget_Material3_CircularProgressIndicator_ExtraSmall).apply {
+            indicatorSize = button.iconSize
+            indicatorInset = 0
+            indicatorColors = intArrayOf(button.iconTint.getColorForState(button.drawableState, button.currentTextColor))
+        }
+        return IndeterminateDrawable.createCircularDrawable(this, spec)
     }
 
     /** The one thing that matters most right now, worst problem first, with the button that fixes it. */
@@ -417,6 +449,14 @@ class MainActivity : LockedActivity() {
             imageTintList = android.content.res.ColorStateList.valueOf(fg)
             layoutParams = layoutParams.apply { width = px(if (hero.compact) 24 else 40); height = width }
             if (changed) pop()
+            // Reconnecting's arrows turn until Android connects the app.
+            val turning = hero.title == "Reconnecting…"
+            if (turning && heroSpin == null) heroSpin = spin()
+            if (!turning) heroSpin?.let {
+                it.cancel()
+                heroSpin = null
+                rotation = 0f
+            }
         }
         findViewById<TextView>(R.id.heroTitle).apply {
             text = hero.title
@@ -484,7 +524,7 @@ class MainActivity : LockedActivity() {
     }
 
     private fun renderCounts(c: IntArray) {
-        val attention = c[Store.FAILED] + c[Store.REVIEW] + c[Store.UNPARSED]
+        val attention = c[Store.FAILED] + c[Store.REVIEW] + c[Store.UNPARSED] + c[Store.PLANNED]
         // Everything fixed: the "needs you" notification would only be stale now.
         if (!Demo.active && c[Store.UNPARSED] == 0) Notifier.cancelUnparsed(this)
         val muted = window.decorView.themeColor(M.attr.colorOnSurfaceVariant)
@@ -504,11 +544,12 @@ class MainActivity : LockedActivity() {
         }
         tile(R.id.tileWaiting, findViewById(R.id.countWaiting), findViewById(R.id.iconWaiting), c[Store.PENDING], getColor(R.color.status_wait), Filter.WAITING, "waiting")
         tile(R.id.tileSynced, findViewById(R.id.countSynced), findViewById(R.id.iconSynced), c[Store.SYNCED], getColor(R.color.amount_in), Filter.SENT, "sent")
-        // Needs you: the count, icon and label turn the error colour; the tile itself stays calm.
-        val error = window.decorView.themeColor(M.attr.colorError)
-        tile(R.id.tileAttention, findViewById(R.id.countAttention), findViewById(R.id.iconAttention), attention, error, Filter.ATTENTION, "need you")
+        // Needs you: the count, icon and label take the colour of the worst of it (red only when something
+        // failed, amber when it just waits on the user), as its rows do; the tile itself stays calm.
+        val worst = if (c[Store.FAILED] > 0) window.decorView.themeColor(M.attr.colorError) else getColor(R.color.status_warn)
+        tile(R.id.tileAttention, findViewById(R.id.countAttention), findViewById(R.id.iconAttention), attention, worst, Filter.ATTENTION, "need you")
         val label = findViewById<TextView>(R.id.labelAttention)
-        val colors = intArrayOf(if (attention > 0) error else muted)
+        val colors = intArrayOf(if (attention > 0) worst else muted)
         val before = attentionColors
         attentionColors = colors
         if (before != null && !before.contentEquals(colors)) fadeColors(before, colors) { label.setTextColor(it[0]) } else label.setTextColor(colors[0])
@@ -530,17 +571,26 @@ class MainActivity : LockedActivity() {
 
     /**
      * Asks the bound listener to read what's still in the shade; dismissed alerts can't be recovered.
-     * [onDone] runs when it has finished or couldn't start (pulling down waits on it).
+     * With [planned] (pulling down), also checks Wallet for held planned payments, only while one is
+     * held, and says both in one message. [onDone] runs when it has finished or couldn't start.
      */
-    internal fun scan(onDone: () -> Unit = {}) {
+    internal fun scan(planned: Boolean = false, onDone: () -> Unit = {}) {
         if (Demo.active) return toast("Not available in the demo").also { onDone() }
         val listener = BankNotificationListener.instance
             ?: return toast("Notification access isn't active. Turn it on first.").also { onDone() }
+        val check = planned && !checkingPlanned
+        if (check) checkingPlanned = true
         Thread {
             val found = listener.catchUp()
+            // Counted after the scan, which may have held a new one.
+            val before = if (check) store.counts()[Store.PLANNED] else 0
+            val checked = if (before > 0) WalletCache.refreshPlanned(this, settings.token, force = true) else null
             runOnUiThread {
+                if (check) checkingPlanned = false
                 onDone()
-                toast(if (found > 0) "Found $found missed alert${if (found == 1) "" else "s"}" else "No missed alerts found")
+                if (isFinishing || isDestroyed) return@runOnUiThread
+                val missed = if (found > 0) "Found $found missed alert${if (found == 1) "" else "s"}" else "No missed alerts found"
+                toast(checked?.let { "$missed. ${Planned.result(it, before, store.counts()[Store.PLANNED])}" } ?: missed)
                 refresh()
             }
         }.start()
@@ -565,6 +615,23 @@ class MainActivity : LockedActivity() {
             .danger(DialogInterface.BUTTON_POSITIVE)
     }
 
+    /**
+     * Asks Wallet whether held planned payments have been marked paid there, closing those that have
+     * (no more often than [WalletCache.refreshPlanned] allows, unless [force]). [onDone] gets whether it worked.
+     */
+    internal fun checkPlanned(force: Boolean = false, onDone: (Boolean) -> Unit = {}) {
+        val token = settings.token
+        if (token.isEmpty()) return onDone(false)
+        Thread {
+            val ok = WalletCache.refreshPlanned(this, token, force)
+            runOnUiThread {
+                if (isFinishing || isDestroyed) return@runOnUiThread
+                refresh()
+                onDone(ok)
+            }
+        }.start()
+    }
+
     private var namesRequested = false
 
     /** Asks Wallet once for account names, so a transfer to an account no bank app is linked to can say where. */
@@ -578,7 +645,11 @@ class MainActivity : LockedActivity() {
         }.start()
     }
 
-    internal fun toast(msg: String) = Snackbar.make(findViewById(R.id.root), msg, Snackbar.LENGTH_SHORT).show()
+    /** A short message, on the record sheet while it's open so it isn't hidden under it. */
+    internal fun toast(msg: String) {
+        sheet?.takeIf { it.isShowing }?.let { return it.snack(msg) }
+        Snackbar.make(findViewById(R.id.root), msg, Snackbar.LENGTH_SHORT).show()
+    }
 
     companion object {
         /** The record a "picked up" notification's Change button opens. */

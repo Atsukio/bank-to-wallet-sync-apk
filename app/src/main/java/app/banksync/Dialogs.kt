@@ -231,9 +231,16 @@ object Dialogs {
         val iso = java.text.SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'", Locale.US).apply { timeZone = java.util.TimeZone.getTimeZone("UTC") }
         add("When", iso.parse(main.date)?.let { java.text.SimpleDateFormat("d MMM yyyy, HH:mm", Locale.getDefault()).format(it) } ?: main.date)
         val shown = listOfNotNull(rec, partner).firstOrNull { it.status != Store.SYNCED } ?: rec
+        // Done once marked paid in Wallet: which planned payment it was. Only such rows keep the name.
+        if (shown.status == Store.SYNCED) shown.planName?.let { add("Planned payment", "$it, marked paid in Wallet") }
         when (shown.status) {
             Store.PENDING -> add("Status", "Waiting to send", R.color.status_wait)
             Store.REVIEW -> add("Status", "Waiting for your approval", R.color.status_warn)
+            Store.PLANNED -> {
+                val due = shown.planDue?.let { java.text.SimpleDateFormat("d MMM", Locale.getDefault()).format(it) }
+                add("Planned payment", listOfNotNull(shown.planName, due?.let { "due $it" }).joinToString(", "))
+                add("Status", "Not sent. Mark the planned payment paid in Wallet and this shows as done", R.color.status_warn)
+            }
             Store.FAILED -> add("Status", "Couldn't be sent: ${shown.error ?: "unknown error"}", R.color.status_bad)
             Store.UNPARSED -> add("Status", shown.error ?: "Not understood", R.color.status_warn)
             // A sent record can still have a change or a removal on its way, or one Wallet refused.
@@ -532,6 +539,7 @@ object Dialogs {
                 CategorySource.APP_RULE -> "from your category rules in this app"
                 CategorySource.WALLET_RULE -> "from your Wallet rules"
                 CategorySource.HISTORY -> "from your past Wallet records"
+                CategorySource.PLANNED -> "from the planned payment in Wallet"
                 else -> "chosen by you"
             }
         }

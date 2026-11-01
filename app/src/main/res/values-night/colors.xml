@@ -2,6 +2,8 @@
 <resources>
     <color name="chip_you">#5B4300</color>
     <color name="chip_on_you">#FFDF9A</color>
+    <color name="row_you">#2C2510</color>
+    <color name="row_bad">#3A1F1E</color>
     <color name="status_wait">#A8C8FF</color>
     <color name="status_good">#6FD488</color>
     <color name="status_warn">#FFD54F</color>

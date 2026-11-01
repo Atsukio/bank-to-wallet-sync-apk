@@ -39,7 +39,8 @@ class DemoTest {
     @Test
     fun showsEveryKindOfRow() {
         val statuses = Demo.alerts.map { it.status }.toSet()
-        for (s in listOf(Store.SYNCED, Store.PENDING, Store.REVIEW, Store.UNPARSED)) assertTrue("status $s", s in statuses)
+        for (s in listOf(Store.SYNCED, Store.PENDING, Store.REVIEW, Store.UNPARSED, Store.PLANNED)) assertTrue("status $s", s in statuses)
+        assertTrue(Demo.alerts.filter { it.status == Store.PLANNED }.all { it.plan != null })
         // A waiting row without a category shows the "tap to choose one" prompt.
         assertTrue(Demo.alerts.any { it.status == Store.PENDING && it.categoryId == null })
     }

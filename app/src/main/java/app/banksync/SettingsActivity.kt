@@ -84,6 +84,7 @@ class SettingsActivity : LockedActivity() {
             if (it) askForNotificationPermission()
         }
         switch(R.id.cashInSwitch, settings.cashInIgnored) { settings.cashInIgnored = it }
+        switch(R.id.plannedSwitch, settings.plannedPayments) { settings.plannedPayments = it }
         if (DynamicColors.isDynamicColorAvailable()) {
             // Colours are set as a screen opens, so this one is redrawn now and the home screen on return.
             switch(R.id.wallpaperSwitch, settings.wallpaperColors) {
@@ -134,6 +135,7 @@ class SettingsActivity : LockedActivity() {
 
         link(R.id.walletDataRow, R.drawable.ic_sync, "Learned from Wallet") { refreshWalletData() }
         link(R.id.memoryRow, R.drawable.ic_label, "Remembered choices") { forgetChoices() }
+        link(R.id.plannedRow, R.drawable.ic_schedule, "Planned payments") { checkPlanned() }
         link(R.id.accessRow, R.drawable.ic_notifications, "Notification access") { Permissions.askAccess(this) }
         link(R.id.batteryRow, R.drawable.ic_battery, "Battery use") { Permissions.openBatterySettings(this) }
         link(R.id.changelogRow, R.drawable.ic_new_releases, "What's new") {
@@ -147,6 +149,7 @@ class SettingsActivity : LockedActivity() {
         renderToken()
         renderRules()
         renderCategories()
+        renderPlanned()
         findViewById<View>(R.id.accessRow).findViewById<TextView>(R.id.linkText).text =
             if (Permissions.accessEnabled(this)) "Allowed" else "Off: bank alerts can't be read"
         findViewById<View>(R.id.batteryRow).findViewById<TextView>(R.id.linkText).text =
@@ -230,6 +233,60 @@ class SettingsActivity : LockedActivity() {
     }
 
     private fun linkText(row: Int) = findViewById<View>(row).findViewById<TextView>(R.id.linkText)
+
+    private fun renderPlanned() {
+        val d = WalletCache.get(this)
+        linkText(R.id.plannedRow).text = if (d.plannedAt == 0L) {
+            "Not loaded yet. Tap to check what Wallet has."
+        } else {
+            val ago = android.text.format.DateUtils.getRelativeTimeSpanString(d.plannedAt)
+            "${d.planned.size} still to pay · updated $ago. Tap to check."
+        }
+    }
+
+    /**
+     * Loads planned payments now and shows what Wallet's answers look like (counts and field names only,
+     * so it can be shared), to confirm how [Planned] reads them on a real account.
+     */
+    private fun checkPlanned() {
+        val token = settings.token
+        if (token.isEmpty()) return toast("Connect to Wallet first")
+        linkText(R.id.plannedRow).text = "Asking Wallet…"
+        Thread {
+            val result = runCatching {
+                val orders = WalletApi.standingOrders(token)
+                val items = WalletApi.standingOrderItems(token, WalletCache.plannedSince())
+                val closed = WalletCache.usePlanned(this, token, orders, items)
+                // Still held after that: has Wallet moved on from them (paid or skipped) without a record turning up?
+                val read = orders.mapNotNull { Planned.order(it) }
+                val held = Store.get(this).planned()
+                fun count(test: (String, Long) -> Boolean) = held.count { r -> r.planId?.let { id -> r.planDue?.let { test(id, it) } } == true }
+                val counted = count { id, due -> Planned.countedPaid(read, id, due) }
+                val moved = count { id, due -> Planned.movedOn(read, id, due) }
+                Planned.check(orders, items, System.currentTimeMillis()) +
+                    "\n\nStill held here: ${held.size}, of which Wallet counts as paid: $counted, due date moved on: $moved" +
+                    (if (counted + moved > 0) " (no record of that amount found in the account yet)" else "") +
+                    Planned.heldCheck(orders, held.mapNotNull { r -> r.planId?.let { id -> r.planDue?.let { id to it } } }, System.currentTimeMillis())
+                        .let { if (it.isEmpty()) "" else "\n$it" } +
+                    if (closed > 0) "\n\nMarked done: $closed held transaction(s) Wallet now has as paid." else ""
+            }
+            runOnUiThread {
+                if (isFinishing || isDestroyed) return@runOnUiThread
+                renderPlanned()
+                result.onSuccess { text ->
+                    com.google.android.material.dialog.MaterialAlertDialogBuilder(this)
+                        .setTitle("Planned payments")
+                        .setMessage("$text\n\nNo names or amounts are shown, so this is safe to share.")
+                        .setPositiveButton("OK", null)
+                        .setNeutralButton("Copy") { _, _ ->
+                            getSystemService(android.content.ClipboardManager::class.java)
+                                .setPrimaryClip(android.content.ClipData.newPlainText("Planned payments check", text))
+                        }
+                        .show()
+                }.onFailure { toast("Couldn't load planned payments: ${it.message}") }
+            }
+        }.start()
+    }
 
     private fun refreshWalletData() {
         val token = settings.token

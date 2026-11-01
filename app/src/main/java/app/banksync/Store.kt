@@ -34,13 +34,17 @@ class Rec(
     val transferTo: String? = null,
     /** Changes to a sent record still to reach Wallet: the body of a record PATCH, without the id. Null when none. */
     val patch: String? = null,
+    /** The planned payment ([Planned]) this alert matched: Wallet's standing order id, the occurrence's due time and its name. */
+    val planId: String? = null,
+    val planDue: Long? = null,
+    val planName: String? = null,
 )
 
 /**
  * Local queue. A row survives offline periods and process death until Wallet confirms it. A null
  * [name] is the in-memory queue that [Demo] fills.
  */
-class Store private constructor(context: Context, name: String?) : SQLiteOpenHelper(context, name, null, 7) {
+class Store private constructor(context: Context, name: String?) : SQLiteOpenHelper(context, name, null, 8) {
 
     override fun onCreate(db: SQLiteDatabase) {
         db.execSQL(
@@ -53,7 +57,8 @@ class Store private constructor(context: Context, name: String?) : SQLiteOpenHel
                 uncertain INTEGER NOT NULL DEFAULT 0, categoryId TEXT, transferTo TEXT,
                 posted INTEGER NOT NULL DEFAULT 0,
                 categoryName TEXT, labelIds TEXT, categorySource TEXT,
-                walletId TEXT, pairId INTEGER, noteEdit TEXT, patch TEXT)"""
+                walletId TEXT, pairId INTEGER, noteEdit TEXT, patch TEXT,
+                planId TEXT, planDue INTEGER, planName TEXT)"""
         )
         db.execSQL("CREATE INDEX rec_status ON rec(status)")
         db.execSQL("CREATE INDEX rec_hash ON rec(hash, created)")
@@ -87,6 +92,12 @@ class Store private constructor(context: Context, name: String?) : SQLiteOpenHel
             // Changes to a sent record, waiting to be sent to Wallet.
             db.execSQL("ALTER TABLE rec ADD COLUMN patch TEXT")
         }
+        if (old < 8) {
+            // The planned payment an alert matched, held until it's marked paid in Wallet.
+            db.execSQL("ALTER TABLE rec ADD COLUMN planId TEXT")
+            db.execSQL("ALTER TABLE rec ADD COLUMN planDue INTEGER")
+            db.execSQL("ALTER TABLE rec ADD COLUMN planName TEXT")
+        }
     }
 
     fun isDuplicate(hash: String, windowMs: Long = 120_000): Boolean =
@@ -116,12 +127,14 @@ class Store private constructor(context: Context, name: String?) : SQLiteOpenHel
         hash: String, pkg: String, account: String, amount: Double?,
         payee: String?, note: String?, date: String, status: Int,
         error: String? = null, category: CategoryPick? = null, posted: Long = 0L, transferTo: String? = null,
+        plan: Planned.Due? = null,
     ): Long {
         val v = ContentValues().apply {
             put("hash", hash); put("pkg", pkg); put("account", account); put("transferTo", transferTo)
             put("amount", amount); put("payee", payee); put("note", note)
             put("date", date); put("status", status); put("error", error)
             putCategory(category); put("posted", posted)
+            put("planId", plan?.orderId); put("planDue", plan?.dueMs); put("planName", plan?.name)
             put("created", System.currentTimeMillis())
         }
         return writableDatabase.insert("rec", null, v)
@@ -162,7 +175,7 @@ class Store private constructor(context: Context, name: String?) : SQLiteOpenHel
     fun get(id: Long): Rec? = query("id=$id", "id", 1).firstOrNull()
 
     fun counts(): IntArray {
-        val out = IntArray(5)
+        val out = IntArray(STATUSES)
         readableDatabase.rawQuery("SELECT status, COUNT(*) FROM rec GROUP BY status", null).use {
             while (it.moveToNext()) out[it.getInt(0)] = it.getInt(1)
         }
@@ -171,7 +184,7 @@ class Store private constructor(context: Context, name: String?) : SQLiteOpenHel
 
     /** Like [counts], for records captured at or after [ms]. */
     fun countsSince(ms: Long): IntArray {
-        val out = IntArray(5)
+        val out = IntArray(STATUSES)
         readableDatabase.rawQuery("SELECT status, COUNT(*) FROM rec WHERE created>=? GROUP BY status", arrayOf(ms.toString())).use {
             while (it.moveToNext()) out[it.getInt(0)] = it.getInt(1)
         }
@@ -301,6 +314,49 @@ class Store private constructor(context: Context, name: String?) : SQLiteOpenHel
         writableDatabase.update("rec", v, "id=? AND status=$UNPARSED", arrayOf(id.toString()))
     }
 
+    /** Alerts held because they matched a planned payment. */
+    fun planned(): List<Rec> = query("status=$PLANNED", "id", 200)
+
+    /** Wallet ids of every record this phone knows in Wallet. */
+    fun walletIds(): Set<String> =
+        readableDatabase.rawQuery("SELECT walletId FROM rec WHERE walletId IS NOT NULL", null).use { c ->
+            buildSet { while (c.moveToNext()) add(c.getString(0)) }
+        }
+
+    /** The planned-payment occurrences ([Planned.Due.key]) already matched by an alert, held or done. */
+    fun plannedKeys(): Set<String> =
+        readableDatabase.rawQuery("SELECT planId, planDue FROM rec WHERE planId IS NOT NULL AND planDue IS NOT NULL", null).use { c ->
+            buildSet { while (c.moveToNext()) add(Planned.key(c.getString(0), c.getLong(1))) }
+        }
+
+    /**
+     * The planned payment was marked paid in Wallet, which made [paid]'s record: the held row is done, as
+     * if sent, and shows what Wallet has (payee, else [fallbackPayee]; note; category), so it can be edited
+     * or removed there like one. Returns false when it isn't held any more.
+     */
+    fun paidInWallet(id: Long, paid: Planned.Paid, fallbackPayee: String? = null): Boolean {
+        val category = paid.categoryId.takeIf { it.isNotEmpty() }
+            ?.let { CategoryPick(it, paid.categoryName.ifEmpty { "Category" }, emptyList(), CategorySource.PLANNED) }
+        val v = ContentValues().apply {
+            put("status", SYNCED); put("walletId", paid.recordId); putNull("error")
+            paid.payee.ifBlank { fallbackPayee }?.let { put("payee", it) }
+            // Wallet's note as is; blank means it has none.
+            putNull("note"); put("noteEdit", paid.note); putCategory(category)
+        }
+        return writableDatabase.update("rec", v, "id=? AND status=$PLANNED", arrayOf(id.toString())) > 0
+    }
+
+    /**
+     * "Send anyway" or "This isn't a planned payment": a held row goes on as [status] (waiting or for
+     * approval), no longer tied to the planned payment. Returns false when it isn't held any more.
+     */
+    fun unplan(id: Long, status: Int): Boolean {
+        val v = ContentValues().apply {
+            put("status", status); put("attempts", 0); putNull("error"); putNull("planId"); putNull("planDue"); putNull("planName")
+        }
+        return writableDatabase.update("rec", v, "id=? AND status=$PLANNED", arrayOf(id.toString())) > 0
+    }
+
     fun retryFailed(): Int {
         val v = ContentValues().apply { put("status", PENDING); put("attempts", 0); putNull("error") }
         return writableDatabase.update("rec", v, "status=$FAILED AND amount IS NOT NULL", null)
@@ -389,7 +445,8 @@ class Store private constructor(context: Context, name: String?) : SQLiteOpenHel
             "rec",
             arrayOf(
                 "id", "pkg", "account", "amount", "payee", "note", "date", "status", "attempts", "error",
-                "categoryId", "uncertain", "categoryName", "labelIds", "categorySource", "walletId", "pairId", "noteEdit", "transferTo", "patch"
+                "categoryId", "uncertain", "categoryName", "labelIds", "categorySource", "walletId", "pairId", "noteEdit", "transferTo", "patch",
+                "planId", "planDue", "planName",
             ),
             where, null, null, null, order, limit.toString()
         ).use {
@@ -403,6 +460,7 @@ class Store private constructor(context: Context, name: String?) : SQLiteOpenHel
                     it.getString(12), it.getString(13)?.split(',')?.filter { s -> s.isNotEmpty() }.orEmpty(),
                     it.getString(14), it.getString(15), if (it.isNull(16)) null else it.getLong(16),
                     it.getString(17), it.getString(18), it.getString(19),
+                    it.getString(20), if (it.isNull(21)) null else it.getLong(21), it.getString(22),
                 )
             }
         }
@@ -415,6 +473,9 @@ class Store private constructor(context: Context, name: String?) : SQLiteOpenHel
         const val FAILED = 2
         const val UNPARSED = 3
         const val REVIEW = 4
+        /** Matched a planned payment: not sent, so marking it paid in Wallet doesn't put it in twice ([Planned]). */
+        const val PLANNED = 5
+        private const val STATUSES = 6
 
         /** Rows that history clearing may drop: nothing queued for Wallet, or only a change Wallet refused. */
         private const val NOTHING_TO_SEND = "(patch IS NULL OR error IS NOT NULL)"

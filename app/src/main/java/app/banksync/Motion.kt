@@ -1,13 +1,17 @@
 package app.banksync
 
+import android.animation.Animator
 import android.animation.ArgbEvaluator
+import android.animation.ObjectAnimator
 import android.animation.ValueAnimator
+import android.os.SystemClock
 import android.transition.ChangeBounds
 import android.transition.Fade
 import android.transition.TransitionManager
 import android.transition.TransitionSet
 import android.view.View
 import android.view.ViewGroup
+import android.view.animation.LinearInterpolator
 import android.view.animation.OvershootInterpolator
 import android.view.animation.PathInterpolator
 import android.widget.TextView
@@ -74,6 +78,27 @@ fun View.flash() {
     alpha = 0.35f
     animate().alpha(1f).setDuration(450).setInterpolator(smooth).start()
 }
+
+/**
+ * Turns an icon round while something runs, such as the sync arrow while Wallet is asked. It stops when the
+ * view goes, or on cancelling what it returns (then [View.setRotation] back to 0); a redrawn one carries on
+ * at the same angle, so it doesn't jump.
+ */
+fun View.spin(): Animator {
+    val from = SystemClock.uptimeMillis() % SPIN_MS * 360f / SPIN_MS
+    val turn = ObjectAnimator.ofFloat(this, View.ROTATION, from, from + 360f).setDuration(SPIN_MS).apply {
+        interpolator = LinearInterpolator()
+        repeatCount = ValueAnimator.INFINITE
+        start()
+    }
+    addOnAttachStateChangeListener(object : View.OnAttachStateChangeListener {
+        override fun onViewAttachedToWindow(v: View) {}
+        override fun onViewDetachedFromWindow(v: View) = turn.cancel()
+    })
+    return turn
+}
+
+private const val SPIN_MS = 1000L
 
 /** Fades from colours [from] to [to] (a fill, a text colour and so on) and hands each step to [apply]. */
 fun fadeColors(from: IntArray, to: IntArray, apply: (IntArray) -> Unit) {

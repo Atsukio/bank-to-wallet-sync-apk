@@ -31,14 +31,14 @@ internal enum class Filter(val title: String, val empty: String) {
     fun has(r: Rec) = when (this) {
         WAITING -> r.status == Store.PENDING
         SENT -> r.status == Store.SYNCED
-        ATTENTION -> r.status == Store.FAILED || r.status == Store.REVIEW || r.status == Store.UNPARSED
+        ATTENTION -> r.status == Store.FAILED || r.status == Store.REVIEW || r.status == Store.UNPARSED || r.status == Store.PLANNED
     }
 }
 
-/** How one Recent activity row (or the sheet's header) shows a record; see [describe]. */
+/** How one Recent activity row (or the sheet's header) shows a record; see [describe]. [tint]: the row's wash, if any. */
 internal class Look(
     val title: String, val sub: String, val note: String?, val amount: String?, val amountColor: Int,
-    val chip: String?, val chipKind: Chip, val icon: Drawable?, val symbol: Int?, val monogram: String,
+    val chip: String?, val chipKind: Chip, val icon: Drawable?, val symbol: Int?, val monogram: String, val tint: Int?,
 )
 
 /** The record's time of day as the phone shows times (12 or 24 hour). */
@@ -88,6 +88,8 @@ internal fun MainActivity.describe(r: Rec, partner: Rec?, hide: Boolean): Look {
             val there = (partner ?: store.get(r.pairId))?.account?.let { accounts[it] } ?: "another account"
             if (income) "$there → $here" else "$here → $there"
         }
+        // Held for a planned payment: which one says more than the category it would get.
+        r.status == Store.PLANNED -> r.planName?.let { "Planned: $it" } ?: r.categoryName
         else -> r.categoryName
     }
     val note = if (hide || isTransfer || unread) null else {
@@ -117,14 +119,20 @@ internal fun MainActivity.describe(r: Rec, partner: Rec?, hide: Boolean): Look {
         else -> null
     }
     val monogram = r.payee?.firstOrNull { it.isLetterOrDigit() }?.uppercase() ?: "?"
-    return Look(title, listOfNotNull(what, timeOf(r)).joinToString(" · "), note, amount, color, pill?.first, pill?.second ?: Chip.WAIT, bankIcon, symbol, monogram)
+    // What the "Need you" tile counts gets a faint wash: red when it failed, amber when it waits on the user.
+    val tint = when {
+        src.status == Store.FAILED -> R.color.row_bad
+        Filter.ATTENTION.has(src) -> R.color.row_you
+        else -> null
+    }
+    return Look(title, listOfNotNull(what, timeOf(r)).joinToString(" · "), note, amount, color, pill?.first, pill?.second ?: Chip.WAIT, bankIcon, symbol, monogram, tint)
 }
 
 /** How pressing a record's status is: the more pressing half of a transfer decides what its row says and offers. */
 internal fun MainActivity.urgency(status: Int) = when (status) {
     Store.UNPARSED -> 4
     Store.FAILED -> 3
-    Store.REVIEW -> 2
+    Store.REVIEW, Store.PLANNED -> 2
     Store.PENDING -> 1
     else -> 0
 }
@@ -214,6 +222,11 @@ internal fun MainActivity.renderRecent() {
         }
         val chip = row.findViewById<TextView>(R.id.recChip)
         chip.chip(look.chip, look.chipKind)
+        look.tint?.let {
+            // The touch ripple moves on top so it still shows over the wash.
+            row.foreground = row.background
+            row.setBackgroundColor(getColor(it))
+        }
         row.setOnClickListener { showActions(r.id) }
         row.setOnLongClickListener { showActions(r.id); true }
         ViewCompat.replaceAccessibilityAction(row, AccessibilityNodeInfoCompat.AccessibilityActionCompat.ACTION_CLICK, "show details and actions", null)

@@ -21,6 +21,8 @@ object CategorySource {
     const val APP_RULE = "rule"
     const val WALLET_RULE = "wallet"
     const val HISTORY = "history"
+    /** Wallet's record for a planned payment marked paid there. */
+    const val PLANNED = "planned"
 }
 
 class CategoryPick(val id: String, val name: String, val labelIds: List<String>, val source: String)

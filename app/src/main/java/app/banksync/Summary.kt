@@ -61,7 +61,7 @@ class SummaryReceiver : BroadcastReceiver() {
         val today = store.countsSince(Summary.dayStart(now, ZoneId.systemDefault()))
         val all = store.counts()
         // Today's sends, but everything still waiting or needing attention, whenever it arrived.
-        Summary.text(today[Store.SYNCED], all[Store.PENDING], all[Store.FAILED] + all[Store.REVIEW] + all[Store.UNPARSED])
+        Summary.text(today[Store.SYNCED], all[Store.PENDING], all[Store.FAILED] + all[Store.REVIEW] + all[Store.UNPARSED] + all[Store.PLANNED])
             ?.let { Notifier.summary(context, it) }
         Summary.schedule(context)
     }

@@ -173,12 +173,28 @@ class BankNotificationListener : NotificationListenerService() {
             // From what's already on the phone, so capturing never waits on the network. A transfer has no category.
             val isTransfer = partner != null || goPlusRule != null
             val category = if (isTransfer) null else WalletCache.pick(context, text, parsed.payee, parsed.amount, rule.accountId)
+            // Marking a planned payment paid in Wallet makes its own record, so one this matches waits for that instead.
+            val plan = if (isTransfer) null else WalletCache.plannedMatch(context, parsed.amount, rule.accountId, parsed.currency ?: rule.accountCurrency, whenMs, parsed.payee)
             val ask = settings.reviewMode || (!isTransfer && settings.askNoCategory && category == null)
-            val status = if (ask) Store.REVIEW else Store.PENDING
+            val status = when {
+                plan != null -> Store.PLANNED
+                ask -> Store.REVIEW
+                else -> Store.PENDING
+            }
             val id = store.insert(
                 hash, pkg, rule.accountId, parsed.amount, parsed.payee, note, date, status,
-                category = category, posted = posted, transferTo = goPlusRule?.accountId
+                category = category, posted = posted, transferTo = goPlusRule?.accountId, plan = plan
             )
+            if (plan != null) {
+                val due = SimpleDateFormat("d MMM", Locale.getDefault()).format(plan.dueMs)
+                Notifier.planned(context, id, if (settings.hideDetails) "From ${rule.label}: matches a planned payment in Wallet." else {
+                    String.format(Locale.US, "%+.2f", parsed.amount) + " " + rule.accountCurrency +
+                        (parsed.payee?.let { " · $it" } ?: "") + " → " + rule.accountName + "\n" +
+                        "Matches \"${plan.name}\", due $due."
+                })
+                Uploader.changed()
+                return true
+            }
             if (partner != null) {
                 store.pair(id, partner.id)
                 // The earlier side may be waiting only because it had no category; a transfer needs none,

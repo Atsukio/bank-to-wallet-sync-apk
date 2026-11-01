@@ -31,7 +31,12 @@ object Demo {
     )
 
     /** One alert as the bank app would post it, [minutesAgo], and where it has got to. */
-    class Alert(val pkg: String, val text: String, val minutesAgo: Int, val status: Int, val categoryId: String? = null, val source: String = CategorySource.HISTORY)
+    class Alert(
+        val pkg: String, val text: String, val minutesAgo: Int, val status: Int, val categoryId: String? = null,
+        val source: String = CategorySource.HISTORY,
+        /** The planned payment a [Store.PLANNED] alert matched. */
+        val plan: String? = null,
+    )
 
     /** Oldest first, like real arrivals. All names, amounts and references are invented. */
     val alerts = listOf(
@@ -39,6 +44,7 @@ object Demo {
         Alert("demo.card", "You spent RM45.80 at Sample Grocer", 60 * 22, Store.SYNCED, "demo-groceries"),
         Alert("demo.bank", "You sent RM900.00 to Sample Person. Ref RENT1026", 60 * 20, Store.SYNCED, "demo-rent", CategorySource.REMEMBERED),
         Alert("demo.card", "You spent RM12.30 at Corner Cafe", 60 * 6, Store.SYNCED, "demo-food"),
+        Alert("demo.bank", "You paid RM120.00 to Sample Internet. Ref NET1101", 60 * 3, Store.PLANNED, "demo-bills", CategorySource.WALLET_RULE, plan = "Home internet"),
         Alert("demo.card", "You spent RM28.00 at City Ride", 95, Store.PENDING, "demo-transport", CategorySource.APP_RULE),
         Alert("demo.bank", "You paid RM89.90 to Sample Electric. Ref BILL7781", 50, Store.REVIEW, "demo-bills", CategorySource.WALLET_RULE),
         Alert("demo.card", "You spent RM64.50 at Online Store", 20, Store.PENDING),
@@ -64,8 +70,10 @@ object Demo {
                 CategoryPick(id, categories.first { it.id == id }.label, emptyList(), a.source)
             }
             val status = if (a.status == Store.SYNCED) Store.PENDING else a.status
+            // Due the next day, as an alert a day early would be.
+            val plan = a.plan?.let { Planned.Due("demo-plan", it, rule.accountId, parsed.amount, rule.accountCurrency, posted + 86_400_000L) }
             val id = store.insert(hash, a.pkg, rule.accountId, parsed.amount, parsed.payee, a.text, date, status,
-                category = category, posted = posted)
+                category = category, posted = posted, plan = plan)
             if (a.status == Store.SYNCED) markSent(store, store.get(id) ?: continue)
         }
         active = true

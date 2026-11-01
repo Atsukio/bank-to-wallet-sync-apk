@@ -43,8 +43,8 @@ internal fun MainActivity.renderSheet() {
     val sent = r.status == Store.SYNCED && (partner == null || partner.status == Store.SYNCED)
 
     val actions = ArrayList<ActionSheet.Action>()
-    fun add(icon: Int, text: String, hint: String? = null, danger: Boolean = false, close: Boolean = true, run: () -> Unit) {
-        actions += ActionSheet.Action(icon, text, hint, danger, close, run)
+    fun add(icon: Int, text: String, hint: String? = null, danger: Boolean = false, close: Boolean = true, busy: Boolean = false, run: () -> Unit) {
+        actions += ActionSheet.Action(icon, text, hint, danger, close, busy, run)
     }
     val notTransfer = { add(R.drawable.ic_swap, "Not a transfer", "Both sides go to Wallet as separate records", close = false) { notTransfer(r) } }
     when (src.status) {
@@ -67,6 +67,12 @@ internal fun MainActivity.renderSheet() {
                 store.delete(src.id)
                 refresh()
             }
+        }
+        Store.PLANNED -> {
+            if (checkingPlanned) add(R.drawable.ic_sync, "Checking Wallet…", close = false, busy = true) {}
+            else add(R.drawable.ic_sync, "Check Wallet now", "Shows it as done if the planned payment is marked paid there", close = false) { checkPlannedNow() }
+            add(R.drawable.ic_send, "Send anyway", "Then skip the planned payment in Wallet, or it's in twice") { sendAnyway(src) }
+            add(R.drawable.ic_receipt, "This isn't a planned payment", "It goes to Wallet like any other") { notPlanned(src) }
         }
         Store.UNPARSED -> {
             add(R.drawable.ic_edit, "Fix", "Enter the amount and account yourself", close = false) { openRecord(src) }
@@ -109,8 +115,13 @@ internal fun MainActivity.renderSheet() {
     val look = describe(r, partner?.takeIf { (it.amount ?: 0.0) * (r.amount ?: 0.0) < 0 }, hide = false)
     val header = ActionSheet.Header(look.icon, look.symbol, look.monogram, look.title, look.sub, look.amount, look.amountColor)
     val facts = Dialogs.facts(this, r, partner)
+    // A planned payment a week past due may never be marked paid in Wallet: ask, rather than hold it for good.
+    val stale = if (src.status == Store.PLANNED && Planned.stale(src.planDue, System.currentTimeMillis())) {
+        val due = java.text.SimpleDateFormat("d MMM", java.util.Locale.getDefault()).format(src.planDue)
+        "Due $due and still not marked paid in Wallet. If you won't mark it paid there, send it as a normal record."
+    } else null
     // Paused matters more while it lasts; otherwise a sent record that can't be changed says why.
-    val cant = SentEdit.whyNot(src).takeIf { paused == null }
+    val cant = (SentEdit.whyNot(src) ?: stale).takeIf { paused == null }
     if (cant != null) s.fill(header, cant, facts, actions, R.drawable.ic_info) else s.fill(header, paused, facts, actions)
 }
 
@@ -128,6 +139,57 @@ internal fun MainActivity.sendNow(src: Rec, partner: Rec?) {
     syncBase = store.counts()[Store.SYNCED]
     Uploader.requested = true
     Uploader.release(this, now = true)
+    refresh()
+}
+
+/** The sheet's "Check Wallet now" for a held planned payment: closes it if Wallet has it as paid. */
+internal fun MainActivity.checkPlannedNow() {
+    if (Demo.active) return toast("Not available in the demo")
+    if (checkingPlanned) return
+    val id = sheetId
+    checkingPlanned = true
+    renderSheet()
+    checkPlanned(force = true) { ok ->
+        checkingPlanned = false
+        renderSheet()
+        val held = store.get(id)?.status == Store.PLANNED
+        toast(
+            when {
+                !ok -> "Couldn't reach Wallet. Try again later"
+                held -> "Not marked paid in Wallet yet"
+                else -> "Paid in Wallet: done"
+            }
+        )
+    }
+}
+
+/** The menu's "Check planned payments": the same check for every held one at once, saying how many closed. */
+internal fun MainActivity.checkAllPlanned() {
+    if (Demo.active) return toast("Not available in the demo")
+    if (checkingPlanned) return
+    val before = store.counts()[Store.PLANNED]
+    checkingPlanned = true
+    toast("Checking Wallet…")
+    checkPlanned(force = true) { ok ->
+        checkingPlanned = false
+        renderSheet()
+        toast(Planned.result(ok, before, store.counts()[Store.PLANNED]))
+    }
+}
+
+/** "Send anyway": a held planned payment goes to Wallet now, like Send now. */
+internal fun MainActivity.sendAnyway(r: Rec) {
+    if (!store.unplan(r.id, Store.PENDING)) return toast("Too late: it was already marked paid in Wallet")
+    Notifier.cancelReview(this, r.id)
+    sendNow(store.get(r.id) ?: r, null)
+}
+
+/** "This isn't a planned payment": it goes on as any alert would, waiting for approval when the settings say so. */
+internal fun MainActivity.notPlanned(r: Rec) {
+    val ask = settings.reviewMode || (settings.askNoCategory && r.categoryId == null)
+    if (!store.unplan(r.id, if (ask) Store.REVIEW else Store.PENDING)) return toast("Too late: it was already marked paid in Wallet")
+    Notifier.cancelReview(this, r.id)
+    if (!Demo.active && !ask) Uploader.schedule(this)
     refresh()
 }
 

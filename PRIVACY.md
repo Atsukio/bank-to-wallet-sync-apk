@@ -1,13 +1,13 @@
 # Privacy Policy
 
-_Bank to Wallet (Android app, package `app.banksync`) · last updated 30 October 2026_
+_Bank to Wallet (Android app, package `app.banksync`) · last updated 1 November 2026_
 
 Bank to Wallet reads the transaction notifications from the bank apps you choose and adds them as records in your BudgetBakers Wallet account. This policy explains what the app does with your data. In short: everything stays on your phone, except the transactions it sends to your own Wallet account.
 
 ## What the app reads
 - **Notifications from the bank apps you choose.** With your permission (Android's "notification access"), the app sees notifications as they arrive. It immediately ignores every notification from an app you haven't added under **Bank apps**. From a bank app's alert it reads the text to find the amount, the currency, who was paid or who paid you, the reference and the time.
 - **Your Wallet API token.** You paste it into the app. It is stored on your phone only, encrypted with a key held in the Android Keystore.
-- **Your Wallet data**, fetched from Wallet with your token so the app can pick the right account and category: your accounts, your categories, your record rules (categorisation rules), and your categorised records from about the last six months. Before re-sending a record whose earlier upload got no answer, the app also checks your Wallet records around that time, so nothing is added twice.
+- **Your Wallet data**, fetched from Wallet with your token so the app can pick the right account and category: your accounts, your categories, your record rules (categorisation rules), your categorised records from about the last six months, and your planned payments with their occurrences from about the last two months on (so a transaction that is a planned payment waits for you to mark it paid in Wallet instead of being added twice). Before re-sending a record whose earlier upload got no answer, the app also checks your Wallet records around that time, so nothing is added twice.
 - **The list of apps on your phone that have a launcher icon**, only while you pick a bank app, so you can choose one. It is not stored or sent anywhere, apart from the bank apps you choose.
 
 ## What the app stores on your phone

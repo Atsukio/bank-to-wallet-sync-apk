@@ -5,9 +5,9 @@ import org.junit.Assert.assertNull
 import org.junit.Test
 
 class RowStatusTest {
-    private fun rec(status: Int, category: String? = "Groceries", amount: Double? = -12.5, patch: String? = null, error: String? = null) =
+    private fun rec(status: Int, category: String? = "Groceries", amount: Double? = -12.5, patch: String? = null, error: String? = null, due: Long? = null) =
         Rec(1, "com.example.bank", "acc-1", amount, "Sample Mart", null, "2026-10-30T01:00:00Z", status, 0, error, category, false,
-            categoryName = category, patch = patch)
+            categoryName = category, patch = patch, planDue = due)
 
     private fun pill(r: Rec, transfer: Boolean = false, held: Boolean = false) = RowStatus.pill(r, transfer, held)
 
@@ -20,7 +20,16 @@ class RowStatusTest {
     fun whatNeedsTheUserIsAmber() {
         assertEquals("Couldn't read" to Chip.YOU, pill(rec(Store.UNPARSED, amount = null)))
         assertEquals("Approve?" to Chip.YOU, pill(rec(Store.REVIEW)))
+        assertEquals("Planned" to Chip.YOU, pill(rec(Store.PLANNED)))
         assertEquals("No category" to Chip.YOU, pill(rec(Store.PENDING, category = null)))
+    }
+
+    @Test
+    fun aPlannedPaymentLongPastDueAsksToBeMarkedPaid() {
+        val due = Planned.time("2026-11-03T00:00:00Z")!!
+        val held = rec(Store.PLANNED, due = due)
+        assertEquals("Planned" to Chip.YOU, RowStatus.pill(held, false, false, due + 86_400_000L))
+        assertEquals("Mark paid?" to Chip.YOU, RowStatus.pill(held, false, false, due + 8 * 86_400_000L))
     }
 
     @Test

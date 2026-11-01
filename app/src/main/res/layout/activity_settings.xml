@@ -264,6 +264,10 @@
                     <include
                         android:id="@+id/memoryRow"
                         layout="@layout/item_link" />
+
+                    <include
+                        android:id="@+id/plannedRow"
+                        layout="@layout/item_link" />
                 </LinearLayout>
             </com.google.android.material.card.MaterialCardView>
 
@@ -321,6 +325,15 @@
                     <TextView
                         style="@style/Widget.BankSync.SettingHint"
                         android:text="Cash in alerts normally move money from the app's account into its GO+ account. Turn this on to drop them, for example when you have no GO+ account." />
+
+                    <com.google.android.material.materialswitch.MaterialSwitch
+                        android:id="@+id/plannedSwitch"
+                        style="@style/Widget.BankSync.SettingSwitch"
+                        android:text="Hold planned payments" />
+
+                    <TextView
+                        style="@style/Widget.BankSync.SettingHint"
+                        android:text="A transaction with the same account and amount as a planned payment in Wallet, within 3 days of its due date, isn't sent. Mark the planned payment paid in Wallet and it shows here as done, so it's never in Wallet twice." />
 
                     <com.google.android.material.materialswitch.MaterialSwitch
                         android:id="@+id/noticesSwitch"

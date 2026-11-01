@@ -116,6 +116,11 @@ class Settings(context: Context) {
         get() = p.getBoolean("cashInIgnored", false)
         set(v) = p.edit().putBoolean("cashInIgnored", v).apply()
 
+    /** Hold an alert that matches a planned payment in Wallet instead of sending it; see [Planned]. */
+    var plannedPayments: Boolean
+        get() = p.getBoolean("plannedPayments", true)
+        set(v) = p.edit().putBoolean("plannedPayments", v).apply()
+
     /** An evening notification with the day's totals; see [Summary]. */
     var dailySummary: Boolean
         get() = p.getBoolean("dailySummary", false)
@@ -309,6 +314,7 @@ class Settings(context: Context) {
                 .put("alertsOn", alertsOn).put("capturedOn", capturedOn).put("askNoCategory", askNoCategory)
                 .put("dailySummary", dailySummary).put("appLock", appLock)
                 .put("hideDetails", hideDetails).put("wallpaperColors", wallpaperColors).put("cashInIgnored", cashInIgnored)
+                .put("plannedPayments", plannedPayments)
         )
         .toString(2)
 
@@ -342,6 +348,7 @@ class Settings(context: Context) {
         hideDetails = s.optBoolean("hideDetails", hideDetails)
         wallpaperColors = s.optBoolean("wallpaperColors", wallpaperColors)
         cashInIgnored = s.optBoolean("cashInIgnored", cashInIgnored)
+        plannedPayments = s.optBoolean("plannedPayments", plannedPayments)
     }
 
     private fun rulesToJson(list: List<Rule>) = JSONArray().also { arr ->

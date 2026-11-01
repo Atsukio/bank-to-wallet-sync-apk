@@ -8,6 +8,9 @@
     <!-- The "needs you" status pill on a Recent activity row: amber, which no theme role gives. -->
     <color name="chip_you">#FFE08A</color>
     <color name="chip_on_you">#3F2E00</color>
+    <!-- A faint wash behind rows that need the user, paler than the pills so those still stand out. -->
+    <color name="row_you">#FFF6DB</color>
+    <color name="row_bad">#FDECEA</color>
     <!-- Money in, in the activity list; money out stays in the plain text colour. -->
     <color name="amount_in">#2E7D32</color>
 </resources>

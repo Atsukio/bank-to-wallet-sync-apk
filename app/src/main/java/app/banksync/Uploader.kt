@@ -133,6 +133,8 @@ object Uploader {
 
         // The network is up anyway, so this is the cheap moment to bring Wallet's rules and history up to date.
         WalletCache.refresh(context, token)
+        // Planned payments too: new alerts can be matched, and held ones close once paid in Wallet.
+        WalletCache.refreshPlanned(context, token)
 
         while (true) {
             if (cancelled()) return Result.Retry

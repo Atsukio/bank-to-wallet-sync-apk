@@ -102,6 +102,16 @@ object Notifier {
 
     fun cancelReview(context: Context, id: Long) = manager(context).cancel(REVIEW_BASE + id.toInt())
 
+    /** An alert [id] held because it matches a planned payment; it goes once that's marked paid in Wallet ([Planned]). */
+    fun planned(context: Context, id: Long, text: String) {
+        if (!canPost(context)) return
+        val n = base(
+            context, REVIEW, "A planned payment?",
+            "$text\nNot sent, so it isn't in Wallet twice. Mark the planned payment paid in Wallet and it shows here as done, or open the app to send it anyway."
+        ).build()
+        manager(context).notify(REVIEW_BASE + id.toInt(), n)
+    }
+
     /** A Cash in with no GO+ account to go to [id]: asks whether to drop every future one. */
     fun askIgnoreCashIn(context: Context, id: Long) {
         if (!canPost(context)) return

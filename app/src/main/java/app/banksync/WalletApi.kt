@@ -136,11 +136,51 @@ object WalletApi {
         return out
     }
 
+    /** The user's planned payments (Wallet's standing orders), as Wallet sends them; [Planned] reads them. */
+    fun standingOrders(token: String): List<JSONObject> = pages(token, "/v1/api/standing-orders?", "standingOrders")
+
+    /**
+     * Occurrences of planned payments due from [since] on (paid, dismissed or still to come). A filter
+     * Wallet won't take falls back to every occurrence.
+     */
+    fun standingOrderItems(token: String, since: Instant): List<JSONObject> = try {
+        pages(token, "/v1/api/standing-orders/items?originalDate=gte.$since&", "standingOrderItems")
+    } catch (e: HttpStatusException) {
+        if (e.code != 400) throw e
+        pages(token, "/v1/api/standing-orders/items?", "standingOrderItems")
+    }
+
+    /** Up to five pages of 200 of a list; [path] ends with `?` or `&`. */
+    private fun pages(token: String, path: String, key: String): List<JSONObject> {
+        val out = ArrayList<JSONObject>()
+        var offset = 0
+        repeat(5) {
+            val r = call("GET", "${path}limit=200&offset=$offset", token, null)
+            if (r.code == 401 || r.code == 403) throw IOException("Wallet rejected the token (HTTP ${r.code})")
+            if (r.code != 200) throw HttpStatusException(r.code)
+            val body = JSONObject(r.body)
+            val arr = body.optJSONArray(key) ?: return out
+            for (i in 0 until arr.length()) arr.optJSONObject(i)?.let { out += it }
+            if (body.isNull("nextOffset") || !body.has("nextOffset")) return out
+            offset = body.optInt("nextOffset")
+        }
+        return out
+    }
+
     private fun getList(token: String, path: String, key: String): org.json.JSONArray {
         val r = call("GET", path, token, null)
         if (r.code == 401 || r.code == 403) throw IOException("Wallet rejected the token (HTTP ${r.code})")
         if (r.code != 200) throw HttpStatusException(r.code)
         return JSONObject(r.body).optJSONArray(key) ?: org.json.JSONArray()
+    }
+
+    /** Up to 50 records in [account] dated from [since] on, as Wallet sends them; [Planned.paidBy] reads them. */
+    fun recordsSince(token: String, account: String, since: Instant): List<JSONObject> {
+        val r = call("GET", "/v1/api/records?accountId=$account&recordDate=gte.$since&sortBy=%2BrecordDate&limit=50", token, null)
+        if (r.code == 401 || r.code == 403) throw IOException("Wallet rejected the token (HTTP ${r.code})")
+        if (r.code != 200) throw HttpStatusException(r.code)
+        val arr = JSONObject(r.body).optJSONArray("records") ?: return emptyList()
+        return (0 until arr.length()).mapNotNull { arr.optJSONObject(it) }
     }
 
     /**

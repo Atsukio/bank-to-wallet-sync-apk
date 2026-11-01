@@ -13,6 +13,10 @@
         android:title="Scan for missed alerts"
         app:showAsAction="never" />
     <item
+        android:id="@+id/menuPlanned"
+        android:title="Check planned payments"
+        app:showAsAction="never" />
+    <item
         android:id="@+id/menuHide"
         android:checkable="true"
         android:title="Hide amounts and payees"

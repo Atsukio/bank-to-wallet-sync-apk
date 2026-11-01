@@ -6,9 +6,11 @@ object RowStatus {
      * The pill for a row whose deciding record is [src] (a transfer's more pressing half), or null for a
      * plain sent one. [held]: uploads are paused while a sheet is open.
      */
-    fun pill(src: Rec, isTransfer: Boolean, held: Boolean): Pair<String, Chip>? = when (src.status) {
+    fun pill(src: Rec, isTransfer: Boolean, held: Boolean, now: Long = System.currentTimeMillis()): Pair<String, Chip>? = when (src.status) {
         Store.UNPARSED -> "Couldn't read" to Chip.YOU
         Store.REVIEW -> "Approve?" to Chip.YOU
+        // Long past due, it may never be marked paid in Wallet; the sheet says what to do.
+        Store.PLANNED -> (if (Planned.stale(src.planDue, now)) "Mark paid?" else "Planned") to Chip.YOU
         Store.FAILED -> "Failed" to Chip.BAD
         // Landing in Wallet as "Unknown" is worth a look before it goes.
         Store.PENDING -> when {
