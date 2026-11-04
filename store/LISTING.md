@@ -112,10 +112,11 @@ To retake them, run `.\tools\screenshots.ps1` from the repo root (about a minute
 3. Release notes for 1.7 (Play's limit is 500 characters):
 
 ```
-• Planned payments: a transaction matching a planned payment in Wallet waits for you to mark it paid there, so it's never added twice. Once paid, it shows Wallet's payee, note and category
+• Planned payments: a transaction matching a planned payment in Wallet waits until you mark it paid there, so it's never added twice
 • Pull down, or use Check planned payments in the ⋮ menu, to check Wallet for them
-• A week past its due date, one still not marked paid asks whether to send it as a normal transaction
-• What needs you stands out: amber behind transactions waiting on you, red behind failed ones
+• A week past due, one not marked paid asks whether to send it as a normal transaction
+• Amber behind transactions waiting on you, red behind failed ones
+• Shopee's Money+ notifications can be dismissed for you
 ```
 
 4. Personal developer accounts need 12 testers opted in for 14 days in a row before **Production** can be applied for.

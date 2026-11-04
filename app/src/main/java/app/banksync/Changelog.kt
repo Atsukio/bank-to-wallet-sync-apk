@@ -13,12 +13,13 @@ class Release(val code: Int, val name: String, val date: String, val changes: Li
 object Changelog {
     val releases = listOf(
         Release(
-            13, "1.7", "1 Nov 2026",
+            13, "1.7", "5 Nov 2026",
             listOf(
                 "Planned payments: a transaction with the same account and amount as a planned payment in Wallet, within 3 days of its due date, isn't sent, so it's never in Wallet twice. The payee's name doesn't have to match; when two planned payments could be it, the one sharing a name with the alert wins. Mark the planned payment paid in Wallet and it shows here as done, with the payee, note and category Wallet has for it, or send it anyway. Turn it off in Settings › Capture.",
                 "Pull down on the home screen, or use Check planned payments in the ⋮ menu, to check Wallet for planned payments marked paid.",
                 "A week past its due date, a planned payment still not marked paid in Wallet asks whether to send it as a normal transaction.",
                 "What needs you stands out: a faint amber behind transactions waiting on you, red behind ones that failed, and Need you turns red only when something failed.",
+                "Shopee's Money+ notifications, such as \"Your bonus is in!\", can be cleared for you: in Settings › Bank apps, tap Shopee's ⋮ › Dismiss Money+ notifications. Its other notifications stay.",
             )
         ),
         Release(
