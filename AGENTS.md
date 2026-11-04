@@ -129,7 +129,7 @@ Read by the `android-play-release` skill (TeamPotatoes/claude-skills); "the usua
 
 ## Status as of 2026-11-05
 
-- Released history is in `Changelog.kt`. 1.7 (versionCode 13) is on Play. 1.7.1 (versionCode 14, Money+ dismissing) is built; new changes join its entry until the owner says it's on Play.
+- Released history is in `Changelog.kt`. 1.7.1 (versionCode 14) is on Play (2026-11-05). No release is open: the next user-visible change starts a new version.
 - Checked on the emulator only (demo mode): the 1.6 home screen and sheet, light and dark.
 - Planned payments (in 1.7): checked on the emulator in demo mode. The owner's Settings › Planned payments check (2026-11-01): amounts stored positive with `type`; no occurrences listed at all, even just after marking one paid; marking paid leaves `dueDate` as it was but raises `paymentCount`, which counts payments from `generateFromDate` (`recurrenceRule` like `FREQ=MONTHLY`). Unverified: the date of the record marking paid makes (`paidBy` looks from 3 days before the due day).
 - Edit in Wallet: works on the owner's phone (2026-11-01).
