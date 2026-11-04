@@ -64,6 +64,7 @@ class BankNotificationListener : NotificationListenerService() {
         if (settings.paused) return false
         val n = sbn.notification
         if (n.flags and Notification.FLAG_GROUP_SUMMARY != 0) return false
+        val ongoing = n.flags and (Notification.FLAG_ONGOING_EVENT or Notification.FLAG_NO_CLEAR) != 0
         if (catchUp && n.flags and Notification.FLAG_ONGOING_EVENT != 0) return false
 
         val extras = n.extras
@@ -71,10 +72,20 @@ class BankNotificationListener : NotificationListenerService() {
         val body = (extras.getCharSequence(Notification.EXTRA_BIG_TEXT)
             ?: extras.getCharSequence(Notification.EXTRA_TEXT))?.toString().orEmpty()
         val text = "$title $body".trim()
-        if (text.isEmpty()) return false
-        if (IgnoreWords.matches(settings.ignoreWords, text)) return false
+
+        // Clears a Money+ notification from the shade if the user chose that. Only once it has been
+        // dealt with: skipped, or saved in the queue.
+        val clear = settings.dismissMoneyPlus && !ongoing && MoneyPlus.matches(text) &&
+            settings.rulesFor(sbn.packageName).orEmpty().any { MoneyPlus.isShopee(it.label) }
+        fun done(kept: Boolean): Boolean {
+            if (clear) dismiss(sbn)
+            return kept
+        }
+
+        if (text.isEmpty()) return done(false)
+        if (IgnoreWords.matches(settings.ignoreWords, text)) return done(false)
         // Banks also post logins, ads and reminders; those aren't kept or shown as "needs you".
-        if (settings.skipNotices && Parser.isNotice(text)) return false
+        if (settings.skipNotices && Parser.isNotice(text)) return done(false)
 
         val store = Store.get(this)
         val pkg = sbn.packageName
@@ -83,8 +94,22 @@ class BankNotificationListener : NotificationListenerService() {
         // transaction. A catch-up scan checks everything still in history, since the alert may have
         // been captured live hours ago.
         val seen = if (catchUp) store.hasSimilar(hash, sbn.postTime) else store.isDuplicate(hash)
-        if (seen) return false
-        return capture(this, pkg, text, hash, sbn.postTime)
+        if (seen) return done(false)
+        return done(capture(this, pkg, text, hash, sbn.postTime))
+    }
+
+    /**
+     * Removes [sbn] from the shade, and its group's summary once nothing else is left under it, so an
+     * empty "Shopee" heading doesn't linger. Never throws: a failed dismissal only leaves it showing.
+     */
+    private fun dismiss(sbn: StatusBarNotification) {
+        runCatching { cancelNotification(sbn.key) }
+        val group = sbn.notification.group ?: return
+        val rest = runCatching { activeNotifications }.getOrNull() ?: return
+        val same = rest.filter { it.packageName == sbn.packageName && it.notification.group == group && it.key != sbn.key }
+        if (same.isNotEmpty() && same.all { it.notification.flags and Notification.FLAG_GROUP_SUMMARY != 0 }) {
+            same.forEach { runCatching { cancelNotification(it.key) } }
+        }
     }
 
     companion object {

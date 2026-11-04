@@ -116,6 +116,11 @@ class Settings(context: Context) {
         get() = p.getBoolean("cashInIgnored", false)
         set(v) = p.edit().putBoolean("cashInIgnored", v).apply()
 
+    /** Clear Shopee's Money+ notifications (bonus, earnings) from the shade once read; see [MoneyPlus]. */
+    var dismissMoneyPlus: Boolean
+        get() = p.getBoolean("dismissMoneyPlus", false)
+        set(v) = p.edit().putBoolean("dismissMoneyPlus", v).apply()
+
     /** Hold an alert that matches a planned payment in Wallet instead of sending it; see [Planned]. */
     var plannedPayments: Boolean
         get() = p.getBoolean("plannedPayments", true)
@@ -314,6 +319,7 @@ class Settings(context: Context) {
                 .put("alertsOn", alertsOn).put("capturedOn", capturedOn).put("askNoCategory", askNoCategory)
                 .put("dailySummary", dailySummary).put("appLock", appLock)
                 .put("hideDetails", hideDetails).put("wallpaperColors", wallpaperColors).put("cashInIgnored", cashInIgnored)
+                .put("dismissMoneyPlus", dismissMoneyPlus)
                 .put("plannedPayments", plannedPayments)
         )
         .toString(2)
@@ -348,6 +354,7 @@ class Settings(context: Context) {
         hideDetails = s.optBoolean("hideDetails", hideDetails)
         wallpaperColors = s.optBoolean("wallpaperColors", wallpaperColors)
         cashInIgnored = s.optBoolean("cashInIgnored", cashInIgnored)
+        dismissMoneyPlus = s.optBoolean("dismissMoneyPlus", dismissMoneyPlus)
         plannedPayments = s.optBoolean("plannedPayments", plannedPayments)
     }
 

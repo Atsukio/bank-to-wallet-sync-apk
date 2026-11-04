@@ -85,6 +85,21 @@ object IgnoreWords {
         words.split(',').any { RuleMatcher.contains(text, it) }
 }
 
+/**
+ * ShopeePay's Money+ (its savings pocket) posts bonus and earnings notifications in the Shopee app.
+ * Someone may want those cleared from the shade while keeping the app's other notifications, ads included.
+ */
+object MoneyPlus {
+    private val name = Regex("""\bmoney\s?\+""", RegexOption.IGNORE_CASE)
+    private val shopee = Regex("""shopee""", RegexOption.IGNORE_CASE)
+
+    /** A Money+ notification, by its wording ("Money+ Bonus"). */
+    fun matches(text: String): Boolean = name.containsMatchIn(text)
+
+    /** The Shopee app, by the label it is linked under. */
+    fun isShopee(appLabel: String): Boolean = shopee.containsMatchIn(appLabel)
+}
+
 object CatchUp {
     /**
      * Oldest notification a catch-up scan will accept. Never older than the history we keep (or the

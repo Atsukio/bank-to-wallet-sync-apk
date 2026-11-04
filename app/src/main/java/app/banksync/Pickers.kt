@@ -330,6 +330,27 @@ object Pickers {
                 // One account is used for everything anyway; saying "no default" would worry for nothing.
                 ordinary.size == 1 -> "All alerts go to ${ordinary[0].accountName}"
                 else -> "No default: alerts that name no account are held for you"
+            } + (if (MoneyPlus.isShopee(label) && settings.dismissMoneyPlus) "\nDismisses Money+ notifications" else "")
+            // Only Shopee has app-wide options so far: whether to clear its Money+ notifications.
+            val menuButton = header.findViewById<Button>(R.id.appMenu)
+            if (MoneyPlus.isShopee(label)) {
+                val openMenu = View.OnClickListener {
+                    val on = settings.dismissMoneyPlus
+                    showMenu(activity, menuButton, listOf(
+                        RowAction(if (on) "Keep Money+ notifications" else "Dismiss Money+ notifications") {
+                            settings.dismissMoneyPlus = !on
+                            rerender()
+                            onMessage(if (on) "Money+ notifications will stay" else "Money+ notifications will be dismissed once read")
+                        },
+                    ))
+                }
+                menuButton.contentDescription = "Options for $label"
+                menuButton.setOnClickListener(openMenu)
+                header.setOnClickListener(openMenu)
+            } else {
+                menuButton.visibility = View.GONE
+                header.background = null
+                header.setPaddingRelative(header.paddingStart, header.paddingTop, header.paddingStart, header.paddingBottom)
             }
             val icon = runCatching { activity.packageManager.getApplicationIcon(pkg) }.getOrNull()
             header.findViewById<ImageView>(R.id.appIcon).apply {
@@ -459,22 +480,25 @@ object Pickers {
         row.findViewById<TextView>(R.id.ruleSub).text = sub
         val button = row.findViewById<Button>(R.id.ruleMenu)
         button.contentDescription = "Options for $title"
-        val open = View.OnClickListener {
-            val menu = PopupMenu(activity, button)
-            val red = MaterialColors.getColor(button, com.google.android.material.R.attr.colorError)
-            actions.forEachIndexed { i, a ->
-                val text = if (!a.danger) a.title else SpannableString(a.title).apply {
-                    setSpan(ForegroundColorSpan(red), 0, length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
-                }
-                menu.menu.add(0, i, i, text)
-            }
-            menu.setOnMenuItemClickListener { actions[it.itemId].run(); true }
-            menu.show()
-        }
+        val open = View.OnClickListener { showMenu(activity, button, actions) }
         button.setOnClickListener(open)
         row.setOnClickListener(open)
         container.addView(row)
         return row
+    }
+
+    /** A popup of [actions] under [anchor], danger ones in red. */
+    private fun showMenu(activity: Activity, anchor: View, actions: List<RowAction>) {
+        val menu = PopupMenu(activity, anchor)
+        val red = MaterialColors.getColor(anchor, com.google.android.material.R.attr.colorError)
+        actions.forEachIndexed { i, a ->
+            val text = if (!a.danger) a.title else SpannableString(a.title).apply {
+                setSpan(ForegroundColorSpan(red), 0, length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+            }
+            menu.menu.add(0, i, i, text)
+        }
+        menu.setOnMenuItemClickListener { actions[it.itemId].run(); true }
+        menu.show()
     }
 
     /** A quiet placeholder line for a list with nothing in it yet. */
