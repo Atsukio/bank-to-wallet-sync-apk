@@ -109,14 +109,10 @@ To retake them, run `.\tools\screenshots.ps1` from the repo root (about a minute
 ## Release
 1. Build the bundle: `.\gradlew.bat bundleRelease` (with `keystore.properties` in place), output `app/build/outputs/bundle/release/app-release.aab`.
 2. First upload: **Test and release › Testing › Closed testing**, create a track, add testers, upload the `.aab`, add release notes (the latest `Changelog` entry), roll out.
-3. Release notes for 1.7 (Play's limit is 500 characters):
+3. Release notes for 1.7.1 (Play's limit is 500 characters):
 
 ```
-• Planned payments: a transaction matching a planned payment in Wallet waits until you mark it paid there, so it's never added twice
-• Pull down, or use Check planned payments in the ⋮ menu, to check Wallet for them
-• A week past due, one not marked paid asks whether to send it as a normal transaction
-• Amber behind transactions waiting on you, red behind failed ones
-• Shopee's Money+ notifications can be dismissed for you
+• Shopee's Money+ notifications, such as "Your bonus is in!", can be cleared for you: in Settings › Bank apps, tap Shopee's ⋮ › Dismiss Money+ notifications
 ```
 
 4. Personal developer accounts need 12 testers opted in for 14 days in a row before **Production** can be applied for.
