@@ -204,10 +204,24 @@ object Pickers {
                     dialog.dismiss()
                     recheckHeld(activity, pkg, label, onError)
                     cashInFollowUp(activity, rule, allAccounts, onAdded)
+                    spayLaterFollowUp(activity, rule)
                 }
             }
             dialog.show()
         }
+    }
+
+    /** An SPayLater account linked while its payments are ignored asks whether to start sending them to it. */
+    private fun spayLaterFollowUp(activity: Activity, rule: Rule) {
+        if (!SpayLater.isRule(rule)) return
+        val settings = Settings(activity)
+        if (!settings.spayLaterIgnored) return
+        MaterialAlertDialogBuilder(activity)
+            .setTitle("Send SPayLater payments to ${rule.accountName}?")
+            .setMessage("SPayLater payments are being ignored. Start sending them to ${rule.accountName} instead?")
+            .setPositiveButton("Send them") { _, _ -> settings.spayLaterIgnored = false }
+            .setNegativeButton("Keep ignoring", null)
+            .show()
     }
 
     /**
@@ -321,7 +335,7 @@ object Pickers {
         // Grouped by app, in the order the apps were first added.
         for ((pkg, appRules) in rules.groupBy { it.pkg }) {
             val label = appRules.first().label
-            val ordinary = appRules.filterNot(GoPlus::isGoPlus)
+            val ordinary = appRules.filterNot(GoPlus::isGoPlus).filterNot(SpayLater::isRule)
             val default = ordinary.firstOrNull { it.isDefault }
             val header = inflater.inflate(R.layout.item_rule_app, container, false)
             header.findViewById<TextView>(R.id.appTitle).text = label
@@ -330,17 +344,24 @@ object Pickers {
                 // One account is used for everything anyway; saying "no default" would worry for nothing.
                 ordinary.size == 1 -> "All alerts go to ${ordinary[0].accountName}"
                 else -> "No default: alerts that name no account are held for you"
-            } + (if (MoneyPlus.isShopee(label) && settings.dismissMoneyPlus) "\nDismisses Money+ notifications" else "")
-            // Only Shopee has app-wide options so far: whether to clear its Money+ notifications.
+            } + (if (MoneyPlus.isShopee(label) && settings.dismissMoneyPlus) "\nDismisses Money+ notifications" else "") +
+                (if (MoneyPlus.isShopee(label) && settings.spayLaterIgnored) "\nIgnores SPayLater payments" else "")
+            // Only Shopee has app-wide options so far: its Money+ notifications, and SPayLater payments.
             val menuButton = header.findViewById<Button>(R.id.appMenu)
             if (MoneyPlus.isShopee(label)) {
                 val openMenu = View.OnClickListener {
                     val on = settings.dismissMoneyPlus
+                    val spayIgnored = settings.spayLaterIgnored
                     showMenu(activity, menuButton, listOf(
                         RowAction(if (on) "Keep Money+ notifications" else "Dismiss Money+ notifications") {
                             settings.dismissMoneyPlus = !on
                             rerender()
                             onMessage(if (on) "Money+ notifications will stay" else "Money+ notifications will be dismissed once read")
+                        },
+                        RowAction(if (spayIgnored) "Send SPayLater payments" else "Ignore SPayLater payments") {
+                            settings.spayLaterIgnored = !spayIgnored
+                            rerender()
+                            onMessage(if (spayIgnored) "SPayLater payments will go to their account" else "SPayLater payments will be ignored")
                         },
                     ))
                 }
@@ -368,13 +389,18 @@ object Pickers {
 
             for (rule in appRules) {
                 val goPlus = GoPlus.isGoPlus(rule)
+                val spay = SpayLater.isRule(rule)
+                // Every account says which currency its amounts are in; an alert that names none uses this one.
+                val currency = rule.accountCurrency.takeIf { it.isNotEmpty() }?.let { ", in $it" } ?: ""
                 val sub = when {
-                    goPlus -> "Cash ins to GO+ go here"
-                    rule.match.isNotEmpty() -> "Alerts containing \"${rule.match}\""
-                    else -> "Alerts from this app"
+                    goPlus -> "Cash ins to GO+ go here$currency"
+                    spay -> "SPayLater payments go here$currency"
+                    rule.match.isNotEmpty() -> "Alerts containing \"${rule.match}\"$currency"
+                    else -> "Alerts from this app$currency"
                 }
                 val actions = ArrayList<RowAction>()
-                if (!goPlus) {
+                // A GO+ or SPayLater account is never an app's default: its own alerts go there.
+                if (!goPlus && !spay) {
                     actions += RowAction(if (rule.isDefault) "Stop using as default" else "Make default") {
                         askDefault(activity, rule, default) {
                             rerender()

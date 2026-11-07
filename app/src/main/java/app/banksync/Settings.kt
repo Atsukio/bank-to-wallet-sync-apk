@@ -116,6 +116,11 @@ class Settings(context: Context) {
         get() = p.getBoolean("cashInIgnored", false)
         set(v) = p.edit().putBoolean("cashInIgnored", v).apply()
 
+    /** Drop SPayLater alerts. Set by choice when no SPayLater account is linked, and can be turned off later. */
+    var spayLaterIgnored: Boolean
+        get() = p.getBoolean("spayLaterIgnored", false)
+        set(v) = p.edit().putBoolean("spayLaterIgnored", v).apply()
+
     /** Clear Shopee's Money+ notifications (bonus, earnings) from the shade once read; see [MoneyPlus]. */
     var dismissMoneyPlus: Boolean
         get() = p.getBoolean("dismissMoneyPlus", false)
@@ -319,7 +324,7 @@ class Settings(context: Context) {
                 .put("alertsOn", alertsOn).put("capturedOn", capturedOn).put("askNoCategory", askNoCategory)
                 .put("dailySummary", dailySummary).put("appLock", appLock)
                 .put("hideDetails", hideDetails).put("wallpaperColors", wallpaperColors).put("cashInIgnored", cashInIgnored)
-                .put("dismissMoneyPlus", dismissMoneyPlus)
+                .put("dismissMoneyPlus", dismissMoneyPlus).put("spayLaterIgnored", spayLaterIgnored)
                 .put("plannedPayments", plannedPayments)
         )
         .toString(2)
@@ -355,6 +360,7 @@ class Settings(context: Context) {
         wallpaperColors = s.optBoolean("wallpaperColors", wallpaperColors)
         cashInIgnored = s.optBoolean("cashInIgnored", cashInIgnored)
         dismissMoneyPlus = s.optBoolean("dismissMoneyPlus", dismissMoneyPlus)
+        spayLaterIgnored = s.optBoolean("spayLaterIgnored", spayLaterIgnored)
         plannedPayments = s.optBoolean("plannedPayments", plannedPayments)
     }
 

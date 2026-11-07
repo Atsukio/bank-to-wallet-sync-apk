@@ -20,6 +20,12 @@ class ReviewReceiver : BroadcastReceiver() {
                 if (store.get(id)?.status == Store.UNPARSED) store.delete(id)
                 if (store.counts()[Store.UNPARSED] == 0) Notifier.cancelUnparsed(context)
             }
+            IGNORE_SPAYLATER -> {
+                Settings(context).spayLaterIgnored = true
+                // The alert that raised the question has nowhere to go either.
+                if (store.get(id)?.status == Store.UNPARSED) store.delete(id)
+                if (store.counts()[Store.UNPARSED] == 0) Notifier.cancelUnparsed(context)
+            }
             DROP -> {
                 // Already gone: say so rather than pretend it was stopped.
                 if (!store.discardWaiting(id)) Notifier.alert(context, "Too late to stop it", "That transaction was already sent to Wallet.")
@@ -35,5 +41,6 @@ class ReviewReceiver : BroadcastReceiver() {
         const val DISCARD = "app.banksync.REVIEW_DISCARD"
         const val DROP = "app.banksync.CAPTURED_DROP"
         const val IGNORE_CASH_IN = "app.banksync.IGNORE_CASH_IN"
+        const val IGNORE_SPAYLATER = "app.banksync.IGNORE_SPAYLATER"
     }
 }

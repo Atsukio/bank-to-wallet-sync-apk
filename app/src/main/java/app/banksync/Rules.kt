@@ -1,5 +1,7 @@
 package app.banksync
 
+import kotlin.math.abs
+
 /**
  * Sends alerts from [pkg] to one Wallet account. A blank [match] means every alert from the app;
  * otherwise only alerts containing that text (e.g. a card's last four digits) use this rule, so one
@@ -77,6 +79,42 @@ object GoPlus {
 
     /** Touch 'n Go's app, by the label it is linked under. */
     fun isTng(appLabel: String): Boolean = Regex("""touch|\btng\b""", RegexOption.IGNORE_CASE).containsMatchIn(appLabel)
+}
+
+/**
+ * ShopeePay's SPayLater (buy now, pay later) is its own Wallet account, linked under the Shopee app. Its alerts go
+ * only to that account and never fall back to the app's ordinary one; with none linked they are held and asked about.
+ */
+object SpayLater {
+    private val name = Regex("""\bs?pay\s?later\b""", RegexOption.IGNORE_CASE)
+    private val payment = Regex("""\bpayment\b""", RegexOption.IGNORE_CASE)
+    private const val HOUR = 3_600_000L
+
+    fun isAccount(accountName: String): Boolean = name.containsMatchIn(accountName)
+
+    /** Only the Shopee app's rules: another bank's account that happens to be named like one is an ordinary rule. */
+    fun isRule(rule: Rule): Boolean = MoneyPlus.isShopee(rule.label) && isAccount(rule.accountName)
+
+    /** An SPayLater alert, by its wording ("Your SPayLater payment is successful"). */
+    fun isAlert(text: String): Boolean = name.containsMatchIn(text)
+
+    /** The line a notification shows when the alert names no currency, so the amount is in the account's. */
+    fun currencyNote(accountCurrency: String): String =
+        "Amount in ${accountCurrency.ifEmpty { "the account's currency" }}: the alert names no currency.\n"
+
+    /**
+     * A ShopeePay "Payment" activity repeating an SPayLater alert already kept: it names the same amount, posted
+     * within an hour of it. [alerts] are the (posted time, text) of SPayLater alerts already kept.
+     */
+    fun isPaymentCopy(text: String, posted: Long, alerts: List<Pair<Long, String>>): Boolean {
+        if (isAlert(text) || !payment.containsMatchIn(text)) return false
+        val amounts = Parser.decimals(text)
+        if (amounts.isEmpty()) return false
+        return alerts.any { (t, earlier) ->
+            val paid = Parser.spayLater(earlier)?.amount ?: return@any false
+            abs(t - posted) <= HOUR && amounts.any { abs(it - abs(paid)) < 0.005 }
+        }
+    }
 }
 
 object IgnoreWords {

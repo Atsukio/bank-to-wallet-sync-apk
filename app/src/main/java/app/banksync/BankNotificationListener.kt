@@ -119,15 +119,22 @@ class BankNotificationListener : NotificationListenerService() {
 
         private val lock = Any()
 
+        /** How far back an SPayLater alert is looked for when a Shopee "Payment" activity may be its copy. */
+        private const val SPAY_COPY_WINDOW_MS = 3_600_000L
+
         /**
          * Runs alerts held because no rule gave them an account through capture again, now that a rule
          * might (a new default or link). Ones still without an account are left as they are. Works
          * whether or not the listener is bound. Returns how many found an account.
          */
         fun recheck(context: Context, pkg: String): Int = synchronized(lock) {
-            val rules = Settings(context).rulesFor(pkg)?.filterNot(GoPlus::isGoPlus) ?: return 0
+            val linked = Settings(context).rulesFor(pkg) ?: return 0
+            val rules = linked.filterNot(GoPlus::isGoPlus).filterNot(SpayLater::isRule)
+            val hasSpayLater = linked.any(SpayLater::isRule)
             val store = Store.get(context)
-            val found = store.heldWithoutAccount(pkg).filter { RuleMatcher.pick(rules, it.text) != null }
+            val found = store.heldWithoutAccount(pkg).filter {
+                if (SpayLater.isAlert(it.text)) hasSpayLater else RuleMatcher.pick(rules, it.text) != null
+            }
             // Same hash and posted time as before, so a catch-up scan still knows these alerts.
             found.forEach {
                 store.delete(it.id)
@@ -141,9 +148,11 @@ class BankNotificationListener : NotificationListenerService() {
         private fun capture(context: Context, pkg: String, text: String, hash: String, posted: Long): Boolean {
             val settings = Settings(context)
             val linked = settings.rulesFor(pkg) ?: return false
-            // A GO+ account takes Cash ins only; it never picks up the app's ordinary alerts.
-            val rules = linked.filterNot(GoPlus::isGoPlus)
+            // A GO+ account takes Cash ins only, and an SPayLater account takes SPayLater payments only; neither
+            // picks up the app's ordinary alerts.
+            val rules = linked.filterNot(GoPlus::isGoPlus).filterNot(SpayLater::isRule)
             val goPlus = linked.filter(GoPlus::isGoPlus)
+            val spayRules = linked.filter(SpayLater::isRule)
             val store = Store.get(context)
 
             // Alerts can arrive late; prefer the time written in the alert so the record lands when the
@@ -159,15 +168,31 @@ class BankNotificationListener : NotificationListenerService() {
                 return true
             }
 
+            // Shopee's "Payment" activity repeats an SPayLater payment already kept; the copy is dropped.
+            val spay = SpayLater.isAlert(text)
+            if (!spay && SpayLater.isPaymentCopy(text, posted, store.postedNotesSince(pkg, posted - SPAY_COPY_WINDOW_MS))) return false
+
             // A Cash in to GO+ moves money from the app's main account into its GO+ account.
             val cashIn = Parser.cashIn(text)
             if (cashIn != null && settings.cashInIgnored) return false
+            if (spay && settings.spayLaterIgnored) return false
 
-            val rule = RuleMatcher.pick(rules, text) ?: return hold(
+            // An SPayLater payment never falls back to the app's ordinary account: with none linked it's asked about.
+            val spayRule = if (spay) spayRules.firstOrNull() else null
+            if (spay && spayRule == null) {
+                val reason = "SPayLater payment, but no SPayLater account is linked"
+                val id = store.insert(hash, pkg, "", null, null, note, date, Store.UNPARSED, error = reason, posted = posted)
+                Notifier.unparsed(context, store.counts()[Store.UNPARSED], reason)
+                Notifier.askIgnoreSpayLater(context, id)
+                return true
+            }
+
+            val rule = spayRule ?: RuleMatcher.pick(rules, text) ?: return hold(
                 "", RuleMatcher.endings(text).firstOrNull()?.let { "Account ending $it isn't linked to a Wallet account" }
                     ?: "No bank-app rule matched this alert"
             )
-            val parsed = cashIn ?: Parser.parse(text) ?: return hold(rule.accountId, "Couldn't read the amount or direction")
+            val parsed = cashIn ?: (if (spay) Parser.spayLater(text) else Parser.parse(text))
+                ?: return hold(rule.accountId, "Couldn't read the amount or direction")
             val goPlusRule = if (cashIn != null) goPlus.firstOrNull() else null
             if (cashIn != null && goPlusRule == null) {
                 // Nowhere to put it: keep it, and ask whether Cash ins should be ignored from now on.
@@ -229,9 +254,12 @@ class BankNotificationListener : NotificationListenerService() {
                 }
             }
 
+            // An SPayLater alert names no currency, so the amount is in the account's: say so where it's shown.
+            val currencyNote = if (spay && parsed.currency == null) SpayLater.currencyNote(rule.accountCurrency) else ""
+
             if (status == Store.REVIEW) {
                 val what = String.format(Locale.US, "%+.2f", parsed.amount) +
-                    (parsed.payee?.let { " $it" } ?: "") + " → " + rule.accountName + "\n" +
+                    (parsed.payee?.let { " $it" } ?: "") + " → " + rule.accountName + "\n" + currencyNote +
                     (transfer?.let { "Transfer: $it" } ?: ("Category: " + (category?.name ?: "none (Wallet will show Unknown)")))
                 Notifier.review(context, id, what)
             } else {
@@ -239,7 +267,7 @@ class BankNotificationListener : NotificationListenerService() {
                 Uploader.changed()
                 Notifier.captured(context, id, if (settings.hideDetails) "From ${rule.label}, going to Wallet." else {
                     String.format(Locale.US, "%+.2f", parsed.amount) + " " + rule.accountCurrency +
-                        (parsed.payee?.let { " · $it" } ?: "") + " → " + rule.accountName + "\n" +
+                        (parsed.payee?.let { " · $it" } ?: "") + " → " + rule.accountName + "\n" + currencyNote +
                         (transfer?.let { "Matched as a transfer: $it" }
                             ?: category?.name?.let { "Category: $it" } ?: "No category yet: tap to choose one")
                 })

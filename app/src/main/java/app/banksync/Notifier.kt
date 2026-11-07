@@ -125,6 +125,19 @@ object Notifier {
         manager(context).notify(REVIEW_BASE + id.toInt(), n)
     }
 
+    /** An SPayLater payment with no SPayLater account to go to [id]: asks whether to drop every future one. */
+    fun askIgnoreSpayLater(context: Context, id: Long) {
+        if (!canPost(context)) return
+        val icon = Icon.createWithResource(context, R.drawable.ic_stat)
+        val n = base(
+            context, REVIEW, "Ignore SPayLater payments?",
+            "No SPayLater account is linked to this app, so an SPayLater payment has nowhere to go and isn't sent. " +
+                "Ignore all future ones? You can change this in Settings, and you'll be asked again if you link an SPayLater account."
+        ).addAction(Notification.Action.Builder(icon, "Ignore them", action(context, ReviewReceiver.IGNORE_SPAYLATER, id)).build())
+            .build()
+        manager(context).notify(REVIEW_BASE + id.toInt(), n)
+    }
+
     private fun action(context: Context, action: String, id: Long): PendingIntent {
         val intent = Intent(context, ReviewReceiver::class.java).setAction(action).putExtra("id", id)
         val code = id.toInt() * 3 + when (action) {

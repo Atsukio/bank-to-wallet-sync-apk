@@ -332,6 +332,11 @@ class ParserTest {
             // A payment word with no amount at all isn't something to enter either.
             "Sample Bank Your payment was successful. Tap to view the details.",
             "Sample Wallet Interest is paid daily into your savings.",
+            // A group split shows the whole bill, and the group's member list has no amount.
+            "Sample Bank Group expense added Sample Person added \"Sample Dinner\" of RM144.70 into \"Sample Trip\" Group. See your share now.",
+            "Sample Bank your \"Sample Trip\" group members",
+            // App update prompts; the version number reads like cents.
+            "Sample Wallet App security being upgraded Update to app version 1.9.21 or later by 16 November 2026 for new features. Ignore if you're on the latest version. Update now",
         ).forEach { assertTrue(it, Parser.isNotice(it)) }
     }
 

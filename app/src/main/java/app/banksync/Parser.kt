@@ -158,6 +158,10 @@ object Parser {
             """\b(?:use|using|with) (?:promo |voucher )?code\b""", """\bchip in\b""",
             """\bminimum payment\b""", """\b(?:payment )?(?:is )?due (?:on|by|date)\b""", """\bstatement is (?:ready|available)\b""",
             """\breminder\b""", """\bkeep (?:earning|saving|growing)\b""", """\bthe more you\b""",
+            // Group splits: the alert shows the whole bill, not what the user paid.
+            """\bgroup (?:expense|members?)\b""", """\bsee your share\b""",
+            // App update prompts; their version numbers look like cents.
+            """\bapp (?:security|version)\b""", """\bupdate now\b""", """\blatest version\b""",
         ).joinToString("|"),
     )
 
@@ -174,6 +178,27 @@ object Parser {
         if (noticeRe.containsMatchIn(text.lowercase())) return true
         return amountRe.find(text) == null && centsRe.find(text) == null
     }
+
+    /**
+     * ShopeePay's SPayLater (buy now, pay later) alert: "We have successfully deducted 17.63 from your SPayLater
+     * account as a payment to a linked partner Google." It has no currency sign, so [parse] can't read it. The
+     * payee is the partner. Null when no deduction amount is written.
+     */
+    fun spayLater(text: String): Parsed? {
+        val m = spayDeductedRe.find(text) ?: return null
+        val amount = m.groupValues[1].replace(",", "").toDoubleOrNull()?.takeIf { it != 0.0 } ?: return null
+        val payee = spayPartnerRe.find(text)?.groupValues?.get(1)?.trim()?.take(100)?.takeIf { it.isNotEmpty() }
+        return Parsed(-amount, payee, null)
+    }
+
+    private val spayDeductedRe = Regex("""\bdeducted\s+(?:RM\s?)?(\d{1,3}(?:,\d{3})+(?:\.\d{1,2})?|\d+(?:\.\d{1,2})?)""", RegexOption.IGNORE_CASE)
+    private val spayPartnerRe = Regex("""\bpartner\s+([^.\n]+)""", RegexOption.IGNORE_CASE)
+
+    /** Every amount written with cents in [text] ("17.63", "1,204.50"), for matching one alert to another. */
+    fun decimals(text: String): List<Double> =
+        Regex("""\d{1,3}(?:,\d{3})+\.\d{2}\b|\d+\.\d{2}\b""").findAll(text)
+            .mapNotNull { it.value.replace(",", "").toDoubleOrNull() }
+            .toList()
 
     fun amountOf(text: String): Double? =
         amountRe.find(text)?.groupValues?.get(2)?.replace(",", "")?.toDoubleOrNull()?.takeIf { it != 0.0 }

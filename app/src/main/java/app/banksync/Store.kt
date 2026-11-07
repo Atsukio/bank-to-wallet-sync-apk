@@ -296,6 +296,15 @@ class Store private constructor(context: Context, name: String?) : SQLiteOpenHel
             buildList { while (c.moveToNext()) add(Held(c.getLong(0), c.getString(1), c.getString(2), c.getLong(3))) }
         }
 
+    /** (posted time, alert text) of the alerts from [pkg] posted at or after [sinceMs], for spotting copies of one. */
+    fun postedNotesSince(pkg: String, sinceMs: Long): List<Pair<Long, String>> =
+        readableDatabase.rawQuery(
+            "SELECT posted, note FROM rec WHERE pkg=? AND posted>=? AND note IS NOT NULL ORDER BY id DESC LIMIT 200",
+            arrayOf(pkg, sinceMs.toString())
+        ).use { c ->
+            buildList { while (c.moveToNext()) add(c.getLong(0) to c.getString(1)) }
+        }
+
     /** Turns a "not understood" row into a normal queued record using values the user supplied. */
     fun fix(id: Long, account: String, amount: Double, payee: String?, category: CategoryPick?) {
         val v = ContentValues().apply {
