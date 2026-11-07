@@ -13,6 +13,15 @@ class Release(val code: Int, val name: String, val date: String, val changes: Li
 object Changelog {
     val releases = listOf(
         Release(
+            15, "1.8", "7 Nov 2026",
+            listOf(
+                "SPayLater payments from the Shopee app go to their own Wallet account, never ShopeePay's. Link an account named SPayLater under Shopee in Settings › Bank apps. With none linked, the alert is held and you're asked whether to ignore SPayLater payments; you can change that any time in Shopee's ⋮ menu there.",
+                "Shopee's \"Payment\" activity that repeats an SPayLater payment is skipped, so it isn't sent twice, whether you ignore SPayLater payments or not and whichever arrives first. Alerts about SPayLater bills, offers or refunds are held instead of being sent as payments.",
+                "An SPayLater alert names no currency, so the notification says its amount is in the account's currency. Account lists now show each account's currency.",
+                "Ryt Bank group expense and group member notices, and app security or update prompts from banks, no longer show up as transactions that need you.",
+            )
+        ),
+        Release(
             14, "1.7.1", "5 Nov 2026",
             listOf(
                 "Shopee's Money+ notifications, such as \"Your bonus is in!\", can be cleared for you: in Settings › Bank apps, tap Shopee's ⋮ › Dismiss Money+ notifications. Its other notifications stay.",

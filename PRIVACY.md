@@ -1,6 +1,6 @@
 # Privacy Policy
 
-_Bank to Wallet (Android app, package `app.banksync`) · last updated 1 November 2026_
+_Bank to Wallet (Android app, package `app.banksync`) · last updated 7 November 2026_
 
 Bank to Wallet reads the transaction notifications from the bank apps you choose and adds them as records in your BudgetBakers Wallet account. This policy explains what the app does with your data. In short: everything stays on your phone, except the transactions it sends to your own Wallet account.
 
@@ -15,6 +15,7 @@ In the app's private storage only:
 - the transactions it captured, with any note you typed for one, until Wallet confirms them. The alert's full text is deleted as soon as the record is in Wallet; the remaining history (date, amount, payee, category, the note Wallet got, status, and any change or removal you asked for until Wallet has it, or until you forget one Wallet refused) is deleted after the number of days you choose (7 by default), or when you tap **Clear sent history**;
 - alerts it couldn't understand, until you fix or delete them, or the history period ends;
 - your token (encrypted), the bank apps and the Wallet account each one feeds, your category rules, the categories you chose by hand for particular merchants, and your settings;
+- the time and amount, and nothing else, of up to 20 SPayLater payments you chose to ignore, only so Shopee's repeat of one can be skipped;
 - a copy of the Wallet data listed above, so categories can be picked without going online.
 
 The app turns off Android backup and phone-to-phone transfer, so none of this is copied to Google Drive or to a new phone. **Export settings** writes a file you choose; it never includes your token. Uninstalling the app deletes everything.

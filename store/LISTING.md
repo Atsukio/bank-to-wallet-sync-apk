@@ -109,10 +109,13 @@ To retake them, run `.\tools\screenshots.ps1` from the repo root (about a minute
 ## Release
 1. Build the bundle: `.\gradlew.bat bundleRelease` (with `keystore.properties` in place), output `app/build/outputs/bundle/release/app-release.aab`.
 2. First upload: **Test and release › Testing › Closed testing**, create a track, add testers, upload the `.aab`, add release notes (the latest `Changelog` entry), roll out.
-3. Release notes for 1.7.1 (Play's limit is 500 characters):
+3. Release notes for 1.8 (Play's limit is 500 characters):
 
 ```
-• Shopee's Money+ notifications, such as "Your bonus is in!", can be cleared for you: in Settings › Bank apps, tap Shopee's ⋮ › Dismiss Money+ notifications
+• SPayLater payments from Shopee go to their own Wallet account: link one named SPayLater in Settings › Bank apps
+• Shopee's repeat of an SPayLater payment is skipped, so it isn't sent twice
+• Account lists show each account's currency
+• Ryt Bank group notices and app update prompts no longer show as needing you
 ```
 
 4. Personal developer accounts need 12 testers opted in for 14 days in a row before **Production** can be applied for.
