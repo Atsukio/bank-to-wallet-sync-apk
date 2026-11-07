@@ -42,7 +42,7 @@ Single module `app/`. Kotlin, **Android Views with Material Components 1.12 (Mat
 | `ActionSheet.kt` | The bottom sheet itself: header, note (sending paused, or `SentEdit.whyNot`), facts, actions. Closing it calls `Uploader.release`. |
 | `SettingsActivity.kt` | Auto-saving with a "Saved" snackbar (text fields on Done/Next or focus loss). Token, bank apps, categories, capture, uploads, privacy, wallpaper colours (Android 12+). |
 | `OnboardingActivity.kt` | Setup guide (step saved): welcome, token, access, battery, bank apps, a few switches, summary. |
-| `Dialogs.kt` / `Pickers.kt` | Record, fix, edit-sent and test dialogs, `CategoryChooser`, app and account pickers. Bank apps grouped by app with the default marked; each rule row, and Shopee's heading (Money+ and SPayLater payments), has a ⋮ menu (`RowAction`); Remove offers Undo. |
+| `Dialogs.kt` / `Pickers.kt` | Record, fix, edit-sent and test dialogs, `CategoryChooser`, app and account pickers. Bank apps grouped by app with the default marked; each rule row, and Shopee's heading (Money+ and SPayLater payments), has a ⋮ menu (`RowAction`); Account rows show the Wallet account's currency when it has one. Remove offers Undo. |
 | `Permissions.kt` | Notification access via `askAccess` (the prominent disclosure Play requires), listener rebind, battery page. `REQUEST_IGNORE_BATTERY_OPTIMIZATIONS` was removed because Play restricts it; don't add it back. |
 | `Demo.kt` | Made-up rules and alerts (through the real `Parser`) in an in-memory queue; nothing saved or uploaded (screens guard `Uploader.schedule`, `WalletCache`, `rememberCategory` with `Demo.active`). Sent demo records get fake `walletId`s so editing can be tried. |
 | `Ui.kt` / `Motion.kt` | `Tone`, `Chip` (status pill colours; amber `chip_you` in `colors.xml`, with the paler `row_you`/`row_bad` row washes), `themeColor`, `AlertDialog.danger`; animations that play only when something changed and follow the system animation scale. |
@@ -64,7 +64,7 @@ $env:JAVA_HOME = "C:\Program Files\Eclipse Adoptium\jdk-17.0.20.101-hotspot"
 - Results: `app/build/test-results/testDebugUnitTest/*.xml`; APKs in `app/build/outputs/apk/`. Report failures with their output. Don't run `clean`.
 - `lintDebug` after UI or manifest changes. Checks for deliberate choices are off in `app/build.gradle.kts`, so what's left in `app/build/reports/lint-results-debug.xml` is worth reading. Decorative images get `android:contentDescription="@null"`.
 - **See a UI change:** `.\tools\screenshots.ps1` builds, starts the `Medium_Phone_API_37.0` emulator, opens the app in demo mode and saves the Play screenshots to `store/screenshots/` (light and dark, 1080x2160). Look at them with the image reader; add a step for a new screen. Discard the result (`git checkout -- store/screenshots`) unless the screenshots should change.
-- CI (`.github/workflows/ci.yml`) runs the unit tests, lint and a debug build on every push; the owner pushes.
+- CI (`.github/workflows/ci.yml`) runs the unit tests, lint and a debug build on every push to `main`.
 - Only Gradle output counts; VS Code doesn't understand the Android build. After build file changes the owner runs **File › Sync Project with Gradle Files** in Android Studio.
 
 ## Toolchain rules (AGP 9)
@@ -121,15 +121,19 @@ Read by the `android-play-release` skill (TeamPotatoes/claude-skills); "the usua
 
 [Conventional Commits](https://www.conventionalcommits.org/en/v1.0.0/): `<type>(<scope>): <imperative summary, lower case>`. Scopes: `capture`, `parser`, `upload`, `categories`, `ui`, `settings`, `lock`, `build`. End with the session's `Co-Authored-By` trailer. Don't rewrite history.
 
+**Trunk based:** commit and push straight to `main`. No feature branches, no pull requests.
+
 ## Working with the owner
 
-- Take the lead on tooling, refactors, tests and docs, and commit that work. Ask before user-visible product changes, larger features, new app libraries, pushing or releasing; offer to commit product work when a coherent set is ready.
+- Take the lead on tooling, refactors, tests and docs, and commit that work. Ask before user-visible product changes, larger features, new app libraries, pushing or releasing; offer to commit product work when a coherent set is ready. Once the owner asks for a push, push to `main`.
+- End every change report with a short "Ideas" list of next steps.
 - They test on their own phone with real banks; screenshots may contain real values (see the data rules).
 - Explain Android Studio steps concretely (menu paths, what to click); they're not an Android specialist.
 
-## Status as of 2026-11-05
+## Status as of 2026-11-07
 
-- Released history is in `Changelog.kt`. 1.7.1 (versionCode 14) is on Play (2026-11-05). No release is open: the next user-visible change starts a new version.
+- Released history is in `Changelog.kt`. 1.7.1 (versionCode 14) is on Play (2026-11-05). No release is open: the next user-visible change starts a new version (versionCode 15).
+- SPayLater routing (`6abd953` on `main`, 2026-11-07): unit tests and lint pass; unverified on a real phone or emulator. Open: a synthetic sample of the Shopee "Payment" activity alert (duplicate match is by amount and hour, not by its real wording); the Shopee ⋮ menu needs a demo rule in `Demo.kt`, which would change the Play screenshots. Older rules without a saved currency need relinking.
 - Checked on the emulator only (demo mode): the 1.6 home screen and sheet, light and dark.
 - Planned payments (in 1.7): checked on the emulator in demo mode. The owner's Settings › Planned payments check (2026-11-01): amounts stored positive with `type`; no occurrences listed at all, even just after marking one paid; marking paid leaves `dueDate` as it was but raises `paymentCount`, which counts payments from `generateFromDate` (`recurrenceRule` like `FREQ=MONTHLY`). Unverified: the date of the record marking paid makes (`paidBy` looks from 3 days before the due day).
 - Edit in Wallet: works on the owner's phone (2026-11-01).
