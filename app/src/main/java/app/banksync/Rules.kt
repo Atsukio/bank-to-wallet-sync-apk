@@ -88,33 +88,56 @@ object GoPlus {
 object SpayLater {
     private val name = Regex("""\bs?pay\s?later\b""", RegexOption.IGNORE_CASE)
     private val payment = Regex("""\bpayment\b""", RegexOption.IGNORE_CASE)
-    private const val HOUR = 3_600_000L
+    private val paid = Regex("""\bdeducted\b|\bpayment (?:is |was )?successful\b""", RegexOption.IGNORE_CASE)
+    private val refund = Regex("""\brefund""", RegexOption.IGNORE_CASE)
+
+    /** How far apart an SPayLater alert and Shopee's "Payment" activity repeating it can be. */
+    const val HOUR = 3_600_000L
 
     fun isAccount(accountName: String): Boolean = name.containsMatchIn(accountName)
 
     /** Only the Shopee app's rules: another bank's account that happens to be named like one is an ordinary rule. */
     fun isRule(rule: Rule): Boolean = MoneyPlus.isShopee(rule.label) && isAccount(rule.accountName)
 
-    /** An SPayLater alert, by its wording ("Your SPayLater payment is successful"). */
-    fun isAlert(text: String): Boolean = name.containsMatchIn(text)
+    /** Any alert naming SPayLater: a payment, but also a bill, an offer or a refund. None go to the app's ordinary account. */
+    fun mentions(text: String): Boolean = name.containsMatchIn(text)
+
+    /** An SPayLater payment, by its wording ("Your SPayLater payment is successful ... deducted 17.63"). */
+    fun isAlert(text: String): Boolean = mentions(text) && paid.containsMatchIn(text) && !refund.containsMatchIn(text)
+
+    /** (posted time, amount paid) of the SPayLater payments among [notes], the (posted time, text) of kept alerts. */
+    fun payments(notes: List<Pair<Long, String>>): List<Pair<Long, Double>> =
+        notes.mapNotNull { (t, text) -> if (isAlert(text)) Parser.spayLater(text)?.let { t to it.amount } else null }
+
+    /**
+     * [recent] (posted time, amount) of ignored SPayLater payments with one more, keeping only those within an hour
+     * of it and at most 20, so Shopee's "Payment" activity repeating one is still recognised.
+     */
+    fun remember(recent: List<Pair<Long, Double>>, posted: Long, amount: Double): List<Pair<Long, Double>> =
+        (recent.filter { abs(it.first - posted) <= HOUR } + (posted to amount)).takeLast(20)
 
     /** The line a notification shows when the alert names no currency, so the amount is in the account's. */
     fun currencyNote(accountCurrency: String): String =
         "Amount in ${accountCurrency.ifEmpty { "the account's currency" }}: the alert names no currency.\n"
 
     /**
-     * A ShopeePay "Payment" activity repeating an SPayLater alert already kept: it names the same amount, posted
-     * within an hour of it. [alerts] are the (posted time, text) of SPayLater alerts already kept.
+     * A ShopeePay "Payment" activity repeating an SPayLater payment: it names the same amount, posted within an
+     * hour of it, either way round. [payments] are the (posted time, amount) of SPayLater payments seen, kept or
+     * ignored. A refund is never a copy.
      */
-    fun isPaymentCopy(text: String, posted: Long, alerts: List<Pair<Long, String>>): Boolean {
-        if (isAlert(text) || !payment.containsMatchIn(text)) return false
+    fun isPaymentCopy(text: String, posted: Long, payments: List<Pair<Long, Double>>): Boolean {
+        if (mentions(text) || !payment.containsMatchIn(text) || refund.containsMatchIn(text)) return false
         val amounts = Parser.decimals(text)
         if (amounts.isEmpty()) return false
-        return alerts.any { (t, earlier) ->
-            val paid = Parser.spayLater(earlier)?.amount ?: return@any false
-            abs(t - posted) <= HOUR && amounts.any { abs(it - abs(paid)) < 0.005 }
-        }
+        return payments.any { (t, paid) -> abs(t - posted) <= HOUR && amounts.any { abs(it - abs(paid)) < 0.005 } }
     }
+
+    /**
+     * Of [waiting] (id, posted time, text) records not yet sent, the ids of Shopee "Payment" activity that arrived
+     * before the SPayLater payment of [amount] posted at [posted] and repeat it.
+     */
+    fun earlierCopies(waiting: List<Triple<Long, Long, String>>, posted: Long, amount: Double): List<Long> =
+        waiting.filter { (_, t, text) -> isPaymentCopy(text, t, listOf(posted to amount)) }.map { it.first }
 }
 
 object IgnoreWords {

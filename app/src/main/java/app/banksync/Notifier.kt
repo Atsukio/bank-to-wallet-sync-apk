@@ -81,6 +81,11 @@ object Notifier {
         manager(context).cancel(CAPTURED_ID)
     }
 
+    /** Takes down the "picked up" notification only while it's about record [id], which is gone. */
+    fun cancelCapturedFor(context: Context, id: Long) {
+        if (state(context).getLong("capturedId", -1) == id) cancelCaptured(context)
+    }
+
     fun summary(context: Context, text: String) {
         if (!canPost(context)) return
         manager(context).notify(SUMMARY_ID, base(context, SUMMARY, "Today in Bank to Wallet", text).build())

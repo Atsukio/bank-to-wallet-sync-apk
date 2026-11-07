@@ -305,6 +305,25 @@ class Store private constructor(context: Context, name: String?) : SQLiteOpenHel
             buildList { while (c.moveToNext()) add(c.getLong(0) to c.getString(1)) }
         }
 
+    /**
+     * (id, posted time, alert text) of [pkg]'s records posted at or after [sinceMs] that haven't gone to Wallet and
+     * aren't half of a transfer: the ones [discardCopy] may remove.
+     */
+    fun waitingNotesSince(pkg: String, sinceMs: Long): List<Triple<Long, Long, String>> =
+        readableDatabase.rawQuery(
+            "SELECT id, posted, note FROM rec WHERE pkg=? AND posted>=? AND note IS NOT NULL AND pairId IS NULL " +
+                "AND walletId IS NULL AND status IN ($PENDING,$REVIEW,$UNPARSED) ORDER BY id DESC LIMIT 200",
+            arrayOf(pkg, sinceMs.toString())
+        ).use { c ->
+            buildList { while (c.moveToNext()) add(Triple(c.getLong(0), c.getLong(1), c.getString(2))) }
+        }
+
+    /** Removes a record found to repeat another alert, only while it still hasn't gone to Wallet. */
+    fun discardCopy(id: Long): Boolean =
+        writableDatabase.delete(
+            "rec", "id=? AND pairId IS NULL AND walletId IS NULL AND status IN ($PENDING,$REVIEW,$UNPARSED)", arrayOf(id.toString())
+        ) > 0
+
     /** Turns a "not understood" row into a normal queued record using values the user supplied. */
     fun fix(id: Long, account: String, amount: Double, payee: String?, category: CategoryPick?) {
         val v = ContentValues().apply {

@@ -121,6 +121,17 @@ class Settings(context: Context) {
         get() = p.getBoolean("spayLaterIgnored", false)
         set(v) = p.edit().putBoolean("spayLaterIgnored", v).apply()
 
+    /**
+     * (posted time, amount) of SPayLater payments dropped in the last hour because they're ignored, so Shopee's
+     * "Payment" activity repeating one isn't sent instead. Not exported: it's only good for an hour.
+     */
+    var ignoredSpayLater: List<Pair<Long, Double>>
+        get() = p.getString("ignoredSpayLater", "").orEmpty().split(",").mapNotNull { e ->
+            val (t, a) = e.split(":").takeIf { it.size == 2 } ?: return@mapNotNull null
+            (t.toLongOrNull() ?: return@mapNotNull null) to (a.toDoubleOrNull() ?: return@mapNotNull null)
+        }
+        set(v) = p.edit().putString("ignoredSpayLater", v.joinToString(",") { "${it.first}:${it.second}" }).apply()
+
     /** Clear Shopee's Money+ notifications (bonus, earnings) from the shade once read; see [MoneyPlus]. */
     var dismissMoneyPlus: Boolean
         get() = p.getBoolean("dismissMoneyPlus", false)

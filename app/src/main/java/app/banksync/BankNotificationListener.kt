@@ -119,9 +119,6 @@ class BankNotificationListener : NotificationListenerService() {
 
         private val lock = Any()
 
-        /** How far back an SPayLater alert is looked for when a Shopee "Payment" activity may be its copy. */
-        private const val SPAY_COPY_WINDOW_MS = 3_600_000L
-
         /**
          * Runs alerts held because no rule gave them an account through capture again, now that a rule
          * might (a new default or link). Ones still without an account are left as they are. Works
@@ -133,11 +130,17 @@ class BankNotificationListener : NotificationListenerService() {
             val hasSpayLater = linked.any(SpayLater::isRule)
             val store = Store.get(context)
             val found = store.heldWithoutAccount(pkg).filter {
-                if (SpayLater.isAlert(it.text)) hasSpayLater else RuleMatcher.pick(rules, it.text) != null
+                when {
+                    SpayLater.isAlert(it.text) -> hasSpayLater
+                    SpayLater.mentions(it.text) -> false // not a payment: no account takes it
+                    else -> RuleMatcher.pick(rules, it.text) != null
+                }
             }
             // Same hash and posted time as before, so a catch-up scan still knows these alerts.
             found.forEach {
                 store.delete(it.id)
+                // The question it raised ("Ignore SPayLater payments?", "Ignore Cash in alerts?") is answered by the link.
+                Notifier.cancelReview(context, it.id)
                 capture(context, pkg, it.text, it.hash, it.posted)
             }
             if (found.isNotEmpty() && store.counts()[Store.UNPARSED] == 0) Notifier.cancelUnparsed(context)
@@ -168,14 +171,27 @@ class BankNotificationListener : NotificationListenerService() {
                 return true
             }
 
-            // Shopee's "Payment" activity repeats an SPayLater payment already kept; the copy is dropped.
+            // Shopee's "Payment" activity repeats an SPayLater payment, kept or ignored; the copy is dropped.
+            val mentionsSpay = SpayLater.mentions(text)
             val spay = SpayLater.isAlert(text)
-            if (!spay && SpayLater.isPaymentCopy(text, posted, store.postedNotesSince(pkg, posted - SPAY_COPY_WINDOW_MS))) return false
+            if (!mentionsSpay) {
+                val seen = SpayLater.payments(store.postedNotesSince(pkg, posted - SpayLater.HOUR)) + settings.ignoredSpayLater
+                if (SpayLater.isPaymentCopy(text, posted, seen)) return false
+            }
+            // Or the copy came first and is still waiting to go: it goes instead of reaching the ordinary account.
+            val spayPaid = if (spay) Parser.spayLater(text) else null
+            if (spayPaid != null) dropEarlierCopies(context, store, pkg, posted, spayPaid.amount)
 
             // A Cash in to GO+ moves money from the app's main account into its GO+ account.
             val cashIn = Parser.cashIn(text)
             if (cashIn != null && settings.cashInIgnored) return false
-            if (spay && settings.spayLaterIgnored) return false
+            if (mentionsSpay && settings.spayLaterIgnored) {
+                // Remembered for an hour, so the "Payment" activity repeating it isn't sent in its place.
+                if (spayPaid != null) settings.ignoredSpayLater = SpayLater.remember(settings.ignoredSpayLater, posted, spayPaid.amount)
+                return false
+            }
+            // A bill, offer or refund naming SPayLater: never the app's ordinary account, and not a payment to ask about.
+            if (mentionsSpay && !spay) return hold("", "Mentions SPayLater but isn't a payment")
 
             // An SPayLater payment never falls back to the app's ordinary account: with none linked it's asked about.
             val spayRule = if (spay) spayRules.firstOrNull() else null
@@ -273,6 +289,22 @@ class BankNotificationListener : NotificationListenerService() {
                 })
             }
             return true
+        }
+
+        /**
+         * Removes Shopee "Payment" activity captured before the SPayLater payment of [amount] it repeats, while it
+         * still hasn't gone to Wallet, with its notifications. One already sent stays.
+         */
+        private fun dropEarlierCopies(context: Context, store: Store, pkg: String, posted: Long, amount: Double) {
+            val gone = SpayLater.earlierCopies(store.waitingNotesSince(pkg, posted - SpayLater.HOUR), posted, amount)
+                .filter(store::discardCopy)
+            if (gone.isEmpty()) return
+            gone.forEach {
+                Notifier.cancelReview(context, it)
+                Notifier.cancelCapturedFor(context, it)
+            }
+            if (store.counts()[Store.UNPARSED] == 0) Notifier.cancelUnparsed(context)
+            Uploader.changed()
         }
 
         /** The other side of a transfer among records captured within [Transfers.WINDOW_MS] of [whenMs], if any. */
