@@ -147,6 +147,11 @@ object Parser {
         return hour?.toIntOrNull()?.takeIf { it in 1..12 }
     }
 
+    /** Failed, declined or unsuccessful transactions: money didn't move. */
+    private val failedRe = Regex(
+        """\bunsuccessful\b|\bdeclined\b|\b(?:transfer|payment|transaction) (?:is |was |has )?failed\b|\bfailed (?:transfer|payment|transaction)\b"""
+    )
+
     /** Wording that only ads, offers and reminders use; a transaction alert reports what happened. */
     private val noticeRe = Regex(
         listOf(
@@ -162,6 +167,8 @@ object Parser {
             """\bgroup (?:expense|members?)\b""", """\bsee your share\b""",
             // App update prompts; their version numbers look like cents.
             """\bapp (?:security|version)\b""", """\bupdate now\b""", """\blatest version\b""",
+            // Unsuccessful transfers and declined transactions: money didn't move.
+            failedRe.pattern,
         ).joinToString("|"),
     )
 
@@ -208,6 +215,7 @@ object Parser {
         val amount = m.groupValues[2].replace(",", "").toDoubleOrNull() ?: return null
         if (amount == 0.0) return null
         val lower = text.lowercase()
+        if (failedRe.containsMatchIn(lower)) return null
         val credit = creditRe.find(lower)?.range?.first
         val debit = listOfNotNull(debitRe.find(lower)?.range?.first, outgoingRe.find(lower)?.range?.first).minOrNull()
         val income = when {

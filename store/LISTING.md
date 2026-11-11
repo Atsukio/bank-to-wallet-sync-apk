@@ -115,7 +115,7 @@ To retake them, run `.\tools\screenshots.ps1` from the repo root (about a minute
 • SPayLater payments from Shopee go to their own Wallet account: link one named SPayLater in Settings › Bank apps
 • Shopee's repeat of an SPayLater payment is skipped, so it isn't sent twice
 • Account lists show each account's currency
-• Ryt Bank group notices and app update prompts no longer show as needing you
+• Ryt Bank group notices, app update prompts and unsuccessful transfers no longer show as needing you
 ```
 
 4. Personal developer accounts need 12 testers opted in for 14 days in a row before **Production** can be applied for.

@@ -18,7 +18,7 @@ object Changelog {
                 "SPayLater payments from the Shopee app go to their own Wallet account, never ShopeePay's. Link an account named SPayLater under Shopee in Settings › Bank apps. With none linked, the alert is held and you're asked whether to ignore SPayLater payments; you can change that any time in Shopee's ⋮ menu there.",
                 "Shopee's \"Payment\" activity that repeats an SPayLater payment is skipped, so it isn't sent twice, whether you ignore SPayLater payments or not and whichever arrives first. Alerts about SPayLater bills, offers or refunds are held instead of being sent as payments.",
                 "An SPayLater alert names no currency, so the notification says its amount is in the account's currency. Account lists now show each account's currency.",
-                "Ryt Bank group expense and group member notices, and app security or update prompts from banks, no longer show up as transactions that need you.",
+                "Unsuccessful transfers (such as Touch 'n Go eWallet unsuccessful DuitNow alerts), declined transactions, Ryt Bank group notices, and app security or update prompts no longer show up as transactions that need you.",
             )
         ),
         Release(

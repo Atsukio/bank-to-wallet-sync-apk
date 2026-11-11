@@ -337,7 +337,23 @@ class ParserTest {
             "Sample Bank your \"Sample Trip\" group members",
             // App update prompts; the version number reads like cents.
             "Sample Wallet App security being upgraded Update to app version 1.9.21 or later by 16 November 2026 for new features. Ignore if you're on the latest version. Update now",
+            // Unsuccessful transfers and declined payments: money didn't move.
+            "TNG eWallet DuitNow Transfer is unsuccessful RM 50.00 transfer to Sample Person was unsuccessful. Refund has been made to your eWallet.",
+            "Sample Bank Transfer failed RM 20.00 to Sample Person was not sent.",
+            "Sample Card RM 35.00 payment declined at Sample Shop.",
         ).forEach { assertTrue(it, Parser.isNotice(it)) }
+    }
+
+    @Test
+    fun unsuccessfulOrDeclinedAlertsAreNotParsed() {
+        assertNull(
+            Parser.parse(
+                "TNG eWallet DuitNow Transfer is unsuccessful RM 50.00 transfer to Sample Person was unsuccessful. " +
+                    "Refund has been made to your eWallet."
+            )
+        )
+        assertNull(Parser.parse("Sample Bank Transfer failed RM 20.00 to Sample Person was not sent."))
+        assertNull(Parser.parse("Sample Card RM 35.00 payment declined at Sample Shop."))
     }
 
     @Test

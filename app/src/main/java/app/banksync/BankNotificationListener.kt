@@ -129,10 +129,11 @@ class BankNotificationListener : NotificationListenerService() {
             val rules = linked.filterNot(GoPlus::isGoPlus).filterNot(SpayLater::isRule)
             val hasSpayLater = linked.any(SpayLater::isRule)
             val store = Store.get(context)
+            val fromShopee = linked.any { MoneyPlus.isShopee(it.label) }
             val found = store.heldWithoutAccount(pkg).filter {
                 when {
-                    SpayLater.isAlert(it.text) -> hasSpayLater
-                    SpayLater.mentions(it.text) -> false // not a payment: no account takes it
+                    fromShopee && SpayLater.isAlert(it.text) -> hasSpayLater
+                    fromShopee && SpayLater.mentions(it.text) -> false // not a payment: no account takes it
                     else -> RuleMatcher.pick(rules, it.text) != null
                 }
             }
@@ -172,8 +173,10 @@ class BankNotificationListener : NotificationListenerService() {
             }
 
             // Shopee's "Payment" activity repeats an SPayLater payment, kept or ignored; the copy is dropped.
-            val mentionsSpay = SpayLater.mentions(text)
-            val spay = SpayLater.isAlert(text)
+            // Only Shopee and ShopeePay raise SPayLater payments; a bank's own alert naming it is an ordinary alert.
+            val fromShopee = linked.any { MoneyPlus.isShopee(it.label) }
+            val mentionsSpay = fromShopee && SpayLater.mentions(text)
+            val spay = fromShopee && SpayLater.isAlert(text)
             if (!mentionsSpay) {
                 val seen = SpayLater.payments(store.postedNotesSince(pkg, posted - SpayLater.HOUR)) + settings.ignoredSpayLater
                 if (SpayLater.isPaymentCopy(text, posted, seen)) return false
