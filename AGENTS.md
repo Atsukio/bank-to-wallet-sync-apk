@@ -50,7 +50,7 @@ Single module `app/`. Kotlin, **Android Views with Material Components 1.12 (Mat
 
 **Pure, unit-tested** (JUnit 4 in `app/src/test/`, made-up data): `Parser`, `Rules`, `Categorizer`, `CategorySearch`, `Transfers`, `SentEdit` (Edit in Wallet diff and request items), `RowStatus`, `Days`, `Summary`, `Changelog` (release notes shipped in the app; "What's new" once after an update), `Demo`.
 
-**Elsewhere:** `res/values{,-night}/` (teal M3 palette and `Widget.BankSync.*` styles; change both; Android 12+ uses wallpaper colours unless turned off, via `App` and `DynamicColors`), `PRIVACY.md` (keep it true to the code, updated in the same change), `store/` (listing, form answers, graphics via `make-graphics.mjs`, screenshots), `tools/screenshots.ps1`, `.claude/skills/` (Google's Android skills, local only, mostly Compose: adapt to Views).
+**Elsewhere:** `res/values{,-night}/` (teal M3 palette and `Widget.BankSync.*` styles; change both; Android 12+ uses wallpaper colours unless turned off, via `App` and `DynamicColors`), `PRIVACY.md` (keep it true to the code, updated in the same change), `store/` (listing, form answers, graphics via `make-graphics.mjs`, screenshots), `README.md` (badges, `docs/demo.gif`; MIT `LICENSE`), `tools/` (`screenshots.ps1` and `demo-gif.ps1` on the emulator, sharing `emulator.ps1`), `.claude/skills/` (Google's Android skills, local only, mostly Compose: adapt to Views).
 
 ## Build and test (Windows)
 
@@ -63,7 +63,7 @@ $env:JAVA_HOME = "C:\Program Files\Eclipse Adoptium\jdk-17.0.20.101-hotspot"
 
 - Results: `app/build/test-results/testDebugUnitTest/*.xml`; APKs in `app/build/outputs/apk/`. Report failures with their output. Don't run `clean`.
 - `lintDebug` after UI or manifest changes. Checks for deliberate choices are off in `app/build.gradle.kts`, so what's left in `app/build/reports/lint-results-debug.xml` is worth reading. Decorative images get `android:contentDescription="@null"`.
-- **See a UI change:** `.\tools\screenshots.ps1` builds, starts the `Medium_Phone_API_37.0` emulator, opens the app in demo mode and saves the Play screenshots to `store/screenshots/` (light and dark, 1080x2160). Look at them with the image reader; add a step for a new screen. Discard the result (`git checkout -- store/screenshots`) unless the screenshots should change.
+- **See a UI change:** `.\tools\screenshots.ps1` builds, starts the `Medium_Phone_API_37.0` emulator, opens the app in demo mode and saves the Play screenshots to `store/screenshots/` (light and dark, 1080x2160). Look at them with the image reader; add a step for a new screen. Discard the result (`git checkout -- store/screenshots`) unless the screenshots should change. `.\tools\demo-gif.ps1` records the README's GIF the same way (needs ffmpeg).
 - CI (`.github/workflows/ci.yml`) runs the unit tests, lint and a debug build on every push to `main`.
 - Only Gradle output counts; VS Code doesn't understand the Android build. After build file changes the owner runs **File › Sync Project with Gradle Files** in Android Studio.
 
@@ -84,6 +84,7 @@ Read by the `android-play-release` skill (TeamPotatoes/claude-skills); "the usua
 | Version file | `app/build.gradle.kts` (`versionCode`, `versionName`) |
 | Changelog | `app/src/main/java/app/banksync/Changelog.kt` (`Changelog.releases`, newest first; `ChangelogTest` checks it) |
 | Play notes | `store/LISTING.md`, the block under "Release notes for X.Y" |
+| README | the version badge in `README.md`; `.\tools\demo-gif.ps1` retakes `docs/demo.gif` when Home or the sheet changed |
 | Privacy policy and listing | `PRIVACY.md` (with its "last updated" date), `store/LISTING.md` (description and Data safety answers) |
 | Screenshots | `.\tools\screenshots.ps1` (emulator only) |
 | Build | `.\gradlew.bat testDebugUnitTest lintDebug bundleRelease --no-daemon --console=plain` (JAVA_HOME as above); bundle in `app/build/outputs/bundle/release/` |
