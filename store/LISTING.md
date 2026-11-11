@@ -109,7 +109,7 @@ To retake them, run `.\tools\screenshots.ps1` from the repo root (about a minute
 ## Release
 1. Build the bundle: `.\gradlew.bat bundleRelease` (with `keystore.properties` in place), output `app/build/outputs/bundle/release/app-release.aab`.
 2. First upload: **Test and release › Testing › Closed testing**, create a track, add testers, upload the `.aab`, add release notes (the latest `Changelog` entry), roll out.
-3. Release notes for 1.8 (Play's limit is 500 characters):
+3. Release notes for 1.8.1 (Play's limit is 500 characters):
 
 ```
 • SPayLater payments from Shopee go to their own Wallet account: link one named SPayLater in Settings › Bank apps

@@ -13,6 +13,12 @@ class Release(val code: Int, val name: String, val date: String, val changes: Li
 object Changelog {
     val releases = listOf(
         Release(
+            16, "1.8.1", "11 Nov 2026",
+            listOf(
+                "SPayLater handling now applies only to alerts from Shopee and ShopeePay. A bank alert that names SPayLater, such as one from MAE, is treated like any other alert from that bank and no longer asks whether to ignore SPayLater payments.",
+            )
+        ),
+        Release(
             15, "1.8", "7 Nov 2026",
             listOf(
                 "SPayLater payments from the Shopee app go to their own Wallet account, never ShopeePay's. Link an account named SPayLater under Shopee in Settings › Bank apps. With none linked, the alert is held and you're asked whether to ignore SPayLater payments; you can change that any time in Shopee's ⋮ menu there.",
